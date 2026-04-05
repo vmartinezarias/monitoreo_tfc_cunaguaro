@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Monitor Bosques — Chameza</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --verde:    #1a4a2e;
+      --verde-m:  #2d7a4f;
+      --verde-l:  #4caf7d;
+      --fuego:    #e8480a;
+      --fuego-l:  #ff7043;
+      --amber:    #f5a623;
+      --fondo:    #0d1f15;
+      --panel:    #111f17;
+      --borde:    #1e3528;
+      --texto:    #d4e8db;
+      --texto-m:  #7aab8a;
+      --blanco:   #f0f7f2;
+    }
+
+    html, body { height: 100%; font-family: 'Syne', sans-serif; background: var(--fondo); color: var(--texto); }
+
+    /* ── Layout ── */
+    .app { display: grid; grid-template-rows: 56px 1fr; grid-template-columns: 320px 1fr; height: 100vh; }
+
+    /* ── Header ── */
+    header {
+      grid-column: 1 / -1;
+      background: var(--panel);
+      border-bottom: 1px solid var(--borde);
+      display: flex; align-items: center; gap: 16px;
+      padding: 0 20px;
+    }
+    .logo {
+      width: 28px; height: 28px;
+      background: var(--verde-l);
+      clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+    }
+    header h1 { font-size: 15px; font-weight: 800; letter-spacing: .04em; color: var(--blanco); }
+    header h1 span { color: var(--verde-l); }
+    .badge-live {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px; color: var(--verde-l);
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--verde-l); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ── Panel lateral ── */
+    aside {
+      background: var(--panel);
+      border-right: 1px solid var(--borde);
+      overflow-y: auto;
+      display: flex; flex-direction: column;
+    }
+    .panel-section { padding: 16px; border-bottom: 1px solid var(--borde); }
+    .panel-title {
+      font-size: 10px; font-weight: 600; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--texto-m); margin-bottom: 12px;
+    }
+
+    /* Stats */
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat {
+      background: var(--fondo);
+      border: 1px solid var(--borde);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .stat-num { font-size: 24px; font-weight: 800; color: var(--blanco); line-height: 1; }
+    .stat-num.fuego { color: var(--fuego-l); }
+    .stat-label { font-size: 11px; color: var(--texto-m); margin-top: 4px; }
+
+    /* Lista de alertas */
+    .alerta-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--borde);
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .alerta-item:last-child { border-bottom: none; }
+    .alerta-item:hover { background: rgba(77,175,125,.05); margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+    .alerta-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      margin-top: 4px; flex-shrink: 0;
+    }
+    .alerta-dot.high { background: var(--fuego); box-shadow: 0 0 6px var(--fuego); }
+    .alerta-dot.nominal { background: var(--amber); }
+    .alerta-dot.low { background: var(--verde-l); }
+    .alerta-info { flex: 1; min-width: 0; }
+    .alerta-coords { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); }
+    .alerta-meta { font-size: 11px; color: var(--texto-m); margin-top: 2px; }
+    .alerta-frp {
+      font-family: 'Space Mono', monospace; font-size: 11px;
+      color: var(--fuego-l); white-space: nowrap;
+    }
+
+    /* Filtros */
+    .filtros { display: flex; gap: 6px; flex-wrap: wrap; }
+    .filtro-btn {
+      padding: 5px 10px; border-radius: 20px; border: 1px solid var(--borde);
+      background: transparent; color: var(--texto-m);
+      font-family: 'Syne', sans-serif; font-size: 11px; cursor: pointer;
+      transition: all .15s;
+    }
+    .filtro-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
+
+    /* Loading */
+    .loading {
+      display: flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 20px; color: var(--texto-m); font-size: 13px;
+    }
+    .spin {
+      width: 14px; height: 14px; border: 2px solid var(--borde);
+      border-top-color: var(--verde-l); border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Mapa ── */
+    #map { width: 100%; height: 100%; }
+
+    /* Leaflet overrides */
+    .leaflet-container { background: #0a1a0f; }
+    .leaflet-popup-content-wrapper {
+      background: var(--panel); border: 1px solid var(--borde);
+      border-radius: 8px; color: var(--texto);
+      box-shadow: 0 8px 32px rgba(0,0,0,.6);
+    }
+    .leaflet-popup-tip { background: var(--panel); }
+    .popup-title { font-size: 13px; font-weight: 700; color: var(--fuego-l); margin-bottom: 6px; }
+    .popup-row { font-size: 12px; color: var(--texto-m); margin: 2px 0; }
+    .popup-row span { color: var(--blanco); font-family: 'Space Mono', monospace; }
+
+    /* Footer del panel */
+    .panel-footer {
+      margin-top: auto; padding: 12px 16px;
+      font-size: 10px; color: var(--texto-m);
+      border-top: 1px solid var(--borde);
+    }
+    .panel-footer a { color: var(--verde-l); text-decoration: none; }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: 56px 200px 1fr; }
+      aside { border-right: none; border-bottom: 1px solid var(--borde); }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <img src="fondoaccion.png" alt="TFCA Fondo Acción" style="height:36px; object-fit:contain; filter:brightness(0) invert(1);">
+    <img src="cunaguaro.png" alt="CBC Cunaguaro" style="height:36px; object-fit:contain; filter:brightness(0) invert(1);">
+    <h1>Monitor Bosques <span>Chameza</span></h1>
+    <div class="badge-live"><div class="dot"></div> En vivo · NASA FIRMS</div>
+  </header>
+
+  <!-- Panel lateral -->
+  <aside>
+
+    <!-- Stats -->
+    <div class="panel-section">
+      <div class="panel-title">Resumen 24h</div>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-num fuego" id="total-alertas">—</div>
+          <div class="stat-label">Alertas activas</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num" id="total-high">—</div>
+          <div class="stat-label">Confianza alta</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num" id="total-frp">—</div>
+          <div class="stat-label">FRP máx (MW)</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num" id="total-areas">—</div>
+          <div class="stat-label">AOIs afectados</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="panel-section">
+      <div class="panel-title">Filtrar por confianza</div>
+      <div class="filtros">
+        <button class="filtro-btn activo" data-filtro="all" onclick="filtrar(this)">Todas</button>
+        <button class="filtro-btn" data-filtro="high" onclick="filtrar(this)">Alta</button>
+        <button class="filtro-btn" data-filtro="nominal" onclick="filtrar(this)">Nominal</button>
+        <button class="filtro-btn" data-filtro="low" onclick="filtrar(this)">Baja</button>
+      </div>
+    </div>
+
+    <!-- Lista -->
+    <div class="panel-section" style="flex:1">
+      <div class="panel-title">Eventos detectados</div>
+      <div id="lista-alertas"><div class="loading"><div class="spin"></div> Cargando alertas...</div></div>
+    </div>
+
+    <div class="panel-footer">
+      Datos: <a href="https://firms.modaps.eosdis.nasa.gov" target="_blank">NASA FIRMS</a> ·
+      Mapa: <a href="https://www.openstreetmap.org" target="_blank">OpenStreetMap</a> ·
+      Sistema participativo sin ánimo de lucro
+    </div>
+  </aside>
+
+  <!-- Mapa -->
+  <div id="map"></div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // ── Configuración — reemplaza con tus valores ──────────────────────────────
+  const SUPABASE_URL = 'https://qryktfqnicnwiuwbijvd.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_tVzVULeeVvP-QRCXviO7cg_EOuOfX-0';
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // Mapa centrado en Chameza, Casanare
+  const map = L.map('map', { zoomControl: false }).setView([5.09, -72.47], 10);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+  // Capa base oscura de CartoDB
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO',
+    subdomains: 'abcd', maxZoom: 19
+  }).addTo(map);
+
+  // Círculo AOI de referencia (Chameza 50km)
+  L.circle([5.09, -72.47], {
+    radius: 50000,
+    color: '#4caf7d', weight: 1.5,
+    fillColor: '#4caf7d', fillOpacity: 0.04,
+    dashArray: '6 4'
+  }).addTo(map).bindPopup('<div class="popup-title">Área de monitoreo</div><div class="popup-row">Chameza · radio <span>50 km</span></div>');
+
+  // ── Variables globales ─────────────────────────────────────────────────────
+  let todasAlertas = [];
+  let marcadores   = [];
+  let filtroActual = 'all';
+
+  // ── Colores por confianza ──────────────────────────────────────────────────
+  function colorConfianza(c) {
+    if (!c) return '#f5a623';
+    const cl = c.toLowerCase();
+    if (cl === 'high')    return '#e8480a';
+    if (cl === 'nominal') return '#f5a623';
+    return '#4caf7d';
+  }
+
+  // ── Renderizar marcadores en el mapa ──────────────────────────────────────
+  function renderMarcadores(alertas) {
+    marcadores.forEach(m => map.removeLayer(m));
+    marcadores = [];
+
+    alertas.forEach(a => {
+      const color = colorConfianza(a.firms_confidence);
+      const m = L.circleMarker([a.latitud, a.longitud], {
+        radius: Math.max(5, Math.min(16, (a.firms_frp || 5) / 8)),
+        fillColor: color, color: color,
+        weight: 1.5, opacity: .9, fillOpacity: .7
+      }).addTo(map);
+
+      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO', { timeZone: 'America/Bogota' });
+      m.bindPopup(`
+        <div class="popup-title">Incendio activo detectado</div>
+        <div class="popup-row">Coordenadas <span>${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</span></div>
+        <div class="popup-row">Confianza <span>${a.firms_confidence || 'N/A'}</span></div>
+        <div class="popup-row">FRP <span>${a.firms_frp ? a.firms_frp.toFixed(1) + ' MW' : 'N/A'}</span></div>
+        <div class="popup-row">Satélite <span>${a.firms_satellite || 'VIIRS'}</span></div>
+        <div class="popup-row">Detectado <span>${fecha}</span></div>
+        <div class="popup-row">Estado <span>${a.estado}</span></div>
+      `);
+      marcadores.push(m);
+    });
+  }
+
+  // ── Renderizar lista lateral ───────────────────────────────────────────────
+  function renderLista(alertas) {
+    const el = document.getElementById('lista-alertas');
+    if (!alertas.length) {
+      el.innerHTML = '<div class="loading">Sin alertas en este período</div>';
+      return;
+    }
+    el.innerHTML = alertas.map((a, i) => {
+      const conf  = (a.firms_confidence || 'low').toLowerCase();
+      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO', {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota'
+      });
+      return `
+        <div class="alerta-item" onclick="centrarEn(${i})">
+          <div class="alerta-dot ${conf}"></div>
+          <div class="alerta-info">
+            <div class="alerta-coords">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div>
+            <div class="alerta-meta">${fecha} · ${a.firms_satellite || 'VIIRS'}</div>
+          </div>
+          <div class="alerta-frp">${a.firms_frp ? a.firms_frp.toFixed(0) + ' MW' : '—'}</div>
+        </div>`;
+    }).join('');
+  }
+
+  // ── Centrar mapa al hacer clic en la lista ────────────────────────────────
+  function centrarEn(i) {
+    const alertasFiltradas = filtroActual === 'all'
+      ? todasAlertas
+      : todasAlertas.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
+    const a = alertasFiltradas[i];
+    if (!a) return;
+    map.setView([a.latitud, a.longitud], 13);
+    marcadores[i]?.openPopup();
+  }
+
+  // ── Filtrar ────────────────────────────────────────────────────────────────
+  function filtrar(btn) {
+    document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('activo'));
+    btn.classList.add('activo');
+    filtroActual = btn.dataset.filtro;
+    const filtradas = filtroActual === 'all'
+      ? todasAlertas
+      : todasAlertas.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
+    renderMarcadores(filtradas);
+    renderLista(filtradas);
+  }
+
+  // ── Actualizar stats ───────────────────────────────────────────────────────
+  function actualizarStats(alertas) {
+    document.getElementById('total-alertas').textContent = alertas.length;
+    document.getElementById('total-high').textContent =
+      alertas.filter(a => (a.firms_confidence || '').toLowerCase() === 'high').length;
+    const frps = alertas.map(a => a.firms_frp || 0).filter(Boolean);
+    document.getElementById('total-frp').textContent =
+      frps.length ? Math.max(...frps).toFixed(0) : '0';
+    // AOIs únicos afectados (aproximación: contamos desde alertas_areas si lo tenemos)
+    document.getElementById('total-areas').textContent = alertas.length > 0 ? '1' : '0';
+  }
+
+  // ── Cargar alertas desde Supabase ─────────────────────────────────────────
+  async function cargarAlertas() {
+    try {
+      const resp = await fetch(
+        `${SUPABASE_URL}/rest/v1/alertas?select=*&order=fecha_deteccion.desc&limit=200`,
+        { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+      );
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      todasAlertas = await resp.json();
+
+      actualizarStats(todasAlertas);
+      renderMarcadores(todasAlertas);
+      renderLista(todasAlertas);
+
+      // Si hay alertas, ajustar el mapa para mostrarlas todas
+      if (todasAlertas.length && marcadores.length) {
+        const group = L.featureGroup(marcadores);
+        map.fitBounds(group.getBounds().pad(0.3));
+      }
+    } catch (err) {
+      document.getElementById('lista-alertas').innerHTML =
+        `<div class="loading">Error cargando datos: ${err.message}</div>`;
+      console.error(err);
+    }
+  }
+
+  // Cargar al inicio y refrescar cada 5 minutos
+  cargarAlertas();
+  setInterval(cargarAlertas, 5 * 60 * 1000);
+</script>
+</body>
+</html>
