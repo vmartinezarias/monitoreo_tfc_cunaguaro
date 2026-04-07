@@ -5,153 +5,90 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Monitor Bosques — Chameza</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --verde:    #1a4a2e;
-      --verde-m:  #2d7a4f;
-      --verde-l:  #4caf7d;
-      --fuego:    #e8480a;
-      --fuego-l:  #ff7043;
-      --amber:    #f5a623;
-      --fondo:    #0d1f15;
-      --panel:    #111f17;
-      --borde:    #1e3528;
-      --texto:    #d4e8db;
-      --texto-m:  #7aab8a;
-      --blanco:   #f0f7f2;
+      --verde:   #1a4a2e; --verde-m: #2d7a4f; --verde-l: #4caf7d;
+      --fuego:   #e8480a; --fuego-l: #ff7043; --amber:   #f5a623;
+      --fondo:   #0d1f15; --panel:   #111f17; --borde:   #1e3528;
+      --texto:   #d4e8db; --texto-m: #7aab8a; --blanco:  #f0f7f2;
     }
-
     html, body { height: 100%; font-family: 'Syne', sans-serif; background: var(--fondo); color: var(--texto); }
+    .app { display: grid; grid-template-rows: 56px 1fr; grid-template-columns: 340px 1fr; height: 100vh; }
 
-    /* ── Layout ── */
-    .app { display: grid; grid-template-rows: 56px 1fr; grid-template-columns: 320px 1fr; height: 100vh; }
-
-    /* ── Header ── */
     header {
-      grid-column: 1 / -1;
-      background: var(--panel);
+      grid-column: 1/-1; background: var(--panel);
       border-bottom: 1px solid var(--borde);
-      display: flex; align-items: center; gap: 16px;
-      padding: 0 20px;
+      display: flex; align-items: center; gap: 14px; padding: 0 20px;
     }
-    .logo {
-      width: 28px; height: 28px;
-      background: var(--verde-l);
-      clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
-    }
-    header h1 { font-size: 15px; font-weight: 800; letter-spacing: .04em; color: var(--blanco); }
+    header img { height: 34px; object-fit: contain; filter: brightness(0) invert(1); }
+    header h1 { font-size: 14px; font-weight: 800; letter-spacing: .04em; color: var(--blanco); }
     header h1 span { color: var(--verde-l); }
-    .badge-live {
-      margin-left: auto;
-      display: flex; align-items: center; gap: 6px;
-      font-family: 'Space Mono', monospace;
-      font-size: 11px; color: var(--verde-l);
-    }
+    .badge-live { margin-left: auto; display: flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--verde-l); }
     .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--verde-l); animation: pulse 2s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-    /* ── Panel lateral ── */
-    aside {
-      background: var(--panel);
-      border-right: 1px solid var(--borde);
-      overflow-y: auto;
-      display: flex; flex-direction: column;
-    }
-    .panel-section { padding: 16px; border-bottom: 1px solid var(--borde); }
-    .panel-title {
-      font-size: 10px; font-weight: 600; letter-spacing: .12em;
-      text-transform: uppercase; color: var(--texto-m); margin-bottom: 12px;
-    }
+    aside { background: var(--panel); border-right: 1px solid var(--borde); overflow-y: auto; display: flex; flex-direction: column; }
+    .panel-section { padding: 14px 16px; border-bottom: 1px solid var(--borde); }
+    .panel-title { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--texto-m); margin-bottom: 10px; }
 
-    /* Stats */
     .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .stat {
-      background: var(--fondo);
-      border: 1px solid var(--borde);
-      border-radius: 8px;
-      padding: 12px;
-    }
-    .stat-num { font-size: 24px; font-weight: 800; color: var(--blanco); line-height: 1; }
+    .stat { background: var(--fondo); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; }
+    .stat-num { font-size: 22px; font-weight: 800; color: var(--blanco); line-height: 1; }
     .stat-num.fuego { color: var(--fuego-l); }
-    .stat-label { font-size: 11px; color: var(--texto-m); margin-top: 4px; }
+    .stat-label { font-size: 11px; color: var(--texto-m); margin-top: 3px; }
 
-    /* Lista de alertas */
-    .alerta-item {
-      display: flex; align-items: flex-start; gap: 10px;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--borde);
-      cursor: pointer;
-      transition: background .15s;
-    }
-    .alerta-item:last-child { border-bottom: none; }
-    .alerta-item:hover { background: rgba(77,175,125,.05); margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
-    .alerta-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      margin-top: 4px; flex-shrink: 0;
-    }
-    .alerta-dot.high { background: var(--fuego); box-shadow: 0 0 6px var(--fuego); }
-    .alerta-dot.nominal { background: var(--amber); }
-    .alerta-dot.low { background: var(--verde-l); }
-    .alerta-info { flex: 1; min-width: 0; }
-    .alerta-coords { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); }
-    .alerta-meta { font-size: 11px; color: var(--texto-m); margin-top: 2px; }
-    .alerta-frp {
-      font-family: 'Space Mono', monospace; font-size: 11px;
-      color: var(--fuego-l); white-space: nowrap;
-    }
+    .periodo-btns { display: flex; gap: 6px; }
+    .periodo-btn { flex: 1; padding: 7px 0; border-radius: 6px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; transition: all .15s; }
+    .periodo-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
 
-    /* Filtros */
+    .herramientas { display: flex; flex-direction: column; gap: 6px; }
+    .tool-btn { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; transition: all .15s; text-align: left; }
+    .tool-btn:hover { border-color: var(--verde-l); color: var(--blanco); }
+    .tool-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
+    .tool-hint { font-size: 10px; color: var(--texto-m); margin-top: 6px; line-height: 1.4; display: none; }
+    .tool-hint.visible { display: block; }
+
     .filtros { display: flex; gap: 6px; flex-wrap: wrap; }
-    .filtro-btn {
-      padding: 5px 10px; border-radius: 20px; border: 1px solid var(--borde);
-      background: transparent; color: var(--texto-m);
-      font-family: 'Syne', sans-serif; font-size: 11px; cursor: pointer;
-      transition: all .15s;
-    }
+    .filtro-btn { padding: 5px 10px; border-radius: 20px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 11px; cursor: pointer; transition: all .15s; }
     .filtro-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
 
-    /* Loading */
-    .loading {
-      display: flex; align-items: center; justify-content: center;
-      gap: 8px; padding: 20px; color: var(--texto-m); font-size: 13px;
-    }
-    .spin {
-      width: 14px; height: 14px; border: 2px solid var(--borde);
-      border-top-color: var(--verde-l); border-radius: 50%;
-      animation: spin .8s linear infinite;
-    }
+    .descarga-btns { display: flex; gap: 8px; }
+    .dl-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; transition: all .15s; }
+    .dl-btn:hover { border-color: var(--verde-l); color: var(--blanco); background: rgba(77,175,125,.08); }
+
+    .alerta-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--borde); cursor: pointer; transition: background .15s; }
+    .alerta-item:last-child { border-bottom: none; }
+    .alerta-item:hover { background: rgba(77,175,125,.05); margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+    .alerta-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+    .alerta-dot.high    { background: var(--fuego); box-shadow: 0 0 6px var(--fuego); }
+    .alerta-dot.nominal { background: var(--amber); }
+    .alerta-dot.low     { background: var(--verde-l); }
+    .alerta-info { flex: 1; min-width: 0; }
+    .alerta-coords { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); }
+    .alerta-meta   { font-size: 11px; color: var(--texto-m); margin-top: 2px; }
+    .alerta-frp    { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--fuego-l); white-space: nowrap; }
+
+    .loading { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px; color: var(--texto-m); font-size: 13px; }
+    .spin { width: 14px; height: 14px; border: 2px solid var(--borde); border-top-color: var(--verde-l); border-radius: 50%; animation: spin .8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Mapa ── */
     #map { width: 100%; height: 100%; }
-
-    /* Leaflet overrides */
     .leaflet-container { background: #0a1a0f; }
-    .leaflet-popup-content-wrapper {
-      background: var(--panel); border: 1px solid var(--borde);
-      border-radius: 8px; color: var(--texto);
-      box-shadow: 0 8px 32px rgba(0,0,0,.6);
-    }
+    .leaflet-popup-content-wrapper { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; color: var(--texto); box-shadow: 0 8px 32px rgba(0,0,0,.6); }
     .leaflet-popup-tip { background: var(--panel); }
     .popup-title { font-size: 13px; font-weight: 700; color: var(--fuego-l); margin-bottom: 6px; }
-    .popup-row { font-size: 12px; color: var(--texto-m); margin: 2px 0; }
+    .popup-row   { font-size: 12px; color: var(--texto-m); margin: 2px 0; }
     .popup-row span { color: var(--blanco); font-family: 'Space Mono', monospace; }
 
-    /* Footer del panel */
-    .panel-footer {
-      margin-top: auto; padding: 12px 16px;
-      font-size: 10px; color: var(--texto-m);
-      border-top: 1px solid var(--borde);
-    }
+    .panel-footer { margin-top: auto; padding: 10px 16px; font-size: 10px; color: var(--texto-m); border-top: 1px solid var(--borde); }
     .panel-footer a { color: var(--verde-l); text-decoration: none; }
 
-    /* Responsive */
     @media (max-width: 700px) {
-      .app { grid-template-columns: 1fr; grid-template-rows: 56px 200px 1fr; }
+      .app { grid-template-columns: 1fr; grid-template-rows: 56px 260px 1fr; }
       aside { border-right: none; border-bottom: 1px solid var(--borde); }
     }
   </style>
@@ -159,55 +96,73 @@
 <body>
 <div class="app">
 
-  <!-- Header -->
   <header>
-    <img src="fondoaccion.png" alt="TFCA Fondo Acción" style="height:36px; object-fit:contain; filter:brightness(0) invert(1);">
-    <img src="cunaguaro.png" alt="CBC Cunaguaro" style="height:36px; object-fit:contain; filter:brightness(0) invert(1);">
+    <img src="fondoaccion.png" alt="TFCA Fondo Acción">
+    <img src="cunaguaro.png"   alt="CBC Cunaguaro">
     <h1>Monitor Bosques <span>Chameza</span></h1>
     <div class="badge-live"><div class="dot"></div> En vivo · NASA FIRMS</div>
   </header>
 
-  <!-- Panel lateral -->
   <aside>
-
-    <!-- Stats -->
     <div class="panel-section">
-      <div class="panel-title">Resumen 24h</div>
+      <div class="panel-title">Resumen del período</div>
       <div class="stats">
-        <div class="stat">
-          <div class="stat-num fuego" id="total-alertas">—</div>
-          <div class="stat-label">Alertas activas</div>
-        </div>
-        <div class="stat">
-          <div class="stat-num" id="total-high">—</div>
-          <div class="stat-label">Confianza alta</div>
-        </div>
-        <div class="stat">
-          <div class="stat-num" id="total-frp">—</div>
-          <div class="stat-label">FRP máx (MW)</div>
-        </div>
-        <div class="stat">
-          <div class="stat-num" id="total-areas">—</div>
-          <div class="stat-label">AOIs afectados</div>
-        </div>
+        <div class="stat"><div class="stat-num fuego" id="total-alertas">—</div><div class="stat-label">Alertas</div></div>
+        <div class="stat"><div class="stat-num" id="total-high">—</div><div class="stat-label">Confianza alta</div></div>
+        <div class="stat"><div class="stat-num" id="total-frp">—</div><div class="stat-label">FRP máx (MW)</div></div>
+        <div class="stat"><div class="stat-num" id="total-area-sel">—</div><div class="stat-label">En área dibujada</div></div>
       </div>
     </div>
 
-    <!-- Filtros -->
+    <div class="panel-section">
+      <div class="panel-title">Período de consulta</div>
+      <div class="periodo-btns">
+        <button class="periodo-btn activo" data-dias="1"  onclick="cambiarPeriodo(this)">24 h</button>
+        <button class="periodo-btn"        data-dias="7"  onclick="cambiarPeriodo(this)">7 días</button>
+        <button class="periodo-btn"        data-dias="30" onclick="cambiarPeriodo(this)">30 días</button>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">Dibujar área de consulta</div>
+      <div class="herramientas">
+        <button class="tool-btn" id="btn-poligono" onclick="activarHerramienta('poligono')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polygon points="8,1 15,6 12,14 4,14 1,6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          Dibujar polígono
+        </button>
+        <button class="tool-btn" id="btn-punto" onclick="activarHerramienta('punto')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>
+          Punto con radio (10 km)
+        </button>
+        <button class="tool-btn" onclick="limpiarAreaDibujada()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Limpiar área
+        </button>
+        <div class="tool-hint" id="hint-dibujo">Haz clic en el mapa para dibujar. Doble clic para cerrar el polígono.</div>
+      </div>
+    </div>
+
     <div class="panel-section">
       <div class="panel-title">Filtrar por confianza</div>
       <div class="filtros">
-        <button class="filtro-btn activo" data-filtro="all" onclick="filtrar(this)">Todas</button>
-        <button class="filtro-btn" data-filtro="high" onclick="filtrar(this)">Alta</button>
-        <button class="filtro-btn" data-filtro="nominal" onclick="filtrar(this)">Nominal</button>
-        <button class="filtro-btn" data-filtro="low" onclick="filtrar(this)">Baja</button>
+        <button class="filtro-btn activo" data-filtro="all"     onclick="filtrar(this)">Todas</button>
+        <button class="filtro-btn"        data-filtro="high"    onclick="filtrar(this)">Alta</button>
+        <button class="filtro-btn"        data-filtro="nominal" onclick="filtrar(this)">Nominal</button>
+        <button class="filtro-btn"        data-filtro="low"     onclick="filtrar(this)">Baja</button>
       </div>
     </div>
 
-    <!-- Lista -->
+    <div class="panel-section">
+      <div class="panel-title">Descargar reporte</div>
+      <div class="descarga-btns">
+        <button class="dl-btn" onclick="descargarCSV()">CSV</button>
+        <button class="dl-btn" onclick="descargarPDF()">PDF</button>
+      </div>
+    </div>
+
     <div class="panel-section" style="flex:1">
       <div class="panel-title">Eventos detectados</div>
-      <div id="lista-alertas"><div class="loading"><div class="spin"></div> Cargando alertas...</div></div>
+      <div id="lista-alertas"><div class="loading"><div class="spin"></div> Cargando...</div></div>
     </div>
 
     <div class="panel-footer">
@@ -217,63 +172,119 @@
     </div>
   </aside>
 
-  <!-- Mapa -->
   <div id="map"></div>
-
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-  // ── Configuración — reemplaza con tus valores ──────────────────────────────
   const SUPABASE_URL = 'https://qryktfqnicnwiuwbijvd.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_tVzVULeeVvP-QRCXviO7cg_EOuOfX-0';
-  // ───────────────────────────────────────────────────────────────────────────
 
-  // Mapa centrado en Chameza, Casanare
   const map = L.map('map', { zoomControl: false }).setView([5.09, -72.47], 10);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-  // Capa base oscura de CartoDB
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© OpenStreetMap © CARTO',
-    subdomains: 'abcd', maxZoom: 19
+    attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19
   }).addTo(map);
 
-  // Círculo AOI de referencia (Chameza 50km)
   L.circle([5.09, -72.47], {
-    radius: 50000,
-    color: '#4caf7d', weight: 1.5,
-    fillColor: '#4caf7d', fillOpacity: 0.04,
-    dashArray: '6 4'
+    radius: 50000, color: '#4caf7d', weight: 1.5,
+    fillColor: '#4caf7d', fillOpacity: 0.04, dashArray: '6 4'
   }).addTo(map).bindPopup('<div class="popup-title">Área de monitoreo</div><div class="popup-row">Chameza · radio <span>50 km</span></div>');
 
-  // ── Variables globales ─────────────────────────────────────────────────────
-  let todasAlertas = [];
-  let marcadores   = [];
-  let filtroActual = 'all';
+  let todasAlertas = [], marcadores = [], filtroActual = 'all', diasActual = 1, areaFiltro = null;
+  const drawnItems = new L.FeatureGroup().addTo(map);
 
-  // ── Colores por confianza ──────────────────────────────────────────────────
+  function activarHerramienta(tipo) {
+    limpiarAreaDibujada();
+    document.getElementById('hint-dibujo').classList.add('visible');
+    if (tipo === 'poligono') {
+      document.getElementById('btn-poligono').classList.add('activo');
+      new L.Draw.Polygon(map, { shapeOptions: { color: '#4caf7d', weight: 2, fillOpacity: 0.1 } }).enable();
+    } else {
+      document.getElementById('btn-punto').classList.add('activo');
+      map.once('click', function(e) {
+        const c = L.circle(e.latlng, { radius: 10000, color: '#4caf7d', weight: 2, fillOpacity: 0.1 });
+        drawnItems.addLayer(c);
+        areaFiltro = { tipo: 'circulo', lat: e.latlng.lat, lng: e.latlng.lng, radio: 10 };
+        document.getElementById('btn-punto').classList.remove('activo');
+        document.getElementById('hint-dibujo').classList.remove('visible');
+        aplicarFiltros();
+      });
+    }
+  }
+
+  map.on(L.Draw.Event.CREATED, function(e) {
+    drawnItems.addLayer(e.layer);
+    areaFiltro = { tipo: 'poligono', coords: e.layer.toGeoJSON().geometry.coordinates[0] };
+    document.getElementById('btn-poligono').classList.remove('activo');
+    document.getElementById('hint-dibujo').classList.remove('visible');
+    aplicarFiltros();
+  });
+
+  function limpiarAreaDibujada() {
+    drawnItems.clearLayers(); areaFiltro = null;
+    document.getElementById('btn-poligono').classList.remove('activo');
+    document.getElementById('btn-punto').classList.remove('activo');
+    document.getElementById('hint-dibujo').classList.remove('visible');
+    aplicarFiltros();
+  }
+
+  function puntoEnArea(lat, lng, area) {
+    if (!area) return true;
+    if (area.tipo === 'circulo') {
+      const d = Math.sqrt(Math.pow((lat - area.lat) * 111, 2) + Math.pow((lng - area.lng) * 111 * Math.cos(area.lat * Math.PI / 180), 2));
+      return d <= area.radio;
+    }
+    let dentro = false;
+    const coords = area.coords;
+    for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+      const xi = coords[i][0], yi = coords[i][1], xj = coords[j][0], yj = coords[j][1];
+      if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) dentro = !dentro;
+    }
+    return dentro;
+  }
+
+  function alertasEnPeriodo(alertas) {
+    const inicio = new Date(Date.now() - diasActual * 864e5);
+    return alertas.filter(a => new Date(a.fecha_deteccion) >= inicio);
+  }
+
+  function aplicarFiltros() {
+    let result = alertasEnPeriodo(todasAlertas);
+    if (filtroActual !== 'all') result = result.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
+    const enArea = areaFiltro ? result.filter(a => puntoEnArea(a.latitud, a.longitud, areaFiltro)) : result;
+    actualizarStats(result, enArea);
+    renderMarcadores(enArea);
+    renderLista(enArea);
+  }
+
+  function actualizarStats(todas, enArea) {
+    document.getElementById('total-alertas').textContent  = todas.length;
+    document.getElementById('total-high').textContent     = todas.filter(a => (a.firms_confidence || '').toLowerCase() === 'high').length;
+    const frps = todas.map(a => a.firms_frp || 0).filter(Boolean);
+    document.getElementById('total-frp').textContent      = frps.length ? Math.max(...frps).toFixed(0) : '0';
+    document.getElementById('total-area-sel').textContent = areaFiltro ? enArea.length : '—';
+  }
+
   function colorConfianza(c) {
     if (!c) return '#f5a623';
     const cl = c.toLowerCase();
-    if (cl === 'high')    return '#e8480a';
+    if (cl === 'high') return '#e8480a';
     if (cl === 'nominal') return '#f5a623';
     return '#4caf7d';
   }
 
-  // ── Renderizar marcadores en el mapa ──────────────────────────────────────
   function renderMarcadores(alertas) {
     marcadores.forEach(m => map.removeLayer(m));
     marcadores = [];
-
-    alertas.forEach(a => {
+    alertas.forEach((a, i) => {
       const color = colorConfianza(a.firms_confidence);
       const m = L.circleMarker([a.latitud, a.longitud], {
         radius: Math.max(5, Math.min(16, (a.firms_frp || 5) / 8)),
-        fillColor: color, color: color,
-        weight: 1.5, opacity: .9, fillOpacity: .7
+        fillColor: color, color, weight: 1.5, opacity: .9, fillOpacity: .7
       }).addTo(map);
-
       const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO', { timeZone: 'America/Bogota' });
       m.bindPopup(`
         <div class="popup-title">Incendio activo detectado</div>
@@ -282,98 +293,137 @@
         <div class="popup-row">FRP <span>${a.firms_frp ? a.firms_frp.toFixed(1) + ' MW' : 'N/A'}</span></div>
         <div class="popup-row">Satélite <span>${a.firms_satellite || 'VIIRS'}</span></div>
         <div class="popup-row">Detectado <span>${fecha}</span></div>
-        <div class="popup-row">Estado <span>${a.estado}</span></div>
-      `);
+        <div class="popup-row">Estado <span>${a.estado}</span></div>`);
       marcadores.push(m);
     });
   }
 
-  // ── Renderizar lista lateral ───────────────────────────────────────────────
   function renderLista(alertas) {
     const el = document.getElementById('lista-alertas');
-    if (!alertas.length) {
-      el.innerHTML = '<div class="loading">Sin alertas en este período</div>';
-      return;
-    }
+    if (!alertas.length) { el.innerHTML = '<div class="loading">Sin alertas en este período</div>'; return; }
     el.innerHTML = alertas.map((a, i) => {
       const conf  = (a.firms_confidence || 'low').toLowerCase();
-      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO', {
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota'
-      });
-      return `
-        <div class="alerta-item" onclick="centrarEn(${i})">
-          <div class="alerta-dot ${conf}"></div>
-          <div class="alerta-info">
-            <div class="alerta-coords">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div>
-            <div class="alerta-meta">${fecha} · ${a.firms_satellite || 'VIIRS'}</div>
-          </div>
-          <div class="alerta-frp">${a.firms_frp ? a.firms_frp.toFixed(0) + ' MW' : '—'}</div>
-        </div>`;
+      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' });
+      return `<div class="alerta-item" onclick="centrarEn(${i})">
+        <div class="alerta-dot ${conf}"></div>
+        <div class="alerta-info">
+          <div class="alerta-coords">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div>
+          <div class="alerta-meta">${fecha} · ${a.firms_satellite || 'VIIRS'}</div>
+        </div>
+        <div class="alerta-frp">${a.firms_frp ? a.firms_frp.toFixed(0) + ' MW' : '—'}</div>
+      </div>`;
     }).join('');
   }
 
-  // ── Centrar mapa al hacer clic en la lista ────────────────────────────────
   function centrarEn(i) {
-    const alertasFiltradas = filtroActual === 'all'
-      ? todasAlertas
-      : todasAlertas.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
-    const a = alertasFiltradas[i];
-    if (!a) return;
-    map.setView([a.latitud, a.longitud], 13);
-    marcadores[i]?.openPopup();
+    if (marcadores[i]) { map.setView(marcadores[i].getLatLng(), 13); marcadores[i].openPopup(); }
   }
 
-  // ── Filtrar ────────────────────────────────────────────────────────────────
+  function cambiarPeriodo(btn) {
+    document.querySelectorAll('.periodo-btn').forEach(b => b.classList.remove('activo'));
+    btn.classList.add('activo'); diasActual = parseInt(btn.dataset.dias); aplicarFiltros();
+  }
+
   function filtrar(btn) {
     document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('activo'));
-    btn.classList.add('activo');
-    filtroActual = btn.dataset.filtro;
-    const filtradas = filtroActual === 'all'
-      ? todasAlertas
-      : todasAlertas.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
-    renderMarcadores(filtradas);
-    renderLista(filtradas);
+    btn.classList.add('activo'); filtroActual = btn.dataset.filtro; aplicarFiltros();
   }
 
-  // ── Actualizar stats ───────────────────────────────────────────────────────
-  function actualizarStats(alertas) {
-    document.getElementById('total-alertas').textContent = alertas.length;
-    document.getElementById('total-high').textContent =
-      alertas.filter(a => (a.firms_confidence || '').toLowerCase() === 'high').length;
-    const frps = alertas.map(a => a.firms_frp || 0).filter(Boolean);
-    document.getElementById('total-frp').textContent =
-      frps.length ? Math.max(...frps).toFixed(0) : '0';
-    // AOIs únicos afectados (aproximación: contamos desde alertas_areas si lo tenemos)
-    document.getElementById('total-areas').textContent = alertas.length > 0 ? '1' : '0';
+  function alertasActuales() {
+    let r = alertasEnPeriodo(todasAlertas);
+    if (filtroActual !== 'all') r = r.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
+    if (areaFiltro) r = r.filter(a => puntoEnArea(a.latitud, a.longitud, areaFiltro));
+    return r;
   }
 
-  // ── Cargar alertas desde Supabase ─────────────────────────────────────────
+  function descargarCSV() {
+    const datos = alertasActuales();
+    if (!datos.length) { alert('No hay alertas para exportar.'); return; }
+    const cab  = ['fecha_deteccion','latitud','longitud','confianza','frp_mw','satelite','estado'];
+    const fils  = datos.map(a => [a.fecha_deteccion, a.latitud, a.longitud, a.firms_confidence || '', a.firms_frp || '', a.firms_satellite || '', a.estado].join(','));
+    const blob  = new Blob([[cab.join(','), ...fils].join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url   = URL.createObjectURL(blob);
+    const link  = document.createElement('a');
+    link.href = url; link.download = `alertas_chameza_${new Date().toISOString().slice(0,10)}.csv`;
+    link.click(); URL.revokeObjectURL(url);
+  }
+
+  function descargarPDF() {
+    const datos = alertasActuales();
+    if (!datos.length) { alert('No hay alertas para exportar.'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const hoy = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
+    const periodo = diasActual === 1 ? 'Últimas 24 horas' : diasActual === 7 ? 'Últimos 7 días' : 'Últimos 30 días';
+
+    doc.setFillColor(17, 31, 23);
+    doc.rect(0, 0, 210, 32, 'F');
+    doc.setTextColor(76, 175, 125);
+    doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+    doc.text('Reporte de alertas de incendio', 14, 14);
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+    doc.text(`Chameza, Casanare · ${hoy}`, 14, 23);
+
+    doc.setTextColor(40, 40, 40);
+    doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+    doc.text(`Total alertas: ${datos.length}`, 14, 42);
+    doc.text(`Período: ${periodo}`, 14, 50);
+    doc.text(`Filtro confianza: ${filtroActual === 'all' ? 'Todas' : filtroActual}`, 14, 58);
+    if (areaFiltro) doc.text(`Área personalizada dibujada: sí`, 14, 66);
+
+    let y = areaFiltro ? 76 : 68;
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.setFillColor(220, 240, 228);
+    doc.rect(14, y, 182, 8, 'F');
+    doc.text('Fecha (Bogotá)',  16, y + 5.5);
+    doc.text('Lat',            72, y + 5.5);
+    doc.text('Lon',            98, y + 5.5);
+    doc.text('Confianza',     122, y + 5.5);
+    doc.text('FRP (MW)',      153, y + 5.5);
+    doc.text('Satélite',      178, y + 5.5);
+    y += 10;
+
+    doc.setFont('helvetica', 'normal');
+    datos.slice(0, 55).forEach((a, i) => {
+      if (y > 272) { doc.addPage(); y = 20; }
+      if (i % 2 === 0) { doc.setFillColor(248, 252, 249); doc.rect(14, y - 5, 182, 8, 'F'); }
+      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO', { timeZone: 'America/Bogota', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      doc.text(fecha,                         16,  y);
+      doc.text(a.latitud.toFixed(4),          72,  y);
+      doc.text(a.longitud.toFixed(4),         98,  y);
+      doc.text(a.firms_confidence || '—',    122,  y);
+      doc.text(a.firms_frp ? a.firms_frp.toFixed(1) : '—', 153, y);
+      doc.text(a.firms_satellite || '—',     178,  y);
+      y += 8;
+    });
+
+    if (datos.length > 55) {
+      doc.setFont('helvetica', 'italic'); doc.setTextColor(120,120,120);
+      doc.text(`... y ${datos.length - 55} alertas más. Usa CSV para el listado completo.`, 14, y + 4);
+    }
+
+    doc.setFontSize(8); doc.setTextColor(150,150,150); doc.setFont('helvetica','normal');
+    doc.text('Fuente: NASA FIRMS · Sistema de monitoreo participativo CBC Cunaguaro / TFCA Colombia · Datos abiertos', 14, 288);
+    doc.save(`reporte_alertas_chameza_${new Date().toISOString().slice(0,10)}.pdf`);
+  }
+
   async function cargarAlertas() {
     try {
       const resp = await fetch(
-        `${SUPABASE_URL}/rest/v1/alertas?select=*&order=fecha_deteccion.desc&limit=200`,
+        `${SUPABASE_URL}/rest/v1/alertas?select=*&order=fecha_deteccion.desc&limit=500`,
         { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
       );
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       todasAlertas = await resp.json();
-
-      actualizarStats(todasAlertas);
-      renderMarcadores(todasAlertas);
-      renderLista(todasAlertas);
-
-      // Si hay alertas, ajustar el mapa para mostrarlas todas
+      aplicarFiltros();
       if (todasAlertas.length && marcadores.length) {
-        const group = L.featureGroup(marcadores);
-        map.fitBounds(group.getBounds().pad(0.3));
+        map.fitBounds(L.featureGroup(marcadores).getBounds().pad(0.3));
       }
     } catch (err) {
-      document.getElementById('lista-alertas').innerHTML =
-        `<div class="loading">Error cargando datos: ${err.message}</div>`;
-      console.error(err);
+      document.getElementById('lista-alertas').innerHTML = `<div class="loading">Error: ${err.message}</div>`;
     }
   }
 
-  // Cargar al inicio y refrescar cada 5 minutos
   cargarAlertas();
   setInterval(cargarAlertas, 5 * 60 * 1000);
 </script>
