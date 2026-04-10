@@ -319,7 +319,8 @@
   let filtroActual    = 'all';
   let diasActual      = 1;
   let areaFiltro      = null;    // {tipo, coords|lat/lng/radio}
-  let predioSelIdx    = null;    // índice en todosFeatures
+  let predioSelId     = null;    // ID del predio seleccionado (id_predio)
+  let prediosAgrupados = {};      // id_predio -> { id, features: [], area_m: total, area_ha: total }
   let todosFeatures   = [];      // features del GeoJSON
   let atributoActual  = 'cobertura';
   let opacidadActual  = 0.4;
@@ -336,25 +337,43 @@
       const gj   = await resp.json();
       todosFeatures = gj.features || [];
 
+      // Agrupar por id_predio
+      prediosAgrupados = {};
+      todosFeatures.forEach(f => {
+        const id = f.properties.id_predio || 'Sin ID';
+        if (!prediosAgrupados[id]) {
+          prediosAgrupados[id] = {
+            id: id,
+            features: [],
+            area_m: 0,
+            area_ha: 0
+          };
+        }
+        prediosAgrupados[id].features.push(f);
+        prediosAgrupados[id].area_m += Number(f.properties.area_m || 0);
+        prediosAgrupados[id].area_ha += Number(f.properties.area_ha || 0);
+      });
+
       // Dibujar todos en fondo tenue
       capaTodosGeo.clearLayers();
       L.geoJSON(gj, {
         style: { color: '#4caf7d', weight: 1, fillColor: '#4caf7d', fillOpacity: 0.04, dashArray: '4 3' },
         onEachFeature: (feat, layer) => {
           layer.on('click', () => {
-            const idx = todosFeatures.indexOf(feat);
-            document.getElementById('predio-select').value = idx;
-            seleccionarPredio(idx);
+            const id = feat.properties.id_predio || 'Sin ID';
+            document.getElementById('predio-select').value = id;
+            seleccionarPredio(id);
           });
         }
       }).addTo(capaTodosGeo);
 
       // Llenar select
       const sel = document.getElementById('predio-select');
-      todosFeatures.forEach((f, i) => {
+      sel.innerHTML = '<option value="">— Selecciona un predio —</option>';
+      Object.keys(prediosAgrupados).sort().forEach(id => {
         const opt = document.createElement('option');
-        opt.value = i;
-        opt.textContent = `${f.properties.id_predio || 'Predio ' + (i+1)}`;
+        opt.value = id;
+        opt.textContent = id;
         sel.appendChild(opt);
       });
     } catch(err) {
@@ -363,17 +382,16 @@
   }
 
   // ── Seleccionar predio ─────────────────────────────────────────────────────
-  function seleccionarPredio(idx) {
-    if (idx === '' || idx === null) { limpiarPredioa(); return; }
-    idx = parseInt(idx);
-    predioSelIdx = idx;
-    const feat = todosFeatures[idx];
-    const props = feat.properties;
+  function seleccionarPredio(id) {
+    if (id === '' || id === null) { limpiarPredioa(); return; }
+    predioSelId = id;
+    const predio = prediosAgrupados[id];
+    if (!predio) return;
 
     // Info box
-    document.getElementById('info-id').textContent      = props.id_predio || '—';
-    document.getElementById('info-area-m').textContent  = props.area_m   ? Number(props.area_m).toLocaleString('es-CO', {maximumFractionDigits:0}) : '—';
-    document.getElementById('info-area-ha').textContent = props.area_ha  ? Number(props.area_ha).toFixed(2) : '—';
+    document.getElementById('info-id').textContent      = predio.id;
+    document.getElementById('info-area-m').textContent  = predio.area_m.toLocaleString('es-CO', {maximumFractionDigits:0});
+    document.getElementById('info-area-ha').textContent = predio.area_ha.toFixed(2);
     document.getElementById('predio-info-box').classList.add('visible');
     document.getElementById('predio-controles').style.display = 'block';
 
@@ -385,12 +403,12 @@
   function renderCapaPredioa() {
     if (capaPredioa) { map.removeLayer(capaPredioa); capaPredioa = null; }
     if (capaRadio)   { map.removeLayer(capaRadio);   capaRadio   = null; }
-    if (predioSelIdx === null) return;
+    if (predioSelId === null) return;
 
-    const feat  = todosFeatures[predioSelIdx];
+    const predio = prediosAgrupados[predioSelId];
     const alpha = opacidadActual;
 
-    capaPredioa = L.geoJSON(feat, {
+    capaPredioa = L.geoJSON(predio.features, {
       style: f => {
         const val   = f.properties[atributoActual] || 'Sin dato';
         const color = obtenerColor(atributoActual, val);
@@ -399,16 +417,17 @@
       onEachFeature: (f, layer) => {
         const props = f.properties;
         layer.bindPopup(`
-          <div class="popup-title verde">${props.id_predio || 'Predio'}</div>
+          <div class="popup-title verde">${predio.id}</div>
           <div class="popup-row">Cobertura <span>${props.cobertura || '—'}</span></div>
           <div class="popup-row">Uso actual <span>${props.uso_actual || '—'}</span></div>
-          <div class="popup-row">Área (m²) <span>${props.area_m ? Number(props.area_m).toLocaleString('es-CO',{maximumFractionDigits:0}) : '—'}</span></div>
-          <div class="popup-row">Área (ha) <span>${props.area_ha ? Number(props.area_ha).toFixed(2) : '—'}</span></div>
+          <div class="popup-row">Área polígono (ha) <span>${props.area_ha ? Number(props.area_ha).toFixed(2) : '—'}</span></div>
+          <hr style="margin:5px 0; border:0; border-top:1px solid var(--borde)">
+          <div class="popup-row">Total predio (ha) <span>${predio.area_ha.toFixed(2)}</span></div>
         `);
       }
     }).addTo(map);
 
-    // Radio de alerta centrado en el centroide del predio
+    // Radio de alerta centrado en el centroide del conjunto de polígonos
     const bounds   = capaPredioa.getBounds();
     const centroid = bounds.getCenter();
     capaRadio = L.circle(centroid, {
@@ -426,7 +445,7 @@
   }
 
   function limpiarPredioa() {
-    predioSelIdx = null;
+    predioSelId = null;
     if (capaPredioa) { map.removeLayer(capaPredioa); capaPredioa = null; }
     if (capaRadio)   { map.removeLayer(capaRadio);   capaRadio   = null; }
     document.getElementById('predio-select').value = '';
@@ -474,7 +493,7 @@
   // ── Área de filtro: predio seleccionado vs. dibujo manual ─────────────────
   function obtenerAreaFiltroActiva() {
     // Prioridad: predio seleccionado con radio > área dibujada manualmente
-    if (predioSelIdx !== null && capaRadio) {
+    if (predioSelId !== null && capaRadio) {
       const c = capaRadio.getLatLng();
       return { tipo: 'circulo', lat: c.lat, lng: c.lng, radio: radioKm };
     }
@@ -516,7 +535,7 @@
     renderMarcadores(enArea);
     renderLista(enArea);
 
-    if (predioSelIdx !== null) {
+    if (predioSelId !== null) {
       document.getElementById('info-alertas').textContent = enArea.length;
     }
   }
@@ -655,7 +674,7 @@
     const doc = new jsPDF();
     const hoy = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
     const periodo = diasActual === 1 ? 'Últimas 24 horas' : diasActual === 7 ? 'Últimos 7 días' : 'Últimos 30 días';
-    const predioLabel = predioSelIdx !== null ? todosFeatures[predioSelIdx].properties.id_predio : null;
+    const predioLabel = predioSelId !== null ? predioSelId : null;
 
     doc.setFillColor(17, 31, 23); doc.rect(0, 0, 210, 32, 'F');
     doc.setTextColor(76, 175, 125); doc.setFontSize(16); doc.setFont('helvetica', 'bold');
