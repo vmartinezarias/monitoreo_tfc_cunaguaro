@@ -15,16 +15,11 @@
       --fuego:   #e8480a; --fuego-l: #ff7043; --amber:   #f5a623;
       --fondo:   #0d1f15; --panel:   #111f17; --borde:   #1e3528;
       --texto:   #d4e8db; --texto-m: #7aab8a; --blanco:  #f0f7f2;
-      --predio:  #a8d8a8;
     }
     html, body { height: 100%; font-family: 'Syne', sans-serif; background: var(--fondo); color: var(--texto); }
     .app { display: grid; grid-template-rows: 56px 1fr; grid-template-columns: 340px 1fr; height: 100vh; }
 
-    header {
-      grid-column: 1/-1; background: var(--panel);
-      border-bottom: 1px solid var(--borde);
-      display: flex; align-items: center; gap: 14px; padding: 0 20px;
-    }
+    header { grid-column: 1/-1; background: var(--panel); border-bottom: 1px solid var(--borde); display: flex; align-items: center; gap: 14px; padding: 0 20px; }
     header img { height: 34px; object-fit: contain; filter: brightness(0) invert(1); }
     header h1 { font-size: 14px; font-weight: 800; letter-spacing: .04em; color: var(--blanco); }
     header h1 span { color: var(--verde-l); }
@@ -40,19 +35,53 @@
     .stat { background: var(--fondo); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; }
     .stat-num { font-size: 22px; font-weight: 800; color: var(--blanco); line-height: 1; }
     .stat-num.fuego { color: var(--fuego-l); }
-    .stat-num.verde { color: var(--verde-l); }
     .stat-label { font-size: 11px; color: var(--texto-m); margin-top: 3px; }
 
     .periodo-btns { display: flex; gap: 6px; }
     .periodo-btn { flex: 1; padding: 7px 0; border-radius: 6px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; transition: all .15s; }
     .periodo-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
 
+    /* Predios */
+    select.predio-select {
+      width: 100%; padding: 8px 10px; border-radius: 6px;
+      border: 1px solid var(--borde); background: var(--fondo);
+      color: var(--blanco); font-family: 'Syne', sans-serif; font-size: 12px;
+      cursor: pointer; margin-bottom: 10px;
+    }
+    select.predio-select:focus { outline: none; border-color: var(--verde-l); }
+
+    .predio-info-box {
+      background: var(--fondo); border: 1px solid var(--borde);
+      border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;
+      display: none;
+    }
+    .predio-info-box.visible { display: block; }
+    .predio-info-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .predio-info-label { font-size: 11px; color: var(--texto-m); }
+    .predio-info-val   { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); }
+
+    .attr-btns { display: flex; gap: 6px; margin-bottom: 10px; }
+    .attr-btn { flex: 1; padding: 6px 0; border-radius: 6px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 11px; cursor: pointer; transition: all .15s; }
+    .attr-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
+
+    .slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .slider-label { font-size: 11px; color: var(--texto-m); white-space: nowrap; }
+    .slider-row input[type=range] { flex: 1; accent-color: var(--verde-l); }
+    .slider-val { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); min-width: 28px; text-align: right; }
+
+    .radio-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .radio-row input[type=range] { flex: 1; accent-color: var(--amber); }
+
+    /* Leyenda colores */
+    .leyenda { margin-top: 8px; }
+    .leyenda-item { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+    .leyenda-color { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+    .leyenda-txt { font-size: 11px; color: var(--texto-m); }
+
     .herramientas { display: flex; flex-direction: column; gap: 6px; }
     .tool-btn { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; transition: all .15s; text-align: left; width: 100%; }
     .tool-btn:hover { border-color: var(--verde-l); color: var(--blanco); }
     .tool-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
-    .tool-btn.predio-btn { border-color: var(--verde-m); color: var(--verde-l); }
-    .tool-btn.predio-btn:hover { background: rgba(76,175,125,.12); color: var(--blanco); }
     .tool-hint { font-size: 10px; color: var(--texto-m); margin-top: 6px; line-height: 1.4; display: none; }
     .tool-hint.visible { display: block; }
 
@@ -76,17 +105,6 @@
     .alerta-meta   { font-size: 11px; color: var(--texto-m); margin-top: 2px; }
     .alerta-frp    { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--fuego-l); white-space: nowrap; }
 
-    /* Lista de predios */
-    .predio-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--borde); cursor: pointer; transition: background .15s; }
-    .predio-item:last-child { border-bottom: none; }
-    .predio-item:hover { background: rgba(77,175,125,.05); margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
-    .predio-dot { width: 10px; height: 10px; border-radius: 2px; background: var(--verde-l); opacity: .7; flex-shrink: 0; }
-    .predio-info { flex: 1; min-width: 0; }
-    .predio-nombre { font-size: 12px; color: var(--blanco); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .predio-meta   { font-size: 11px; color: var(--texto-m); margin-top: 1px; }
-    .predio-del { background: transparent; border: none; color: var(--texto-m); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 4px; line-height: 1; }
-    .predio-del:hover { color: var(--fuego-l); }
-
     .loading { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px; color: var(--texto-m); font-size: 13px; }
     .spin { width: 14px; height: 14px; border: 2px solid var(--borde); border-top-color: var(--verde-l); border-radius: 50%; animation: spin .8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -100,59 +118,11 @@
     .popup-row   { font-size: 12px; color: var(--texto-m); margin: 2px 0; }
     .popup-row span { color: var(--blanco); font-family: 'Space Mono', monospace; }
 
-    /* Modal registro de predio */
-    .modal-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,.7); z-index: 9999;
-      align-items: center; justify-content: center;
-    }
-    .modal-overlay.visible { display: flex; }
-    .modal {
-      background: var(--panel); border: 1px solid var(--borde);
-      border-radius: 12px; padding: 24px; width: 420px; max-width: 95vw;
-    }
-    .modal h2 { font-size: 15px; font-weight: 800; color: var(--blanco); margin-bottom: 16px; }
-    .modal-field { margin-bottom: 12px; }
-    .modal-field label { display: block; font-size: 11px; color: var(--texto-m); margin-bottom: 5px; letter-spacing: .06em; text-transform: uppercase; }
-    .modal-field input, .modal-field textarea {
-      width: 100%; padding: 8px 10px; border-radius: 6px;
-      border: 1px solid var(--borde); background: var(--fondo);
-      color: var(--blanco); font-family: 'Syne', sans-serif; font-size: 13px;
-    }
-    .modal-field input:focus, .modal-field textarea:focus { outline: none; border-color: var(--verde-l); }
-    .modal-field textarea { resize: vertical; height: 60px; }
-    .drop-zone {
-      border: 2px dashed var(--borde); border-radius: 8px;
-      padding: 20px; text-align: center; cursor: pointer;
-      transition: border-color .15s; color: var(--texto-m); font-size: 12px;
-    }
-    .drop-zone:hover, .drop-zone.dragover { border-color: var(--verde-l); color: var(--verde-l); }
-    .drop-zone.ok { border-color: var(--verde-l); background: rgba(76,175,125,.06); color: var(--verde-l); }
-    .drop-zone input[type=file] { display: none; }
-    .modal-hint { font-size: 10px; color: var(--texto-m); margin-top: 6px; }
-    .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
-    .btn-guardar {
-      flex: 1; padding: 10px; border-radius: 8px; border: none;
-      background: var(--verde-m); color: var(--blanco);
-      font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600;
-      cursor: pointer; transition: background .15s;
-    }
-    .btn-guardar:hover { background: var(--verde-l); }
-    .btn-guardar:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-cancelar {
-      padding: 10px 16px; border-radius: 8px; border: 1px solid var(--borde);
-      background: transparent; color: var(--texto-m);
-      font-family: 'Syne', sans-serif; font-size: 13px; cursor: pointer;
-    }
-    .modal-msg { font-size: 11px; margin-top: 8px; text-align: center; min-height: 16px; }
-    .modal-msg.ok  { color: var(--verde-l); }
-    .modal-msg.err { color: var(--fuego-l); }
-
     .panel-footer { margin-top: auto; padding: 10px 16px; font-size: 10px; color: var(--texto-m); border-top: 1px solid var(--borde); }
     .panel-footer a { color: var(--verde-l); text-decoration: none; }
 
     @media (max-width: 700px) {
-      .app { grid-template-columns: 1fr; grid-template-rows: 56px 300px 1fr; }
+      .app { grid-template-columns: 1fr; grid-template-rows: 56px 320px 1fr; }
       aside { border-right: none; border-bottom: 1px solid var(--borde); }
     }
   </style>
@@ -176,7 +146,7 @@
         <div class="stat"><div class="stat-num fuego" id="total-alertas">—</div><div class="stat-label">Alertas</div></div>
         <div class="stat"><div class="stat-num" id="total-high">—</div><div class="stat-label">Confianza alta</div></div>
         <div class="stat"><div class="stat-num" id="total-frp">—</div><div class="stat-label">FRP máx (MW)</div></div>
-        <div class="stat"><div class="stat-num verde" id="total-predios">—</div><div class="stat-label">Predios registrados</div></div>
+        <div class="stat"><div class="stat-num" id="total-area-sel">—</div><div class="stat-label">En área seleccionada</div></div>
       </div>
     </div>
 
@@ -190,21 +160,72 @@
       </div>
     </div>
 
-    <!-- Predios -->
+    <!-- Predios desde GitHub -->
     <div class="panel-section">
-      <div class="panel-title">Predios monitoreados</div>
-      <button class="tool-btn predio-btn" onclick="abrirModal()">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><line x1="8" y1="5" x2="8" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="5" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        Registrar predio (GeoJSON / SHP)
-      </button>
-      <div id="lista-predios" style="margin-top:10px">
-        <div class="loading" style="padding:10px 0"><div class="spin"></div> Cargando...</div>
+      <div class="panel-title">Predios registrados</div>
+
+      <select class="predio-select" id="predio-select" onchange="seleccionarPredio(this.value)">
+        <option value="">— Selecciona un predio —</option>
+      </select>
+
+      <!-- Info del predio seleccionado -->
+      <div class="predio-info-box" id="predio-info-box">
+        <div class="predio-info-row">
+          <span class="predio-info-label">ID predio</span>
+          <span class="predio-info-val" id="info-id">—</span>
+        </div>
+        <div class="predio-info-row">
+          <span class="predio-info-label">Área (m²)</span>
+          <span class="predio-info-val" id="info-area-m">—</span>
+        </div>
+        <div class="predio-info-row">
+          <span class="predio-info-label">Área (ha)</span>
+          <span class="predio-info-val" id="info-area-ha">—</span>
+        </div>
+        <div class="predio-info-row">
+          <span class="predio-info-label">Alertas en período</span>
+          <span class="predio-info-val" id="info-alertas">—</span>
+        </div>
+      </div>
+
+      <!-- Colorear por atributo -->
+      <div id="predio-controles" style="display:none">
+        <div class="panel-title" style="margin-bottom:6px">Colorear por</div>
+        <div class="attr-btns">
+          <button class="attr-btn activo" onclick="cambiarAtributo('cobertura', this)">Cobertura</button>
+          <button class="attr-btn"        onclick="cambiarAtributo('uso_actual', this)">Uso actual</button>
+        </div>
+
+        <!-- Transparencia -->
+        <div class="slider-row">
+          <span class="slider-label">Transparencia</span>
+          <input type="range" min="0" max="100" value="40" id="slider-opacidad"
+                 oninput="cambiarOpacidad(this.value)">
+          <span class="slider-val" id="val-opacidad">40%</span>
+        </div>
+
+        <!-- Radio de alerta -->
+        <div class="slider-row radio-row">
+          <span class="slider-label">Radio alerta</span>
+          <input type="range" min="1" max="50" value="10" id="slider-radio"
+                 oninput="cambiarRadio(this.value)">
+          <span class="slider-val" id="val-radio">10 km</span>
+        </div>
+
+        <!-- Leyenda dinámica -->
+        <div class="leyenda" id="leyenda-colores"></div>
+
+        <!-- Botón limpiar selección -->
+        <button class="tool-btn" style="margin-top:8px" onclick="limpiarPredioa()">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Quitar selección
+        </button>
       </div>
     </div>
 
-    <!-- Dibujar área de consulta -->
+    <!-- Dibujar área manual -->
     <div class="panel-section">
-      <div class="panel-title">Dibujar área de consulta</div>
+      <div class="panel-title">Dibujar área manual</div>
       <div class="herramientas">
         <button class="tool-btn" id="btn-poligono" onclick="activarHerramienta('poligono')">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polygon points="8,1 15,6 12,14 4,14 1,6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
@@ -258,295 +279,216 @@
   <div id="map"></div>
 </div>
 
-<!-- Modal registro de predio -->
-<div class="modal-overlay" id="modal-predio">
-  <div class="modal">
-    <h2>Registrar predio de monitoreo</h2>
-
-    <div class="modal-field">
-      <label>Nombre del predio *</label>
-      <input type="text" id="predio-nombre" placeholder="Ej: Finca La Esperanza">
-    </div>
-    <div class="modal-field">
-      <label>Propietario / responsable</label>
-      <input type="text" id="predio-propietario" placeholder="Nombre completo">
-    </div>
-    <div class="modal-field">
-      <label>Descripción (opcional)</label>
-      <textarea id="predio-descripcion" placeholder="Vereda, municipio, tipo de cobertura..."></textarea>
-    </div>
-    <div class="modal-field">
-      <label>Archivo de geometría *</label>
-      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()"
-           ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropArchivo(event)">
-        <input type="file" id="file-input" accept=".geojson,.json,.zip" onchange="leerArchivo(this.files[0])">
-        <span id="drop-label">Arrastra aquí tu archivo o haz clic para seleccionar</span>
-      </div>
-      <div class="modal-hint">Acepta GeoJSON (.geojson, .json) y Shapefile comprimido (.zip con .shp, .dbf, .prj). EPSG:4326.</div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-cancelar" onclick="cerrarModal()">Cancelar</button>
-      <button class="btn-guardar" id="btn-guardar" onclick="guardarPredio()">Guardar predio</button>
-    </div>
-    <div class="modal-msg" id="modal-msg"></div>
-  </div>
-</div>
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/shpjs@4.0.4/dist/shp.min.js"></script>
 <script>
   // ── Configuración ──────────────────────────────────────────────────────────
-  const SUPABASE_URL = 'https://qryktfqnicnwiuwbijvd.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_tVzVULeeVvP-QRCXviO7cg_EOuOfX-0';
+  const SUPABASE_URL  = 'https://qryktfqnicnwiuwbijvd.supabase.co';
+  const SUPABASE_KEY  = 'sb_publishable_tVzVULeeVvP-QRCXviO7cg_EOuOfX-0';
+  const GEOJSON_URL   = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/Predios.geojson';
+
+  // ── Paletas de colores por valor único ────────────────────────────────────
+  const PALETA = [
+    '#4caf7d','#f5a623','#e8480a','#378add','#a855f7',
+    '#ec4899','#14b8a6','#f97316','#84cc16','#64748b',
+    '#fb7185','#34d399','#fbbf24','#60a5fa','#c084fc'
+  ];
+  const mapaColores = {}; // atributo → { valor → color }
+
+  function obtenerColor(atributo, valor) {
+    if (!mapaColores[atributo]) mapaColores[atributo] = {};
+    const mc = mapaColores[atributo];
+    if (!mc[valor]) {
+      const idx = Object.keys(mc).length % PALETA.length;
+      mc[valor] = PALETA[idx];
+    }
+    return mc[valor];
+  }
 
   // ── Mapa ───────────────────────────────────────────────────────────────────
-  const map = L.map('map', { zoomControl: false }).setView([5.09, -72.47], 10);
+  const map = L.map('map', { zoomControl: false }).setView([5.09, -72.47], 11);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19
   }).addTo(map);
 
-  // AOI de referencia Chameza
-  L.circle([5.09, -72.47], {
-    radius: 50000, color: '#4caf7d', weight: 1, fillColor: '#4caf7d', fillOpacity: 0.03, dashArray: '6 4'
-  }).addTo(map);
-
   // ── Estado global ──────────────────────────────────────────────────────────
-  let todasAlertas  = [];
-  let marcadores    = [];
-  let filtroActual  = 'all';
-  let diasActual    = 1;
-  let areaFiltro    = null;
-  let capasPrediod  = {};          // id → capa Leaflet
-  let geojsonPendiente = null;     // GeoJSON del archivo cargado en el modal
-  const drawnItems  = new L.FeatureGroup().addTo(map);
-  const capaPredios = new L.FeatureGroup().addTo(map);
+  let todasAlertas    = [];
+  let marcadores      = [];
+  let filtroActual    = 'all';
+  let diasActual      = 1;
+  let areaFiltro      = null;    // {tipo, coords|lat/lng/radio}
+  let predioSelIdx    = null;    // índice en todosFeatures
+  let todosFeatures   = [];      // features del GeoJSON
+  let atributoActual  = 'cobertura';
+  let opacidadActual  = 0.4;
+  let radioKm         = 10;
+  let capaPredioa     = null;    // L.geoJSON del predio seleccionado
+  let capaRadio       = null;    // L.circle de radio de alerta
+  const drawnItems    = new L.FeatureGroup().addTo(map);
+  const capaTodosGeo  = new L.FeatureGroup().addTo(map); // todos predios fondo tenue
 
-  // ── Modal predios ──────────────────────────────────────────────────────────
-  function abrirModal() {
-    geojsonPendiente = null;
-    document.getElementById('predio-nombre').value        = '';
-    document.getElementById('predio-propietario').value   = '';
-    document.getElementById('predio-descripcion').value   = '';
-    document.getElementById('drop-label').textContent     = 'Arrastra aquí tu archivo o haz clic para seleccionar';
-    document.getElementById('drop-zone').className        = 'drop-zone';
-    document.getElementById('modal-msg').textContent      = '';
-    document.getElementById('modal-msg').className        = 'modal-msg';
-    document.getElementById('modal-predio').classList.add('visible');
-  }
-
-  function cerrarModal() {
-    document.getElementById('modal-predio').classList.remove('visible');
-  }
-
-  function dragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('dragover'); }
-  function dragLeave()  { document.getElementById('drop-zone').classList.remove('dragover'); }
-  function dropArchivo(e) { e.preventDefault(); dragLeave(); leerArchivo(e.dataTransfer.files[0]); }
-
-  function leerArchivo(file) {
-    if (!file) return;
-    const ext = file.name.split('.').pop().toLowerCase();
-    const label = document.getElementById('drop-label');
-    const zone  = document.getElementById('drop-zone');
-
-    if (ext === 'zip') {
-      // Shapefile comprimido → shpjs
-      const reader = new FileReader();
-      reader.onload = async function(e) {
-        try {
-          const geojson = await shp(e.target.result);
-          geojsonPendiente = Array.isArray(geojson) ? geojson[0] : geojson;
-          label.textContent = file.name + ' ✓ (' + (geojsonPendiente.features?.length || 1) + ' geometría/s)';
-          zone.className = 'drop-zone ok';
-        } catch(err) {
-          label.textContent = 'Error leyendo shapefile: ' + err.message;
-          zone.className = 'drop-zone';
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    } else if (ext === 'geojson' || ext === 'json') {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          geojsonPendiente = JSON.parse(e.target.result);
-          const nFeats = geojsonPendiente.features?.length || 1;
-          label.textContent = file.name + ' ✓ (' + nFeats + ' geometría/s)';
-          zone.className = 'drop-zone ok';
-        } catch(err) {
-          label.textContent = 'Error leyendo GeoJSON: ' + err.message;
-          zone.className = 'drop-zone';
-        }
-      };
-      reader.readAsText(file);
-    } else {
-      label.textContent = 'Formato no soportado. Usa .geojson, .json o .zip';
-    }
-  }
-
-  async function guardarPredio() {
-    const nombre      = document.getElementById('predio-nombre').value.trim();
-    const propietario = document.getElementById('predio-propietario').value.trim();
-    const descripcion = document.getElementById('predio-descripcion').value.trim();
-    const msg         = document.getElementById('modal-msg');
-    const btn         = document.getElementById('btn-guardar');
-
-    if (!nombre)           { msg.textContent = 'El nombre es obligatorio.'; msg.className = 'modal-msg err'; return; }
-    if (!geojsonPendiente) { msg.textContent = 'Sube un archivo GeoJSON o Shapefile.'; msg.className = 'modal-msg err'; return; }
-
-    btn.disabled = true; msg.textContent = 'Guardando...'; msg.className = 'modal-msg';
-
-    // Calcular área aproximada en ha (solo para polígonos simples)
-    let area_ha = null;
-    try {
-      const feat = geojsonPendiente.type === 'FeatureCollection' ? geojsonPendiente.features[0] : geojsonPendiente;
-      const coords = feat.geometry?.coordinates?.[0];
-      if (coords) {
-        let s = 0;
-        for (let i = 0; i < coords.length - 1; i++) {
-          s += coords[i][0] * coords[i+1][1] - coords[i+1][0] * coords[i][1];
-        }
-        // Convertir grados² a ha (aprox. para Colombia ~5°N): 1°≈111km, 1ha=10000m²
-        area_ha = Math.abs(s / 2) * 111000 * 111000 * Math.cos(5 * Math.PI / 180) / 10000;
-        area_ha = Math.round(area_ha * 10) / 10;
-      }
-    } catch(_) {}
-
-    const payload = { nombre, propietario, descripcion, geojson: geojsonPendiente, area_ha };
-
-    try {
-      const resp = await fetch(`${SUPABASE_URL}/rest/v1/predios`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'application/json', Prefer: 'return=representation'
-        },
-        body: JSON.stringify(payload)
-      });
-      if (!resp.ok) { const e = await resp.text(); throw new Error(e); }
-      const [predio] = await resp.json();
-      msg.textContent = 'Predio guardado correctamente.'; msg.className = 'modal-msg ok';
-      setTimeout(() => { cerrarModal(); cargarPredios(); }, 1200);
-    } catch(err) {
-      msg.textContent = 'Error: ' + err.message; msg.className = 'modal-msg err';
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  // ── Cargar y mostrar predios ───────────────────────────────────────────────
+  // ── Cargar GeoJSON de predios ──────────────────────────────────────────────
   async function cargarPredios() {
     try {
-      const resp = await fetch(
-        `${SUPABASE_URL}/rest/v1/predios?select=*&eq.activo=true&order=created_at.desc`,
-        { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
-      );
-      const predios = await resp.json();
-      document.getElementById('total-predios').textContent = predios.length;
-      renderPrediosLista(predios);
-      renderPrediosMapa(predios);
-    } catch(err) {
-      document.getElementById('lista-predios').innerHTML = '<div class="loading" style="padding:8px 0;font-size:11px">Error cargando predios</div>';
-    }
-  }
+      const resp = await fetch(GEOJSON_URL);
+      const gj   = await resp.json();
+      todosFeatures = gj.features || [];
 
-  function renderPrediosLista(predios) {
-    const el = document.getElementById('lista-predios');
-    if (!predios.length) {
-      el.innerHTML = '<div style="font-size:11px;color:var(--texto-m);padding:4px 0">Ningún predio registrado aún.</div>';
-      return;
-    }
-    el.innerHTML = predios.map(p => `
-      <div class="predio-item" onclick="centrarEnPrediod('${p.id}')">
-        <div class="predio-dot"></div>
-        <div class="predio-info">
-          <div class="predio-nombre">${p.nombre}</div>
-          <div class="predio-meta">${p.propietario || 'Sin propietario'} · ${p.area_ha ? p.area_ha + ' ha' : 'área N/D'}</div>
-        </div>
-        <button class="predio-del" title="Eliminar predio" onclick="eliminarPredio(event,'${p.id}')">×</button>
-      </div>`).join('');
-  }
+      // Dibujar todos en fondo tenue
+      capaTodosGeo.clearLayers();
+      L.geoJSON(gj, {
+        style: { color: '#4caf7d', weight: 1, fillColor: '#4caf7d', fillOpacity: 0.04, dashArray: '4 3' },
+        onEachFeature: (feat, layer) => {
+          layer.on('click', () => {
+            const idx = todosFeatures.indexOf(feat);
+            document.getElementById('predio-select').value = idx;
+            seleccionarPredio(idx);
+          });
+        }
+      }).addTo(capaTodosGeo);
 
-  function renderPrediosMapa(predios) {
-    capaPredios.clearLayers();
-    capasPrediod = {};
-    predios.forEach(p => {
-      try {
-        const capa = L.geoJSON(p.geojson, {
-          style: { color: '#4caf7d', weight: 2, fillColor: '#4caf7d', fillOpacity: 0.08 },
-          onEachFeature: (feat, layer) => {
-            layer.bindPopup(`
-              <div class="popup-title verde">${p.nombre}</div>
-              <div class="popup-row">Propietario <span>${p.propietario || 'N/D'}</span></div>
-              <div class="popup-row">Área <span>${p.area_ha ? p.area_ha + ' ha' : 'N/D'}</span></div>
-              <div class="popup-row">Registrado <span>${new Date(p.created_at).toLocaleDateString('es-CO')}</span></div>
-              ${p.descripcion ? `<div class="popup-row" style="margin-top:4px">${p.descripcion}</div>` : ''}
-            `);
-          }
-        });
-        capaPredios.addLayer(capa);
-        capasPrediod[p.id] = capa;
-      } catch(_) {}
-    });
-  }
-
-  function centrarEnPrediod(id) {
-    const capa = capasPrediod[id];
-    if (capa) { map.fitBounds(capa.getBounds().pad(0.3)); }
-  }
-
-  async function eliminarPredio(e, id) {
-    e.stopPropagation();
-    if (!confirm('¿Eliminar este predio del monitoreo?')) return;
-    await fetch(`${SUPABASE_URL}/rest/v1/predios?id=eq.${id}`, {
-      method: 'DELETE',
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
-    });
-    cargarPredios();
-  }
-
-  // ── Herramientas de dibujo ─────────────────────────────────────────────────
-  function activarHerramienta(tipo) {
-    limpiarAreaDibujada();
-    document.getElementById('hint-dibujo').classList.add('visible');
-    if (tipo === 'poligono') {
-      document.getElementById('btn-poligono').classList.add('activo');
-      new L.Draw.Polygon(map, { shapeOptions: { color: '#f5a623', weight: 2, fillOpacity: 0.1 } }).enable();
-    } else {
-      document.getElementById('btn-punto').classList.add('activo');
-      map.once('click', function(e) {
-        const c = L.circle(e.latlng, { radius: 10000, color: '#f5a623', weight: 2, fillOpacity: 0.08 });
-        drawnItems.addLayer(c);
-        areaFiltro = { tipo: 'circulo', lat: e.latlng.lat, lng: e.latlng.lng, radio: 10 };
-        document.getElementById('btn-punto').classList.remove('activo');
-        document.getElementById('hint-dibujo').classList.remove('visible');
-        aplicarFiltros();
+      // Llenar select
+      const sel = document.getElementById('predio-select');
+      todosFeatures.forEach((f, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `${f.properties.id_predio || 'Predio ' + (i+1)}`;
+        sel.appendChild(opt);
       });
+    } catch(err) {
+      console.error('Error cargando predios:', err);
     }
   }
 
-  map.on(L.Draw.Event.CREATED, function(e) {
-    drawnItems.addLayer(e.layer);
-    areaFiltro = { tipo: 'poligono', coords: e.layer.toGeoJSON().geometry.coordinates[0] };
-    document.getElementById('btn-poligono').classList.remove('activo');
-    document.getElementById('hint-dibujo').classList.remove('visible');
-    aplicarFiltros();
-  });
+  // ── Seleccionar predio ─────────────────────────────────────────────────────
+  function seleccionarPredio(idx) {
+    if (idx === '' || idx === null) { limpiarPredioa(); return; }
+    idx = parseInt(idx);
+    predioSelIdx = idx;
+    const feat = todosFeatures[idx];
+    const props = feat.properties;
 
-  function limpiarAreaDibujada() {
-    drawnItems.clearLayers(); areaFiltro = null;
-    document.getElementById('btn-poligono').classList.remove('activo');
-    document.getElementById('btn-punto').classList.remove('activo');
-    document.getElementById('hint-dibujo').classList.remove('visible');
+    // Info box
+    document.getElementById('info-id').textContent      = props.id_predio || '—';
+    document.getElementById('info-area-m').textContent  = props.area_m   ? Number(props.area_m).toLocaleString('es-CO', {maximumFractionDigits:0}) : '—';
+    document.getElementById('info-area-ha').textContent = props.area_ha  ? Number(props.area_ha).toFixed(2) : '—';
+    document.getElementById('predio-info-box').classList.add('visible');
+    document.getElementById('predio-controles').style.display = 'block';
+
+    renderCapaPredioa();
+    centrarPredioa();
     aplicarFiltros();
   }
 
-  // ── Filtros y renderizado de alertas ───────────────────────────────────────
+  function renderCapaPredioa() {
+    if (capaPredioa) { map.removeLayer(capaPredioa); capaPredioa = null; }
+    if (capaRadio)   { map.removeLayer(capaRadio);   capaRadio   = null; }
+    if (predioSelIdx === null) return;
+
+    const feat  = todosFeatures[predioSelIdx];
+    const alpha = opacidadActual;
+
+    capaPredioa = L.geoJSON(feat, {
+      style: f => {
+        const val   = f.properties[atributoActual] || 'Sin dato';
+        const color = obtenerColor(atributoActual, val);
+        return { color: '#fff', weight: 1.5, fillColor: color, fillOpacity: alpha };
+      },
+      onEachFeature: (f, layer) => {
+        const props = f.properties;
+        layer.bindPopup(`
+          <div class="popup-title verde">${props.id_predio || 'Predio'}</div>
+          <div class="popup-row">Cobertura <span>${props.cobertura || '—'}</span></div>
+          <div class="popup-row">Uso actual <span>${props.uso_actual || '—'}</span></div>
+          <div class="popup-row">Área (m²) <span>${props.area_m ? Number(props.area_m).toLocaleString('es-CO',{maximumFractionDigits:0}) : '—'}</span></div>
+          <div class="popup-row">Área (ha) <span>${props.area_ha ? Number(props.area_ha).toFixed(2) : '—'}</span></div>
+        `);
+      }
+    }).addTo(map);
+
+    // Radio de alerta centrado en el centroide del predio
+    const bounds   = capaPredioa.getBounds();
+    const centroid = bounds.getCenter();
+    capaRadio = L.circle(centroid, {
+      radius: radioKm * 1000,
+      color: '#f5a623', weight: 1.5, dashArray: '6 4',
+      fillColor: '#f5a623', fillOpacity: 0.04
+    }).addTo(map);
+
+    renderLeyenda();
+    aplicarFiltros();
+  }
+
+  function centrarPredioa() {
+    if (capaPredioa) map.fitBounds(capaPredioa.getBounds().pad(0.3));
+  }
+
+  function limpiarPredioa() {
+    predioSelIdx = null;
+    if (capaPredioa) { map.removeLayer(capaPredioa); capaPredioa = null; }
+    if (capaRadio)   { map.removeLayer(capaRadio);   capaRadio   = null; }
+    document.getElementById('predio-select').value = '';
+    document.getElementById('predio-info-box').classList.remove('visible');
+    document.getElementById('predio-controles').style.display = 'none';
+    document.getElementById('leyenda-colores').innerHTML = '';
+    document.getElementById('info-alertas').textContent = '—';
+    document.getElementById('total-area-sel').textContent = '—';
+    aplicarFiltros();
+  }
+
+  function cambiarAtributo(attr, btn) {
+    atributoActual = attr;
+    document.querySelectorAll('.attr-btn').forEach(b => b.classList.remove('activo'));
+    btn.classList.add('activo');
+    renderCapaPredioa();
+  }
+
+  function cambiarOpacidad(val) {
+    opacidadActual = val / 100;
+    document.getElementById('val-opacidad').textContent = val + '%';
+    if (capaPredioa) {
+      capaPredioa.setStyle({ fillOpacity: opacidadActual });
+    }
+  }
+
+  function cambiarRadio(val) {
+    radioKm = parseInt(val);
+    document.getElementById('val-radio').textContent = val + ' km';
+    if (capaRadio) capaRadio.setRadius(radioKm * 1000);
+    aplicarFiltros();
+  }
+
+  function renderLeyenda() {
+    const mc  = mapaColores[atributoActual] || {};
+    const el  = document.getElementById('leyenda-colores');
+    el.innerHTML = Object.entries(mc).map(([val, color]) =>
+      `<div class="leyenda-item">
+        <div class="leyenda-color" style="background:${color}"></div>
+        <span class="leyenda-txt">${val}</span>
+       </div>`
+    ).join('');
+  }
+
+  // ── Área de filtro: predio seleccionado vs. dibujo manual ─────────────────
+  function obtenerAreaFiltroActiva() {
+    // Prioridad: predio seleccionado con radio > área dibujada manualmente
+    if (predioSelIdx !== null && capaRadio) {
+      const c = capaRadio.getLatLng();
+      return { tipo: 'circulo', lat: c.lat, lng: c.lng, radio: radioKm };
+    }
+    return areaFiltro;
+  }
+
+  // ── Filtros y alertas ──────────────────────────────────────────────────────
   function puntoEnArea(lat, lng, area) {
     if (!area) return true;
     if (area.tipo === 'circulo') {
-      const d = Math.sqrt(Math.pow((lat - area.lat) * 111, 2) + Math.pow((lng - area.lng) * 111 * Math.cos(area.lat * Math.PI / 180), 2));
+      const d = Math.sqrt(
+        Math.pow((lat - area.lat) * 111, 2) +
+        Math.pow((lng - area.lng) * 111 * Math.cos(area.lat * Math.PI / 180), 2)
+      );
       return d <= area.radio;
     }
     let dentro = false;
@@ -566,10 +508,17 @@
   function aplicarFiltros() {
     let result = alertasEnPeriodo(todasAlertas);
     if (filtroActual !== 'all') result = result.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
-    const enArea = areaFiltro ? result.filter(a => puntoEnArea(a.latitud, a.longitud, areaFiltro)) : result;
+
+    const areaActiva = obtenerAreaFiltroActiva();
+    const enArea = areaActiva ? result.filter(a => puntoEnArea(a.latitud, a.longitud, areaActiva)) : result;
+
     actualizarStats(result, enArea);
     renderMarcadores(enArea);
     renderLista(enArea);
+
+    if (predioSelIdx !== null) {
+      document.getElementById('info-alertas').textContent = enArea.length;
+    }
   }
 
   function actualizarStats(todas, enArea) {
@@ -577,6 +526,8 @@
     document.getElementById('total-high').textContent    = todas.filter(a => (a.firms_confidence || '').toLowerCase() === 'high').length;
     const frps = todas.map(a => a.firms_frp || 0).filter(Boolean);
     document.getElementById('total-frp').textContent     = frps.length ? Math.max(...frps).toFixed(0) : '0';
+    const areaActiva = obtenerAreaFiltroActiva();
+    document.getElementById('total-area-sel').textContent = areaActiva ? enArea.length : '—';
   }
 
   function colorConfianza(c) {
@@ -640,11 +591,48 @@
     btn.classList.add('activo'); filtroActual = btn.dataset.filtro; aplicarFiltros();
   }
 
+  // ── Dibujo manual ──────────────────────────────────────────────────────────
+  function activarHerramienta(tipo) {
+    limpiarAreaDibujada();
+    document.getElementById('hint-dibujo').classList.add('visible');
+    if (tipo === 'poligono') {
+      document.getElementById('btn-poligono').classList.add('activo');
+      new L.Draw.Polygon(map, { shapeOptions: { color: '#f5a623', weight: 2, fillOpacity: 0.08 } }).enable();
+    } else {
+      document.getElementById('btn-punto').classList.add('activo');
+      map.once('click', function(e) {
+        const c = L.circle(e.latlng, { radius: 10000, color: '#f5a623', weight: 2, fillOpacity: 0.06 });
+        drawnItems.addLayer(c);
+        areaFiltro = { tipo: 'circulo', lat: e.latlng.lat, lng: e.latlng.lng, radio: 10 };
+        document.getElementById('btn-punto').classList.remove('activo');
+        document.getElementById('hint-dibujo').classList.remove('visible');
+        aplicarFiltros();
+      });
+    }
+  }
+
+  map.on(L.Draw.Event.CREATED, function(e) {
+    drawnItems.addLayer(e.layer);
+    areaFiltro = { tipo: 'poligono', coords: e.layer.toGeoJSON().geometry.coordinates[0] };
+    document.getElementById('btn-poligono').classList.remove('activo');
+    document.getElementById('hint-dibujo').classList.remove('visible');
+    aplicarFiltros();
+  });
+
+  function limpiarAreaDibujada() {
+    drawnItems.clearLayers(); areaFiltro = null;
+    document.getElementById('btn-poligono').classList.remove('activo');
+    document.getElementById('btn-punto').classList.remove('activo');
+    document.getElementById('hint-dibujo').classList.remove('visible');
+    aplicarFiltros();
+  }
+
   // ── Descarga ───────────────────────────────────────────────────────────────
   function alertasActuales() {
     let r = alertasEnPeriodo(todasAlertas);
     if (filtroActual !== 'all') r = r.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
-    if (areaFiltro) r = r.filter(a => puntoEnArea(a.latitud, a.longitud, areaFiltro));
+    const areaActiva = obtenerAreaFiltroActiva();
+    if (areaActiva) r = r.filter(a => puntoEnArea(a.latitud, a.longitud, areaActiva));
     return r;
   }
 
@@ -655,8 +643,8 @@
     const fils  = datos.map(a => [a.fecha_deteccion, a.latitud, a.longitud, a.firms_confidence || '', a.firms_frp || '', a.firms_satellite || '', a.estado].join(','));
     const blob  = new Blob([[cab.join(','), ...fils].join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url   = URL.createObjectURL(blob);
-    const link  = document.createElement('a'); link.href = url;
-    link.download = `alertas_chameza_${new Date().toISOString().slice(0,10)}.csv`;
+    const link  = document.createElement('a');
+    link.href = url; link.download = `alertas_chameza_${new Date().toISOString().slice(0,10)}.csv`;
     link.click(); URL.revokeObjectURL(url);
   }
 
@@ -667,6 +655,7 @@
     const doc = new jsPDF();
     const hoy = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
     const periodo = diasActual === 1 ? 'Últimas 24 horas' : diasActual === 7 ? 'Últimos 7 días' : 'Últimos 30 días';
+    const predioLabel = predioSelIdx !== null ? todosFeatures[predioSelIdx].properties.id_predio : null;
 
     doc.setFillColor(17, 31, 23); doc.rect(0, 0, 210, 32, 'F');
     doc.setTextColor(76, 175, 125); doc.setFontSize(16); doc.setFont('helvetica', 'bold');
@@ -678,8 +667,9 @@
     doc.text(`Total alertas: ${datos.length}`, 14, 42);
     doc.text(`Período: ${periodo}`, 14, 50);
     doc.text(`Filtro confianza: ${filtroActual === 'all' ? 'Todas' : filtroActual}`, 14, 58);
+    if (predioLabel) doc.text(`Predio: ${predioLabel} · radio ${radioKm} km`, 14, 66);
 
-    let y = 68;
+    let y = predioLabel ? 76 : 68;
     doc.setFontSize(9); doc.setFont('helvetica', 'bold');
     doc.setFillColor(220, 240, 228); doc.rect(14, y, 182, 8, 'F');
     doc.text('Fecha (Bogotá)', 16, y+5.5); doc.text('Lat', 72, y+5.5); doc.text('Lon', 98, y+5.5);
@@ -695,13 +685,16 @@
       doc.text(a.firms_frp ? a.firms_frp.toFixed(1) : '—', 153, y);
       doc.text(a.firms_satellite || '—', 178, y); y += 8;
     });
-    if (datos.length > 55) { doc.setFont('helvetica','italic'); doc.setTextColor(120,120,120); doc.text(`... y ${datos.length-55} alertas más. Usa CSV para el listado completo.`, 14, y+4); }
+    if (datos.length > 55) {
+      doc.setFont('helvetica','italic'); doc.setTextColor(120,120,120);
+      doc.text(`... y ${datos.length-55} alertas más. Usa CSV para el listado completo.`, 14, y+4);
+    }
     doc.setFontSize(8); doc.setTextColor(150,150,150);
     doc.text('Fuente: NASA FIRMS · Sistema de monitoreo participativo CBC Cunaguaro / TFCA Colombia', 14, 288);
     doc.save(`reporte_alertas_chameza_${new Date().toISOString().slice(0,10)}.pdf`);
   }
 
-  // ── Cargar alertas ─────────────────────────────────────────────────────────
+  // ── Cargar alertas desde Supabase ──────────────────────────────────────────
   async function cargarAlertas() {
     try {
       const resp = await fetch(
@@ -711,17 +704,14 @@
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       todasAlertas = await resp.json();
       aplicarFiltros();
-      if (todasAlertas.length && marcadores.length) {
-        map.fitBounds(L.featureGroup(marcadores).getBounds().pad(0.3));
-      }
     } catch (err) {
       document.getElementById('lista-alertas').innerHTML = `<div class="loading">Error: ${err.message}</div>`;
     }
   }
 
   // ── Inicio ─────────────────────────────────────────────────────────────────
-  cargarAlertas();
   cargarPredios();
+  cargarAlertas();
   setInterval(cargarAlertas, 5 * 60 * 1000);
 </script>
 </body>
