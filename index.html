@@ -93,6 +93,14 @@
     .dl-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; transition: all .15s; }
     .dl-btn:hover { border-color: var(--verde-l); color: var(--blanco); background: rgba(77,175,125,.08); }
 
+    /* Capas informativas */
+    .capa-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
+    .capa-row input[type=checkbox] { accent-color: var(--verde-l); width: 16px; height: 16px; cursor: pointer; }
+    .capa-label { font-size: 12px; color: var(--texto); flex: 1; }
+    .capa-sub { margin-left: 26px; margin-top: -4px; margin-bottom: 10px; display: none; }
+    .capa-sub.visible { display: block; }
+    .year-select { width: 100%; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--borde); background: var(--fondo); color: var(--blanco); font-size: 11px; font-family: 'Syne', sans-serif; }
+
     .alerta-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--borde); cursor: pointer; transition: background .15s; }
     .alerta-item:last-child { border-bottom: none; }
     .alerta-item:hover { background: rgba(77,175,125,.05); margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
@@ -254,6 +262,41 @@
       </div>
     </div>
 
+    <!-- Capas informativas -->
+    <div class="panel-section">
+      <div class="panel-title">Capas informativas</div>
+      
+      <label class="capa-row">
+        <input type="checkbox" onchange="toggleCapa('municipio', this.checked)">
+        <span class="capa-label">Municipio (Chámeza)</span>
+      </label>
+
+      <label class="capa-row">
+        <input type="checkbox" onchange="toggleCapa('estudio', this.checked)">
+        <span class="capa-label">Área de estudio</span>
+      </label>
+
+      <label class="capa-row">
+        <input type="checkbox" onchange="toggleCapa('bosque', this.checked)">
+        <span class="capa-label">Núcleos boscosos</span>
+      </label>
+
+      <label class="capa-row">
+        <input type="checkbox" id="chk-perdidas" onchange="toggleCapa('perdidas', this.checked)">
+        <span class="capa-label">Pérdidas 2020-2024</span>
+      </label>
+      <div class="capa-sub" id="sub-perdidas">
+        <select class="year-select" id="sel-year" onchange="actualizarPerdidas()">
+          <option value="all">Todos los años</option>
+          <option value="20">2020</option>
+          <option value="21">2021</option>
+          <option value="22">2022</option>
+          <option value="23">2023</option>
+          <option value="24">2024</option>
+        </select>
+      </div>
+    </div>
+
     <!-- Descarga -->
     <div class="panel-section">
       <div class="panel-title">Descargar reporte</div>
@@ -287,6 +330,14 @@
   const SUPABASE_URL  = 'https://qryktfqnicnwiuwbijvd.supabase.co';
   const SUPABASE_KEY  = 'sb_publishable_tVzVULeeVvP-QRCXviO7cg_EOuOfX-0';
   const GEOJSON_URL   = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/Predios.geojson';
+  const BASE_URL      = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/';
+
+  const URLS = {
+    municipio: BASE_URL + 'Chameza4326.geojson',
+    estudio:   BASE_URL + 'area_estudio.geojson',
+    bosque:    BASE_URL + 'Nucleos_boscosos.geojson',
+    perdidas:  BASE_URL + 'Perdidas2020-2024.geojson'
+  };
 
   // ── Paletas de colores por valor único ────────────────────────────────────
   const PALETA = [
@@ -329,6 +380,47 @@
   let capaRadio       = null;    // L.circle de radio de alerta
   const drawnItems    = new L.FeatureGroup().addTo(map);
   const capaTodosGeo  = new L.FeatureGroup().addTo(map); // todos predios fondo tenue
+
+  // Capas informativas
+  const capasInfo = {
+    municipio: L.layerGroup().addTo(map),
+    estudio:   L.layerGroup().addTo(map),
+    bosque:    L.layerGroup().addTo(map),
+    perdidas:  L.layerGroup().addTo(map)
+  };
+  let datosPerdidas = null;
+
+  // ── Patrón de achurado para bosques ───────────────────────────────────────
+  // Creamos un patrón SVG para el achurado
+  const svgNS = "http://www.w3.org/2000/svg";
+  const pattern = document.createElementNS(svgNS, "pattern");
+  pattern.setAttribute("id", "hatch");
+  pattern.setAttribute("patternUnits", "userSpaceOnUse");
+  pattern.setAttribute("width", "8");
+  pattern.setAttribute("height", "8");
+  pattern.setAttribute("patternTransform", "rotate(45)");
+
+  const line = document.createElementNS(svgNS, "line");
+  line.setAttribute("x1", "0");
+  line.setAttribute("y1", "0");
+  line.setAttribute("x2", "0");
+  line.setAttribute("y2", "8");
+  line.setAttribute("stroke", "#4caf7d");
+  line.setAttribute("stroke-width", "2");
+  pattern.appendChild(line);
+
+  // Inyectar en el SVG del mapa cuando esté listo
+  map.on('layeradd', function() {
+    const svg = document.querySelector('#map svg');
+    if (svg && !svg.querySelector('#hatch')) {
+      let defs = svg.querySelector('defs');
+      if (!defs) {
+        defs = document.createElementNS(svgNS, "defs");
+        svg.insertBefore(defs, svg.firstChild);
+      }
+      defs.appendChild(pattern);
+    }
+  });
 
   // ── Cargar GeoJSON de predios ──────────────────────────────────────────────
   async function cargarPredios() {
@@ -711,6 +803,80 @@
     doc.setFontSize(8); doc.setTextColor(150,150,150);
     doc.text('Fuente: NASA FIRMS · Sistema de monitoreo participativo CBC Cunaguaro / TFCA Colombia', 14, 288);
     doc.save(`reporte_alertas_chameza_${new Date().toISOString().slice(0,10)}.pdf`);
+  }
+
+  // ── Capas informativas ───────────────────────────────────────────────────
+  async function toggleCapa(key, visible) {
+    const group = capasInfo[key];
+    if (!visible) {
+      group.clearLayers();
+      if (key === 'perdidas') document.getElementById('sub-perdidas').classList.remove('visible');
+      return;
+    }
+
+    if (key === 'perdidas') document.getElementById('sub-perdidas').classList.add('visible');
+
+    try {
+      const resp = await fetch(URLS[key]);
+      const data = await resp.json();
+
+      if (key === 'perdidas') {
+        datosPerdidas = data;
+        actualizarPerdidas();
+        return;
+      }
+
+      let style = {};
+      if (key === 'municipio') style = { color: '#000', weight: 2, fillOpacity: 0 };
+      if (key === 'estudio')   style = { color: '#f00', weight: 2, fillOpacity: 0 };
+      if (key === 'bosque')    style = { fillPattern: 'hatch', color: '#4caf7d', weight: 1, fillOpacity: 0.5, className: 'hatch-layer' };
+
+      const layer = L.geoJSON(data, {
+        style: style,
+        onEachFeature: (f, l) => {
+          if (key === 'bosque') {
+            // Aplicar el patrón manualmente si es necesario (Leaflet no lo soporta nativamente en style)
+            l.on('add', function() {
+              if (l._path) l._path.setAttribute('fill', 'url(#hatch)');
+            });
+          }
+        }
+      });
+      group.addLayer(layer);
+    } catch (err) {
+      console.error(`Error cargando capa ${key}:`, err);
+    }
+  }
+
+  function actualizarPerdidas() {
+    if (!datosPerdidas) return;
+    const group = capasInfo.perdidas;
+    group.clearLayers();
+
+    const yearSel = document.getElementById('sel-year').value;
+    const coloresYear = {
+      '20': '#eab308',
+      '21': '#f97316',
+      '22': '#ef4444',
+      '23': '#ec4899',
+      '24': '#a855f7'
+    };
+
+    L.geoJSON(datosPerdidas, {
+      filter: f => yearSel === 'all' || String(f.properties.year) === yearSel,
+      pointToLayer: (f, latlng) => {
+        const y = String(f.properties.year);
+        const color = coloresYear[y] || '#fff';
+        return L.circleMarker(latlng, {
+          radius: 4,
+          fillColor: color,
+          color: '#000',
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 0.8
+        }).bindPopup(`Pérdida detectada<br>Año: 20${y}`);
+      }
+    }).addTo(group);
   }
 
   // ── Cargar alertas desde Supabase ──────────────────────────────────────────
