@@ -13,7 +13,6 @@
     :root {
       --verde:   #1a4a2e; --verde-m: #2d7a4f; --verde-l: #4caf7d;
       --fuego:   #e8480a; --fuego-l: #ff7043; --amber:   #f5a623;
-      --defor:   #8B4513; --defor-l: #cd853f;
       --fondo:   #0d1f15; --panel:   #111f17; --borde:   #1e3528;
       --texto:   #d4e8db; --texto-m: #7aab8a; --blanco:  #f0f7f2;
     }
@@ -32,25 +31,10 @@
     .panel-section { padding: 14px 16px; border-bottom: 1px solid var(--borde); }
     .panel-title { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--texto-m); margin-bottom: 10px; }
 
-    /* Pestañas de módulo */
-    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--borde); }
-    .tab-btn {
-      flex: 1; padding: 10px 0; border: none; background: transparent;
-      font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600;
-      color: var(--texto-m); cursor: pointer; border-bottom: 2px solid transparent;
-      transition: all .15s; letter-spacing: .02em;
-    }
-    .tab-btn:hover { color: var(--blanco); }
-    .tab-btn.activo.fuego  { color: var(--fuego-l);  border-bottom-color: var(--fuego-l); }
-    .tab-btn.activo.defor  { color: var(--defor-l);  border-bottom-color: var(--defor-l); }
-    .tab-panel { display: none; }
-    .tab-panel.visible { display: block; }
-
     .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .stat { background: var(--fondo); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; }
     .stat-num { font-size: 22px; font-weight: 800; color: var(--blanco); line-height: 1; }
     .stat-num.fuego { color: var(--fuego-l); }
-    .stat-num.defor { color: var(--defor-l); }
     .stat-label { font-size: 11px; color: var(--texto-m); margin-top: 3px; }
 
     .periodo-btns { display: flex; gap: 6px; }
@@ -58,21 +42,37 @@
     .periodo-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
 
     /* Predios */
-    select.predio-select { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--borde); background: var(--fondo); color: var(--blanco); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; margin-bottom: 10px; }
+    select.predio-select {
+      width: 100%; padding: 8px 10px; border-radius: 6px;
+      border: 1px solid var(--borde); background: var(--fondo);
+      color: var(--blanco); font-family: 'Syne', sans-serif; font-size: 12px;
+      cursor: pointer; margin-bottom: 10px;
+    }
     select.predio-select:focus { outline: none; border-color: var(--verde-l); }
-    .predio-info-box { background: var(--fondo); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; display: none; }
+
+    .predio-info-box {
+      background: var(--fondo); border: 1px solid var(--borde);
+      border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;
+      display: none;
+    }
     .predio-info-box.visible { display: block; }
     .predio-info-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
     .predio-info-label { font-size: 11px; color: var(--texto-m); }
     .predio-info-val   { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); }
+
     .attr-btns { display: flex; gap: 6px; margin-bottom: 10px; }
     .attr-btn { flex: 1; padding: 6px 0; border-radius: 6px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 11px; cursor: pointer; transition: all .15s; }
     .attr-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
+
     .slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .slider-label { font-size: 11px; color: var(--texto-m); white-space: nowrap; }
     .slider-row input[type=range] { flex: 1; accent-color: var(--verde-l); }
-    .slider-val { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); min-width: 34px; text-align: right; }
-    .radio-row input[type=range] { accent-color: var(--amber); }
+    .slider-val { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); min-width: 28px; text-align: right; }
+
+    .radio-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .radio-row input[type=range] { flex: 1; accent-color: var(--amber); }
+
+    /* Leyenda colores */
     .leyenda { margin-top: 8px; }
     .leyenda-item { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
     .leyenda-color { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
@@ -89,44 +89,9 @@
     .filtro-btn { padding: 5px 10px; border-radius: 20px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 11px; cursor: pointer; transition: all .15s; }
     .filtro-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
 
-    /* Checkboxes de capas para descarga */
-    .check-capas { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-    .check-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-    .check-row input[type=checkbox] { accent-color: var(--verde-l); width: 14px; height: 14px; cursor: pointer; }
-    .check-row span { font-size: 12px; color: var(--texto-m); }
-    .check-row input:checked + span { color: var(--blanco); }
-
     .descarga-btns { display: flex; gap: 8px; }
     .dl-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; transition: all .15s; }
     .dl-btn:hover { border-color: var(--verde-l); color: var(--blanco); background: rgba(77,175,125,.08); }
-
-    /* Capas GFW */
-    .gfw-controles { display: flex; flex-direction: column; gap: 8px; }
-    .gfw-toggle-row { display: flex; align-items: center; justify-content: space-between; }
-    .gfw-label { font-size: 12px; color: var(--texto-m); }
-    .toggle-wrap { position: relative; width: 34px; height: 18px; }
-    .toggle-wrap input { opacity: 0; width: 0; height: 0; }
-    .toggle-slider { position: absolute; inset: 0; background: var(--borde); border-radius: 18px; cursor: pointer; transition: background .2s; }
-    .toggle-slider:before { content:''; position: absolute; width: 12px; height: 12px; left: 3px; top: 3px; background: var(--texto-m); border-radius: 50%; transition: transform .2s; }
-    .toggle-wrap input:checked + .toggle-slider { background: var(--verde-m); }
-    .toggle-wrap input:checked + .toggle-slider:before { transform: translateX(16px); background: var(--verde-l); }
-
-    .anio-btns { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
-    .anio-btn { padding: 4px 8px; border-radius: 4px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Space Mono', monospace; font-size: 10px; cursor: pointer; transition: all .15s; }
-    .anio-btn.activo { background: var(--defor); border-color: var(--defor-l); color: var(--blanco); }
-
-    /* Leyenda GFW en mapa */
-    .leyenda-gfw {
-      position: absolute; bottom: 36px; right: 10px; z-index: 999;
-      background: var(--panel); border: 1px solid var(--borde);
-      border-radius: 8px; padding: 8px 10px; font-size: 10px;
-      color: var(--texto-m); display: none;
-    }
-    .leyenda-gfw.visible { display: block; }
-    .leyenda-gfw-title { font-weight: 600; margin-bottom: 4px; color: var(--defor-l); }
-    .leyenda-gfw-grad { width: 120px; height: 8px; border-radius: 4px; margin-bottom: 3px;
-      background: linear-gradient(to right, #ffeda0, #f03b20, #bd0026); }
-    .leyenda-gfw-labels { display: flex; justify-content: space-between; font-family: 'Space Mono', monospace; font-size: 9px; }
 
     .alerta-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--borde); cursor: pointer; transition: background .15s; }
     .alerta-item:last-child { border-bottom: none; }
@@ -135,7 +100,6 @@
     .alerta-dot.high    { background: var(--fuego); box-shadow: 0 0 6px var(--fuego); }
     .alerta-dot.nominal { background: var(--amber); }
     .alerta-dot.low     { background: var(--verde-l); }
-    .alerta-dot.defor   { background: var(--defor-l); border-radius: 2px; }
     .alerta-info { flex: 1; min-width: 0; }
     .alerta-coords { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); }
     .alerta-meta   { font-size: 11px; color: var(--texto-m); margin-top: 2px; }
@@ -145,13 +109,12 @@
     .spin { width: 14px; height: 14px; border: 2px solid var(--borde); border-top-color: var(--verde-l); border-radius: 50%; animation: spin .8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    #map { width: 100%; height: 100%; position: relative; }
+    #map { width: 100%; height: 100%; }
     .leaflet-container { background: #0a1a0f; }
     .leaflet-popup-content-wrapper { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; color: var(--texto); box-shadow: 0 8px 32px rgba(0,0,0,.6); }
     .leaflet-popup-tip { background: var(--panel); }
     .popup-title { font-size: 13px; font-weight: 700; color: var(--fuego-l); margin-bottom: 6px; }
     .popup-title.verde { color: var(--verde-l); }
-    .popup-title.defor { color: var(--defor-l); }
     .popup-row   { font-size: 12px; color: var(--texto-m); margin: 2px 0; }
     .popup-row span { color: var(--blanco); font-family: 'Space Mono', monospace; }
 
@@ -159,7 +122,7 @@
     .panel-footer a { color: var(--verde-l); text-decoration: none; }
 
     @media (max-width: 700px) {
-      .app { grid-template-columns: 1fr; grid-template-rows: 56px 360px 1fr; }
+      .app { grid-template-columns: 1fr; grid-template-rows: 56px 320px 1fr; }
       aside { border-right: none; border-bottom: 1px solid var(--borde); }
     }
   </style>
@@ -171,230 +134,149 @@
     <img src="fondoaccion.png" alt="TFCA Fondo Acción">
     <img src="cunaguaro.png"   alt="CBC Cunaguaro">
     <h1>Monitor Bosques <span>Chameza</span></h1>
-    <div class="badge-live"><div class="dot"></div> En vivo · NASA FIRMS + GFW</div>
+    <div class="badge-live"><div class="dot"></div> En vivo · NASA FIRMS</div>
   </header>
 
   <aside>
 
-    <!-- Pestañas -->
-    <div class="tabs">
-      <button class="tab-btn activo fuego" onclick="cambiarTab('fuego', this)">Incendios</button>
-      <button class="tab-btn defor"        onclick="cambiarTab('defor', this)">Deforestación</button>
+    <!-- Stats -->
+    <div class="panel-section">
+      <div class="panel-title">Resumen del período</div>
+      <div class="stats">
+        <div class="stat"><div class="stat-num fuego" id="total-alertas">—</div><div class="stat-label">Alertas</div></div>
+        <div class="stat"><div class="stat-num" id="total-high">—</div><div class="stat-label">Confianza alta</div></div>
+        <div class="stat"><div class="stat-num" id="total-frp">—</div><div class="stat-label">FRP máx (MW)</div></div>
+        <div class="stat"><div class="stat-num" id="total-area-sel">—</div><div class="stat-label">En área seleccionada</div></div>
+      </div>
     </div>
 
-    <!-- ══ PANEL INCENDIOS ══ -->
-    <div class="tab-panel visible" id="panel-fuego">
-
-      <!-- Stats incendios -->
-      <div class="panel-section">
-        <div class="panel-title">Resumen del período</div>
-        <div class="stats">
-          <div class="stat"><div class="stat-num fuego" id="total-alertas">—</div><div class="stat-label">Alertas fuego</div></div>
-          <div class="stat"><div class="stat-num" id="total-high">—</div><div class="stat-label">Confianza alta</div></div>
-          <div class="stat"><div class="stat-num" id="total-frp">—</div><div class="stat-label">FRP máx (MW)</div></div>
-          <div class="stat"><div class="stat-num" id="total-area-sel">—</div><div class="stat-label">En área selec.</div></div>
-        </div>
-      </div>
-
-      <!-- Período -->
-      <div class="panel-section">
-        <div class="panel-title">Período de consulta</div>
-        <div class="periodo-btns">
-          <button class="periodo-btn activo" data-dias="1"  onclick="cambiarPeriodo(this)">24 h</button>
-          <button class="periodo-btn"        data-dias="7"  onclick="cambiarPeriodo(this)">7 días</button>
-          <button class="periodo-btn"        data-dias="30" onclick="cambiarPeriodo(this)">30 días</button>
-        </div>
-      </div>
-
-      <!-- Predios -->
-      <div class="panel-section">
-        <div class="panel-title">Predios registrados</div>
-        <select class="predio-select" id="predio-select" onchange="seleccionarPredio(this.value)">
-          <option value="">— Selecciona un predio —</option>
-        </select>
-        <div class="predio-info-box" id="predio-info-box">
-          <div class="predio-info-row"><span class="predio-info-label">ID predio</span><span class="predio-info-val" id="info-id">—</span></div>
-          <div class="predio-info-row"><span class="predio-info-label">Área (m²)</span><span class="predio-info-val" id="info-area-m">—</span></div>
-          <div class="predio-info-row"><span class="predio-info-label">Área (ha)</span><span class="predio-info-val" id="info-area-ha">—</span></div>
-          <div class="predio-info-row"><span class="predio-info-label">Alertas fuego</span><span class="predio-info-val" id="info-alertas">—</span></div>
-        </div>
-        <div id="predio-controles" style="display:none">
-          <div class="panel-title" style="margin-bottom:6px">Colorear por</div>
-          <div class="attr-btns">
-            <button class="attr-btn activo" onclick="cambiarAtributo('cobertura', this)">Cobertura</button>
-            <button class="attr-btn"        onclick="cambiarAtributo('uso_actual', this)">Uso actual</button>
-          </div>
-          <div class="slider-row">
-            <span class="slider-label">Transparencia</span>
-            <input type="range" min="0" max="100" value="40" id="slider-opacidad" oninput="cambiarOpacidad(this.value)">
-            <span class="slider-val" id="val-opacidad">40%</span>
-          </div>
-          <div class="slider-row radio-row">
-            <span class="slider-label">Radio alerta</span>
-            <input type="range" min="1" max="50" value="10" id="slider-radio" oninput="cambiarRadio(this.value)">
-            <span class="slider-val" id="val-radio">10 km</span>
-          </div>
-          <div class="leyenda" id="leyenda-colores"></div>
-          <button class="tool-btn" style="margin-top:8px" onclick="limpiarPredioa()">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            Quitar selección
-          </button>
-        </div>
-      </div>
-
-      <!-- Dibujar área manual -->
-      <div class="panel-section">
-        <div class="panel-title">Dibujar área manual</div>
-        <div class="herramientas">
-          <button class="tool-btn" id="btn-poligono" onclick="activarHerramienta('poligono')">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polygon points="8,1 15,6 12,14 4,14 1,6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-            Dibujar polígono
-          </button>
-          <button class="tool-btn" id="btn-punto" onclick="activarHerramienta('punto')">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>
-            Punto con radio (10 km)
-          </button>
-          <button class="tool-btn" onclick="limpiarAreaDibujada()">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            Limpiar área
-          </button>
-          <div class="tool-hint" id="hint-dibujo">Haz clic en el mapa para dibujar. Doble clic para cerrar el polígono.</div>
-        </div>
-      </div>
-
-      <!-- Filtro confianza -->
-      <div class="panel-section">
-        <div class="panel-title">Filtrar por confianza</div>
-        <div class="filtros">
-          <button class="filtro-btn activo" data-filtro="all"     onclick="filtrar(this)">Todas</button>
-          <button class="filtro-btn"        data-filtro="high"    onclick="filtrar(this)">Alta</button>
-          <button class="filtro-btn"        data-filtro="nominal" onclick="filtrar(this)">Nominal</button>
-          <button class="filtro-btn"        data-filtro="low"     onclick="filtrar(this)">Baja</button>
-        </div>
-      </div>
-
-      <!-- Lista alertas fuego -->
-      <div class="panel-section" style="flex:1">
-        <div class="panel-title">Alertas de incendio</div>
-        <div id="lista-alertas"><div class="loading"><div class="spin"></div> Cargando...</div></div>
-      </div>
-
-    </div><!-- fin panel-fuego -->
-
-    <!-- ══ PANEL DEFORESTACIÓN ══ -->
-    <div class="tab-panel" id="panel-defor">
-
-      <!-- Stats deforestación -->
-      <div class="panel-section">
-        <div class="panel-title">Pérdida de cobertura boscosa</div>
-        <div class="stats">
-          <div class="stat"><div class="stat-num defor" id="defor-anio">—</div><div class="stat-label">Año activo</div></div>
-          <div class="stat"><div class="stat-num" id="defor-opac">60%</div><div class="stat-label">Opacidad capa</div></div>
-        </div>
-        <div style="margin-top:10px;font-size:11px;color:var(--texto-m);line-height:1.5">
-          Datos: Hansen/UMD/Google/USGS/NASA vía Global Forest Watch. Resolución 30m. Actualización anual.
-        </div>
-      </div>
-
-      <!-- Período incendios también visible en deforestación -->
-      <div class="panel-section">
-        <div class="panel-title">Período incendios superpuestos</div>
-        <div class="periodo-btns">
-          <button class="periodo-btn activo" data-dias="1"  onclick="cambiarPeriodo(this)">24 h</button>
-          <button class="periodo-btn"        data-dias="7"  onclick="cambiarPeriodo(this)">7 días</button>
-          <button class="periodo-btn"        data-dias="30" onclick="cambiarPeriodo(this)">30 días</button>
-        </div>
-      </div>
-
-      <!-- Controles GFW -->
-      <div class="panel-section">
-        <div class="panel-title">Capas de deforestación (GFW)</div>
-        <div class="gfw-controles">
-
-          <div class="gfw-toggle-row">
-            <span class="gfw-label">Pérdida bosque (2000–2023)</span>
-            <label class="toggle-wrap">
-              <input type="checkbox" id="toggle-perdida" checked onchange="toggleCapaGFW('perdida', this.checked)">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-
-          <div class="gfw-toggle-row">
-            <span class="gfw-label">Ganancia bosque (2000–2012)</span>
-            <label class="toggle-wrap">
-              <input type="checkbox" id="toggle-ganancia" onchange="toggleCapaGFW('ganancia', this.checked)">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-
-          <div class="gfw-toggle-row">
-            <span class="gfw-label">Cobertura arbórea 2000</span>
-            <label class="toggle-wrap">
-              <input type="checkbox" id="toggle-cobertura" onchange="toggleCapaGFW('cobertura', this.checked)">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-
-          <!-- Opacidad capa GFW -->
-          <div class="slider-row" style="margin-top:6px">
-            <span class="slider-label">Opacidad</span>
-            <input type="range" min="10" max="100" value="60" id="slider-gfw-opac"
-                   oninput="cambiarOpacidadGFW(this.value)" style="accent-color:var(--defor-l)">
-            <span class="slider-val" id="val-gfw-opac">60%</span>
-          </div>
-
-          <!-- Filtro por año de pérdida -->
-          <div style="margin-top:4px">
-            <div class="panel-title" style="margin-bottom:6px">Filtrar año de pérdida</div>
-            <div class="anio-btns" id="anio-btns"></div>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- Lista consolidada -->
-      <div class="panel-section" style="flex:1">
-        <div class="panel-title">Incendios superpuestos</div>
-        <div id="lista-defor-alertas"><div class="loading" style="padding:10px 0;font-size:11px">Cambia al período deseado arriba</div></div>
-      </div>
-
-    </div><!-- fin panel-defor -->
-
-    <!-- ══ DESCARGA CONSOLIDADA (siempre visible) ══ -->
+    <!-- Período -->
     <div class="panel-section">
-      <div class="panel-title">Reporte consolidado</div>
-      <div class="check-capas">
-        <label class="check-row">
-          <input type="checkbox" id="chk-fuego" checked>
-          <span>Alertas de incendio (FIRMS)</span>
-        </label>
-        <label class="check-row">
-          <input type="checkbox" id="chk-defor" checked>
-          <span>Capa deforestación GFW (referencia)</span>
-        </label>
+      <div class="panel-title">Período de consulta</div>
+      <div class="periodo-btns">
+        <button class="periodo-btn activo" data-dias="1"  onclick="cambiarPeriodo(this)">24 h</button>
+        <button class="periodo-btn"        data-dias="7"  onclick="cambiarPeriodo(this)">7 días</button>
+        <button class="periodo-btn"        data-dias="30" onclick="cambiarPeriodo(this)">30 días</button>
       </div>
+    </div>
+
+    <!-- Predios desde GitHub -->
+    <div class="panel-section">
+      <div class="panel-title">Predios registrados</div>
+
+      <select class="predio-select" id="predio-select" onchange="seleccionarPredio(this.value)">
+        <option value="">— Selecciona un predio —</option>
+      </select>
+
+      <!-- Info del predio seleccionado -->
+      <div class="predio-info-box" id="predio-info-box">
+        <div class="predio-info-row">
+          <span class="predio-info-label">ID predio</span>
+          <span class="predio-info-val" id="info-id">—</span>
+        </div>
+        <div class="predio-info-row">
+          <span class="predio-info-label">Área (m²)</span>
+          <span class="predio-info-val" id="info-area-m">—</span>
+        </div>
+        <div class="predio-info-row">
+          <span class="predio-info-label">Área (ha)</span>
+          <span class="predio-info-val" id="info-area-ha">—</span>
+        </div>
+        <div class="predio-info-row">
+          <span class="predio-info-label">Alertas en período</span>
+          <span class="predio-info-val" id="info-alertas">—</span>
+        </div>
+      </div>
+
+      <!-- Colorear por atributo -->
+      <div id="predio-controles" style="display:none">
+        <div class="panel-title" style="margin-bottom:6px">Colorear por</div>
+        <div class="attr-btns">
+          <button class="attr-btn activo" onclick="cambiarAtributo('cobertura', this)">Cobertura</button>
+          <button class="attr-btn"        onclick="cambiarAtributo('uso_actual', this)">Uso actual</button>
+        </div>
+
+        <!-- Transparencia -->
+        <div class="slider-row">
+          <span class="slider-label">Transparencia</span>
+          <input type="range" min="0" max="100" value="40" id="slider-opacidad"
+                 oninput="cambiarOpacidad(this.value)">
+          <span class="slider-val" id="val-opacidad">40%</span>
+        </div>
+
+        <!-- Radio de alerta -->
+        <div class="slider-row radio-row">
+          <span class="slider-label">Radio alerta</span>
+          <input type="range" min="1" max="50" value="10" id="slider-radio"
+                 oninput="cambiarRadio(this.value)">
+          <span class="slider-val" id="val-radio">10 km</span>
+        </div>
+
+        <!-- Leyenda dinámica -->
+        <div class="leyenda" id="leyenda-colores"></div>
+
+        <!-- Botón limpiar selección -->
+        <button class="tool-btn" style="margin-top:8px" onclick="limpiarPredioa()">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Quitar selección
+        </button>
+      </div>
+    </div>
+
+    <!-- Dibujar área manual -->
+    <div class="panel-section">
+      <div class="panel-title">Dibujar área manual</div>
+      <div class="herramientas">
+        <button class="tool-btn" id="btn-poligono" onclick="activarHerramienta('poligono')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polygon points="8,1 15,6 12,14 4,14 1,6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          Dibujar polígono
+        </button>
+        <button class="tool-btn" id="btn-punto" onclick="activarHerramienta('punto')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>
+          Punto con radio (10 km)
+        </button>
+        <button class="tool-btn" onclick="limpiarAreaDibujada()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Limpiar área
+        </button>
+        <div class="tool-hint" id="hint-dibujo">Haz clic en el mapa para dibujar. Doble clic para cerrar el polígono.</div>
+      </div>
+    </div>
+
+    <!-- Filtro confianza -->
+    <div class="panel-section">
+      <div class="panel-title">Filtrar alertas por confianza</div>
+      <div class="filtros">
+        <button class="filtro-btn activo" data-filtro="all"     onclick="filtrar(this)">Todas</button>
+        <button class="filtro-btn"        data-filtro="high"    onclick="filtrar(this)">Alta</button>
+        <button class="filtro-btn"        data-filtro="nominal" onclick="filtrar(this)">Nominal</button>
+        <button class="filtro-btn"        data-filtro="low"     onclick="filtrar(this)">Baja</button>
+      </div>
+    </div>
+
+    <!-- Descarga -->
+    <div class="panel-section">
+      <div class="panel-title">Descargar reporte</div>
       <div class="descarga-btns">
         <button class="dl-btn" onclick="descargarCSV()">CSV</button>
         <button class="dl-btn" onclick="descargarPDF()">PDF</button>
       </div>
     </div>
 
+    <!-- Lista alertas -->
+    <div class="panel-section" style="flex:1">
+      <div class="panel-title">Alertas detectadas</div>
+      <div id="lista-alertas"><div class="loading"><div class="spin"></div> Cargando...</div></div>
+    </div>
+
     <div class="panel-footer">
-      Fuentes: <a href="https://firms.modaps.eosdis.nasa.gov" target="_blank">NASA FIRMS</a> ·
-      <a href="https://globalforestwatch.org" target="_blank">GFW/Hansen</a> ·
-      <a href="https://www.openstreetmap.org" target="_blank">OSM</a> ·
+      Datos: <a href="https://firms.modaps.eosdis.nasa.gov" target="_blank">NASA FIRMS</a> ·
+      Mapa: <a href="https://www.openstreetmap.org" target="_blank">OpenStreetMap</a> ·
       Sistema participativo sin ánimo de lucro
     </div>
   </aside>
 
-  <div id="map">
-    <!-- Leyenda GFW flotante -->
-    <div class="leyenda-gfw" id="leyenda-gfw">
-      <div class="leyenda-gfw-title">Pérdida boscosa</div>
-      <div class="leyenda-gfw-grad"></div>
-      <div class="leyenda-gfw-labels"><span>2000</span><span>2012</span><span>2023</span></div>
-    </div>
-  </div>
+  <div id="map"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -402,18 +284,26 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
   // ── Configuración ──────────────────────────────────────────────────────────
-  const SUPABASE_URL = 'https://qryktfqnicnwiuwbijvd.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_tVzVULeeVvP-QRCXviO7cg_EOuOfX-0';
-  const GEOJSON_URL  = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/Predios.geojson';
+  const SUPABASE_URL  = 'https://qryktfqnicnwiuwbijvd.supabase.co';
+  const SUPABASE_KEY  = 'sb_publishable_tVzVULeeVvP-QRCXviO7cg_EOuOfX-0';
+  const GEOJSON_URL   = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/Predios.geojson';
 
-  // ── Paleta predios ─────────────────────────────────────────────────────────
-  const PALETA = ['#4caf7d','#f5a623','#e8480a','#378add','#a855f7','#ec4899','#14b8a6','#f97316','#84cc16','#64748b','#fb7185','#34d399','#fbbf24','#60a5fa','#c084fc'];
-  const mapaColores = {};
-  function obtenerColor(attr, val) {
-    if (!mapaColores[attr]) mapaColores[attr] = {};
-    const mc = mapaColores[attr];
-    if (!mc[val]) mc[val] = PALETA[Object.keys(mc).length % PALETA.length];
-    return mc[val];
+  // ── Paletas de colores por valor único ────────────────────────────────────
+  const PALETA = [
+    '#4caf7d','#f5a623','#e8480a','#378add','#a855f7',
+    '#ec4899','#14b8a6','#f97316','#84cc16','#64748b',
+    '#fb7185','#34d399','#fbbf24','#60a5fa','#c084fc'
+  ];
+  const mapaColores = {}; // atributo → { valor → color }
+
+  function obtenerColor(atributo, valor) {
+    if (!mapaColores[atributo]) mapaColores[atributo] = {};
+    const mc = mapaColores[atributo];
+    if (!mc[valor]) {
+      const idx = Object.keys(mc).length % PALETA.length;
+      mc[valor] = PALETA[idx];
+    }
+    return mc[valor];
   }
 
   // ── Mapa ───────────────────────────────────────────────────────────────────
@@ -423,140 +313,88 @@
     attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19
   }).addTo(map);
 
-  // ── Capas GFW (WMS público de Global Forest Watch / Hansen) ───────────────
-  // Servidor WMS de GFW que no requiere API key
-  const GFW_WMS = 'https://api.resourcewatch.org/v1/layer/{layerId}/tile/gee/{z}/{x}/{y}';
-
-  // Usamos tiles XYZ de earthengine/resourcewatch que son públicos
-  const capasGFW = {
-    perdida: L.tileLayer(
-      'https://storage.googleapis.com/earthenginepartners-hansen/GFC-2023-v1.11/Hansen_GFC-2023-v1.11_lossyear_{z}_{x}_{y}.png',
-      { attribution: 'Hansen/UMD/Google/USGS/NASA', opacity: 0.6, maxZoom: 12, maxNativeZoom: 12 }
-    ),
-    ganancia: L.tileLayer(
-      'https://storage.googleapis.com/earthenginepartners-hansen/GFC-2023-v1.11/Hansen_GFC-2023-v1.11_gain_{z}_{x}_{y}.png',
-      { attribution: 'Hansen/UMD/Google/USGS/NASA', opacity: 0.6, maxZoom: 12, maxNativeZoom: 12 }
-    ),
-    cobertura: L.tileLayer(
-      'https://storage.googleapis.com/earthenginepartners-hansen/GFC-2023-v1.11/Hansen_GFC-2023-v1.11_treecover2000_{z}_{x}_{y}.png',
-      { attribution: 'Hansen/UMD/Google/USGS/NASA', opacity: 0.4, maxZoom: 12, maxNativeZoom: 12 }
-    )
-  };
-
-  // Activar capa de pérdida por defecto
-  capasGFW.perdida.addTo(map);
-
-  function toggleCapaGFW(nombre, activo) {
-    if (activo) {
-      capasGFW[nombre].addTo(map);
-      if (nombre === 'perdida') document.getElementById('leyenda-gfw').classList.add('visible');
-    } else {
-      map.removeLayer(capasGFW[nombre]);
-      if (nombre === 'perdida') document.getElementById('leyenda-gfw').classList.remove('visible');
-    }
-  }
-
-  function cambiarOpacidadGFW(val) {
-    document.getElementById('val-gfw-opac').textContent = val + '%';
-    document.getElementById('defor-opac').textContent   = val + '%';
-    Object.values(capasGFW).forEach(c => { if (map.hasLayer(c)) c.setOpacity(val / 100); });
-  }
-
-  // ── Botones de año ─────────────────────────────────────────────────────────
-  let anioSeleccionado = null;
-  (function generarBotonesAnio() {
-    const el = document.getElementById('anio-btns');
-    const anios = ['Todos'];
-    for (let y = 2023; y >= 2001; y--) anios.push(y);
-    anios.forEach(a => {
-      const btn = document.createElement('button');
-      btn.className = 'anio-btn' + (a === 'Todos' ? ' activo' : '');
-      btn.textContent = a;
-      btn.onclick = () => {
-        document.querySelectorAll('.anio-btn').forEach(b => b.classList.remove('activo'));
-        btn.classList.add('activo');
-        anioSeleccionado = a === 'Todos' ? null : a;
-        document.getElementById('defor-anio').textContent = a === 'Todos' ? '—' : a;
-        // La capa WMS muestra todos los años; el año seleccionado es referencia para el reporte
-        renderListaDeforAlertas();
-      };
-      el.appendChild(btn);
-    });
-  })();
-
   // ── Estado global ──────────────────────────────────────────────────────────
-  let todasAlertas   = [];
-  let marcadores     = [];
-  let marcadoresDefor = [];
-  let filtroActual   = 'all';
-  let diasActual     = 1;
-  let areaFiltro     = null;
-  let predioSelIdx   = null;
-  let todosFeatures  = [];
-  let atributoActual = 'cobertura';
-  let opacidadActual = 0.4;
-  let radioKm        = 10;
-  let capaPredioa    = null;
-  let capaRadio      = null;
-  let tabActual      = 'fuego';
-  const drawnItems   = new L.FeatureGroup().addTo(map);
-  const capaTodosGeo = new L.FeatureGroup().addTo(map);
+  let todasAlertas    = [];
+  let marcadores      = [];
+  let filtroActual    = 'all';
+  let diasActual      = 1;
+  let areaFiltro      = null;    // {tipo, coords|lat/lng/radio}
+  let predioSelId     = null;    // ID del predio seleccionado (id_predio)
+  let prediosAgrupados = {};      // id_predio -> { id, features: [], area_m: total, area_ha: total }
+  let todosFeatures   = [];      // features del GeoJSON
+  let atributoActual  = 'cobertura';
+  let opacidadActual  = 0.4;
+  let radioKm         = 10;
+  let capaPredioa     = null;    // L.geoJSON del predio seleccionado
+  let capaRadio       = null;    // L.circle de radio de alerta
+  const drawnItems    = new L.FeatureGroup().addTo(map);
+  const capaTodosGeo  = new L.FeatureGroup().addTo(map); // todos predios fondo tenue
 
-  // ── Pestañas ───────────────────────────────────────────────────────────────
-  function cambiarTab(tab, btn) {
-    tabActual = tab;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'));
-    btn.classList.add('activo');
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('visible'));
-    document.getElementById('panel-' + tab).classList.add('visible');
-
-    if (tab === 'defor') {
-      document.getElementById('leyenda-gfw').classList.toggle(
-        'visible', document.getElementById('toggle-perdida').checked
-      );
-      renderListaDeforAlertas();
-    } else {
-      document.getElementById('leyenda-gfw').classList.remove('visible');
-    }
-  }
-
-  // ── Cargar predios ─────────────────────────────────────────────────────────
+  // ── Cargar GeoJSON de predios ──────────────────────────────────────────────
   async function cargarPredios() {
     try {
       const resp = await fetch(GEOJSON_URL);
       const gj   = await resp.json();
       todosFeatures = gj.features || [];
+
+      // Agrupar por id_predio
+      prediosAgrupados = {};
+      todosFeatures.forEach(f => {
+        const id = f.properties.id_predio || 'Sin ID';
+        if (!prediosAgrupados[id]) {
+          prediosAgrupados[id] = {
+            id: id,
+            features: [],
+            area_m: 0,
+            area_ha: 0
+          };
+        }
+        prediosAgrupados[id].features.push(f);
+        prediosAgrupados[id].area_m += Number(f.properties.area_m || 0);
+        prediosAgrupados[id].area_ha += Number(f.properties.area_ha || 0);
+      });
+
+      // Dibujar todos en fondo tenue
       capaTodosGeo.clearLayers();
       L.geoJSON(gj, {
         style: { color: '#4caf7d', weight: 1, fillColor: '#4caf7d', fillOpacity: 0.04, dashArray: '4 3' },
         onEachFeature: (feat, layer) => {
           layer.on('click', () => {
-            const idx = todosFeatures.indexOf(feat);
-            document.getElementById('predio-select').value = idx;
-            seleccionarPredio(idx);
+            const id = feat.properties.id_predio || 'Sin ID';
+            document.getElementById('predio-select').value = id;
+            seleccionarPredio(id);
           });
         }
       }).addTo(capaTodosGeo);
+
+      // Llenar select
       const sel = document.getElementById('predio-select');
-      todosFeatures.forEach((f, i) => {
+      sel.innerHTML = '<option value="">— Selecciona un predio —</option>';
+      Object.keys(prediosAgrupados).sort().forEach(id => {
         const opt = document.createElement('option');
-        opt.value = i;
-        opt.textContent = f.properties.id_predio || 'Predio ' + (i + 1);
+        opt.value = id;
+        opt.textContent = id;
         sel.appendChild(opt);
       });
-    } catch(err) { console.error('Error cargando predios:', err); }
+    } catch(err) {
+      console.error('Error cargando predios:', err);
+    }
   }
 
-  function seleccionarPredio(idx) {
-    if (idx === '' || idx === null) { limpiarPredioa(); return; }
-    idx = parseInt(idx);
-    predioSelIdx = idx;
-    const props = todosFeatures[idx].properties;
-    document.getElementById('info-id').textContent      = props.id_predio || '—';
-    document.getElementById('info-area-m').textContent  = props.area_m  ? Number(props.area_m).toLocaleString('es-CO',{maximumFractionDigits:0}) : '—';
-    document.getElementById('info-area-ha').textContent = props.area_ha ? Number(props.area_ha).toFixed(2) : '—';
+  // ── Seleccionar predio ─────────────────────────────────────────────────────
+  function seleccionarPredio(id) {
+    if (id === '' || id === null) { limpiarPredioa(); return; }
+    predioSelId = id;
+    const predio = prediosAgrupados[id];
+    if (!predio) return;
+
+    // Info box
+    document.getElementById('info-id').textContent      = predio.id;
+    document.getElementById('info-area-m').textContent  = predio.area_m.toLocaleString('es-CO', {maximumFractionDigits:0});
+    document.getElementById('info-area-ha').textContent = predio.area_ha.toFixed(2);
     document.getElementById('predio-info-box').classList.add('visible');
     document.getElementById('predio-controles').style.display = 'block';
+
     renderCapaPredioa();
     centrarPredioa();
     aplicarFiltros();
@@ -565,36 +403,49 @@
   function renderCapaPredioa() {
     if (capaPredioa) { map.removeLayer(capaPredioa); capaPredioa = null; }
     if (capaRadio)   { map.removeLayer(capaRadio);   capaRadio   = null; }
-    if (predioSelIdx === null) return;
-    const feat = todosFeatures[predioSelIdx];
-    capaPredioa = L.geoJSON(feat, {
+    if (predioSelId === null) return;
+
+    const predio = prediosAgrupados[predioSelId];
+    const alpha = opacidadActual;
+
+    capaPredioa = L.geoJSON(predio.features, {
       style: f => {
-        const val = f.properties[atributoActual] || 'Sin dato';
-        return { color: '#fff', weight: 1.5, fillColor: obtenerColor(atributoActual, val), fillOpacity: opacidadActual };
+        const val   = f.properties[atributoActual] || 'Sin dato';
+        const color = obtenerColor(atributoActual, val);
+        return { color: '#fff', weight: 1.5, fillColor: color, fillOpacity: alpha };
       },
       onEachFeature: (f, layer) => {
-        const p = f.properties;
+        const props = f.properties;
         layer.bindPopup(`
-          <div class="popup-title verde">${p.id_predio || 'Predio'}</div>
-          <div class="popup-row">Cobertura <span>${p.cobertura || '—'}</span></div>
-          <div class="popup-row">Uso actual <span>${p.uso_actual || '—'}</span></div>
-          <div class="popup-row">Área (m²) <span>${p.area_m ? Number(p.area_m).toLocaleString('es-CO',{maximumFractionDigits:0}) : '—'}</span></div>
-          <div class="popup-row">Área (ha) <span>${p.area_ha ? Number(p.area_ha).toFixed(2) : '—'}</span></div>`);
+          <div class="popup-title verde">${predio.id}</div>
+          <div class="popup-row">Cobertura <span>${props.cobertura || '—'}</span></div>
+          <div class="popup-row">Uso actual <span>${props.uso_actual || '—'}</span></div>
+          <div class="popup-row">Área polígono (ha) <span>${props.area_ha ? Number(props.area_ha).toFixed(2) : '—'}</span></div>
+          <hr style="margin:5px 0; border:0; border-top:1px solid var(--borde)">
+          <div class="popup-row">Total predio (ha) <span>${predio.area_ha.toFixed(2)}</span></div>
+        `);
       }
     }).addTo(map);
-    const centroid = capaPredioa.getBounds().getCenter();
+
+    // Radio de alerta centrado en el centroide del conjunto de polígonos
+    const bounds   = capaPredioa.getBounds();
+    const centroid = bounds.getCenter();
     capaRadio = L.circle(centroid, {
-      radius: radioKm * 1000, color: '#f5a623', weight: 1.5,
-      dashArray: '6 4', fillColor: '#f5a623', fillOpacity: 0.04
+      radius: radioKm * 1000,
+      color: '#f5a623', weight: 1.5, dashArray: '6 4',
+      fillColor: '#f5a623', fillOpacity: 0.04
     }).addTo(map);
+
     renderLeyenda();
     aplicarFiltros();
   }
 
-  function centrarPredioa() { if (capaPredioa) map.fitBounds(capaPredioa.getBounds().pad(0.3)); }
+  function centrarPredioa() {
+    if (capaPredioa) map.fitBounds(capaPredioa.getBounds().pad(0.3));
+  }
 
   function limpiarPredioa() {
-    predioSelIdx = null;
+    predioSelId = null;
     if (capaPredioa) { map.removeLayer(capaPredioa); capaPredioa = null; }
     if (capaRadio)   { map.removeLayer(capaRadio);   capaRadio   = null; }
     document.getElementById('predio-select').value = '';
@@ -616,7 +467,9 @@
   function cambiarOpacidad(val) {
     opacidadActual = val / 100;
     document.getElementById('val-opacidad').textContent = val + '%';
-    if (capaPredioa) capaPredioa.setStyle({ fillOpacity: opacidadActual });
+    if (capaPredioa) {
+      capaPredioa.setStyle({ fillOpacity: opacidadActual });
+    }
   }
 
   function cambiarRadio(val) {
@@ -627,33 +480,41 @@
   }
 
   function renderLeyenda() {
-    const mc = mapaColores[atributoActual] || {};
-    document.getElementById('leyenda-colores').innerHTML = Object.entries(mc).map(([val, color]) =>
-      `<div class="leyenda-item"><div class="leyenda-color" style="background:${color}"></div><span class="leyenda-txt">${val}</span></div>`
+    const mc  = mapaColores[atributoActual] || {};
+    const el  = document.getElementById('leyenda-colores');
+    el.innerHTML = Object.entries(mc).map(([val, color]) =>
+      `<div class="leyenda-item">
+        <div class="leyenda-color" style="background:${color}"></div>
+        <span class="leyenda-txt">${val}</span>
+       </div>`
     ).join('');
   }
 
-  // ── Área activa ────────────────────────────────────────────────────────────
+  // ── Área de filtro: predio seleccionado vs. dibujo manual ─────────────────
   function obtenerAreaFiltroActiva() {
-    if (predioSelIdx !== null && capaRadio) {
+    // Prioridad: predio seleccionado con radio > área dibujada manualmente
+    if (predioSelId !== null && capaRadio) {
       const c = capaRadio.getLatLng();
       return { tipo: 'circulo', lat: c.lat, lng: c.lng, radio: radioKm };
     }
     return areaFiltro;
   }
 
-  // ── Geometría ──────────────────────────────────────────────────────────────
+  // ── Filtros y alertas ──────────────────────────────────────────────────────
   function puntoEnArea(lat, lng, area) {
     if (!area) return true;
     if (area.tipo === 'circulo') {
-      const d = Math.sqrt(Math.pow((lat - area.lat)*111,2) + Math.pow((lng - area.lng)*111*Math.cos(area.lat*Math.PI/180),2));
+      const d = Math.sqrt(
+        Math.pow((lat - area.lat) * 111, 2) +
+        Math.pow((lng - area.lng) * 111 * Math.cos(area.lat * Math.PI / 180), 2)
+      );
       return d <= area.radio;
     }
     let dentro = false;
     const coords = area.coords;
-    for (let i = 0, j = coords.length-1; i < coords.length; j = i++) {
-      const xi=coords[i][0],yi=coords[i][1],xj=coords[j][0],yj=coords[j][1];
-      if (((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi)) dentro=!dentro;
+    for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+      const xi = coords[i][0], yi = coords[i][1], xj = coords[j][0], yj = coords[j][1];
+      if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) dentro = !dentro;
     }
     return dentro;
   }
@@ -663,23 +524,26 @@
     return alertas.filter(a => new Date(a.fecha_deteccion) >= inicio);
   }
 
-  // ── Filtros incendios ──────────────────────────────────────────────────────
   function aplicarFiltros() {
     let result = alertasEnPeriodo(todasAlertas);
-    if (filtroActual !== 'all') result = result.filter(a => (a.firms_confidence||'').toLowerCase() === filtroActual);
+    if (filtroActual !== 'all') result = result.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
+
     const areaActiva = obtenerAreaFiltroActiva();
     const enArea = areaActiva ? result.filter(a => puntoEnArea(a.latitud, a.longitud, areaActiva)) : result;
+
     actualizarStats(result, enArea);
     renderMarcadores(enArea);
     renderLista(enArea);
-    if (predioSelIdx !== null) document.getElementById('info-alertas').textContent = enArea.length;
-    if (tabActual === 'defor') renderListaDeforAlertas();
+
+    if (predioSelId !== null) {
+      document.getElementById('info-alertas').textContent = enArea.length;
+    }
   }
 
   function actualizarStats(todas, enArea) {
     document.getElementById('total-alertas').textContent = todas.length;
-    document.getElementById('total-high').textContent    = todas.filter(a=>(a.firms_confidence||'').toLowerCase()==='high').length;
-    const frps = todas.map(a=>a.firms_frp||0).filter(Boolean);
+    document.getElementById('total-high').textContent    = todas.filter(a => (a.firms_confidence || '').toLowerCase() === 'high').length;
+    const frps = todas.map(a => a.firms_frp || 0).filter(Boolean);
     document.getElementById('total-frp').textContent     = frps.length ? Math.max(...frps).toFixed(0) : '0';
     const areaActiva = obtenerAreaFiltroActiva();
     document.getElementById('total-area-sel').textContent = areaActiva ? enArea.length : '—';
@@ -688,8 +552,8 @@
   function colorConfianza(c) {
     if (!c) return '#f5a623';
     const cl = c.toLowerCase();
-    if (cl==='high') return '#e8480a';
-    if (cl==='nominal') return '#f5a623';
+    if (cl === 'high') return '#e8480a';
+    if (cl === 'nominal') return '#f5a623';
     return '#4caf7d';
   }
 
@@ -699,16 +563,16 @@
     alertas.forEach(a => {
       const color = colorConfianza(a.firms_confidence);
       const m = L.circleMarker([a.latitud, a.longitud], {
-        radius: Math.max(5,Math.min(16,(a.firms_frp||5)/8)),
-        fillColor: color, color, weight: 1.5, opacity:.9, fillOpacity:.7
+        radius: Math.max(5, Math.min(16, (a.firms_frp || 5) / 8)),
+        fillColor: color, color, weight: 1.5, opacity: .9, fillOpacity: .7
       }).addTo(map);
-      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO',{timeZone:'America/Bogota'});
+      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO', { timeZone: 'America/Bogota' });
       m.bindPopup(`
         <div class="popup-title">Incendio activo detectado</div>
         <div class="popup-row">Coordenadas <span>${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</span></div>
-        <div class="popup-row">Confianza <span>${a.firms_confidence||'N/A'}</span></div>
-        <div class="popup-row">FRP <span>${a.firms_frp?a.firms_frp.toFixed(1)+' MW':'N/A'}</span></div>
-        <div class="popup-row">Satélite <span>${a.firms_satellite||'VIIRS'}</span></div>
+        <div class="popup-row">Confianza <span>${a.firms_confidence || 'N/A'}</span></div>
+        <div class="popup-row">FRP <span>${a.firms_frp ? a.firms_frp.toFixed(1) + ' MW' : 'N/A'}</span></div>
+        <div class="popup-row">Satélite <span>${a.firms_satellite || 'VIIRS'}</span></div>
         <div class="popup-row">Detectado <span>${fecha}</span></div>
         <div class="popup-row">Estado <span>${a.estado}</span></div>`);
       marcadores.push(m);
@@ -718,52 +582,27 @@
   function renderLista(alertas) {
     const el = document.getElementById('lista-alertas');
     if (!alertas.length) { el.innerHTML = '<div class="loading">Sin alertas en este período</div>'; return; }
-    el.innerHTML = alertas.map((a,i) => {
-      const conf  = (a.firms_confidence||'low').toLowerCase();
-      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'America/Bogota'});
+    el.innerHTML = alertas.map((a, i) => {
+      const conf  = (a.firms_confidence || 'low').toLowerCase();
+      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' });
       return `<div class="alerta-item" onclick="centrarEn(${i})">
         <div class="alerta-dot ${conf}"></div>
         <div class="alerta-info">
           <div class="alerta-coords">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div>
-          <div class="alerta-meta">${fecha} · ${a.firms_satellite||'VIIRS'}</div>
+          <div class="alerta-meta">${fecha} · ${a.firms_satellite || 'VIIRS'}</div>
         </div>
-        <div class="alerta-frp">${a.firms_frp?a.firms_frp.toFixed(0)+' MW':'—'}</div>
-      </div>`;
-    }).join('');
-  }
-
-  // ── Lista incendios superpuestos en pestaña deforestación ──────────────────
-  function renderListaDeforAlertas() {
-    const el = document.getElementById('lista-defor-alertas');
-    let result = alertasEnPeriodo(todasAlertas);
-    const areaActiva = obtenerAreaFiltroActiva();
-    if (areaActiva) result = result.filter(a => puntoEnArea(a.latitud, a.longitud, areaActiva));
-    if (!result.length) { el.innerHTML = '<div class="loading" style="padding:10px 0;font-size:11px">Sin incendios en el período</div>'; return; }
-    el.innerHTML = result.map((a,i) => {
-      const conf  = (a.firms_confidence||'low').toLowerCase();
-      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'America/Bogota'});
-      return `<div class="alerta-item" onclick="centrarEn(${i})">
-        <div class="alerta-dot ${conf}"></div>
-        <div class="alerta-info">
-          <div class="alerta-coords">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div>
-          <div class="alerta-meta">${fecha} · ${a.firms_satellite||'VIIRS'}</div>
-        </div>
-        <div class="alerta-frp">${a.firms_frp?a.firms_frp.toFixed(0)+' MW':'—'}</div>
+        <div class="alerta-frp">${a.firms_frp ? a.firms_frp.toFixed(0) + ' MW' : '—'}</div>
       </div>`;
     }).join('');
   }
 
   function centrarEn(i) {
-    if (marcadores[i]) { map.setView(marcadores[i].getLatLng(),13); marcadores[i].openPopup(); }
+    if (marcadores[i]) { map.setView(marcadores[i].getLatLng(), 13); marcadores[i].openPopup(); }
   }
 
   function cambiarPeriodo(btn) {
-    // Aplica a ambos paneles (los botones son independientes pero comparten diasActual)
     document.querySelectorAll('.periodo-btn').forEach(b => b.classList.remove('activo'));
-    // Activar el btn correspondiente en ambos paneles
-    document.querySelectorAll(`.periodo-btn[data-dias="${btn.dataset.dias}"]`).forEach(b => b.classList.add('activo'));
-    diasActual = parseInt(btn.dataset.dias);
-    aplicarFiltros();
+    btn.classList.add('activo'); diasActual = parseInt(btn.dataset.dias); aplicarFiltros();
   }
 
   function filtrar(btn) {
@@ -777,12 +616,13 @@
     document.getElementById('hint-dibujo').classList.add('visible');
     if (tipo === 'poligono') {
       document.getElementById('btn-poligono').classList.add('activo');
-      new L.Draw.Polygon(map,{shapeOptions:{color:'#f5a623',weight:2,fillOpacity:0.08}}).enable();
+      new L.Draw.Polygon(map, { shapeOptions: { color: '#f5a623', weight: 2, fillOpacity: 0.08 } }).enable();
     } else {
       document.getElementById('btn-punto').classList.add('activo');
       map.once('click', function(e) {
-        drawnItems.addLayer(L.circle(e.latlng,{radius:10000,color:'#f5a623',weight:2,fillOpacity:0.06}));
-        areaFiltro = {tipo:'circulo',lat:e.latlng.lat,lng:e.latlng.lng,radio:10};
+        const c = L.circle(e.latlng, { radius: 10000, color: '#f5a623', weight: 2, fillOpacity: 0.06 });
+        drawnItems.addLayer(c);
+        areaFiltro = { tipo: 'circulo', lat: e.latlng.lat, lng: e.latlng.lng, radio: 10 };
         document.getElementById('btn-punto').classList.remove('activo');
         document.getElementById('hint-dibujo').classList.remove('visible');
         aplicarFiltros();
@@ -792,7 +632,7 @@
 
   map.on(L.Draw.Event.CREATED, function(e) {
     drawnItems.addLayer(e.layer);
-    areaFiltro = {tipo:'poligono',coords:e.layer.toGeoJSON().geometry.coordinates[0]};
+    areaFiltro = { tipo: 'poligono', coords: e.layer.toGeoJSON().geometry.coordinates[0] };
     document.getElementById('btn-poligono').classList.remove('activo');
     document.getElementById('hint-dibujo').classList.remove('visible');
     aplicarFiltros();
@@ -806,115 +646,71 @@
     aplicarFiltros();
   }
 
-  // ── Descarga consolidada ───────────────────────────────────────────────────
+  // ── Descarga ───────────────────────────────────────────────────────────────
   function alertasActuales() {
     let r = alertasEnPeriodo(todasAlertas);
-    if (filtroActual !== 'all') r = r.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
+    if (filtroActual !== 'all') r = r.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
     const areaActiva = obtenerAreaFiltroActiva();
-    if (areaActiva) r = r.filter(a=>puntoEnArea(a.latitud,a.longitud,areaActiva));
+    if (areaActiva) r = r.filter(a => puntoEnArea(a.latitud, a.longitud, areaActiva));
     return r;
   }
 
   function descargarCSV() {
-    const inclFuego = document.getElementById('chk-fuego').checked;
-    const inclDefor = document.getElementById('chk-defor').checked;
-    const hoy = new Date().toISOString().slice(0,10);
-    let contenido = '';
-
-    if (inclFuego) {
-      const datos = alertasActuales();
-      const cab   = ['tipo','fecha_deteccion','latitud','longitud','confianza','frp_mw','satelite','estado'];
-      const fils  = datos.map(a=>['incendio',a.fecha_deteccion,a.latitud,a.longitud,a.firms_confidence||'',a.firms_frp||'',a.firms_satellite||'',a.estado].join(','));
-      contenido += [cab.join(','), ...fils].join('\n');
-    }
-
-    if (inclDefor) {
-      if (contenido) contenido += '\n\n';
-      const anioRef = anioSeleccionado || 'todos';
-      contenido += `tipo,fuente,año_referencia,capa,nota\n`;
-      contenido += `deforestacion,Hansen/UMD/GFW,${anioRef},Pérdida cobertura boscosa,Ver capa visual en portal\n`;
-    }
-
-    if (!contenido) { alert('Selecciona al menos una capa para exportar.'); return; }
-    const blob = new Blob([contenido],{type:'text/csv;charset=utf-8;'});
-    const url  = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url; link.download = `reporte_consolidado_chameza_${hoy}.csv`;
+    const datos = alertasActuales();
+    if (!datos.length) { alert('No hay alertas para exportar.'); return; }
+    const cab  = ['fecha_deteccion','latitud','longitud','confianza','frp_mw','satelite','estado'];
+    const fils  = datos.map(a => [a.fecha_deteccion, a.latitud, a.longitud, a.firms_confidence || '', a.firms_frp || '', a.firms_satellite || '', a.estado].join(','));
+    const blob  = new Blob([[cab.join(','), ...fils].join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url   = URL.createObjectURL(blob);
+    const link  = document.createElement('a');
+    link.href = url; link.download = `alertas_chameza_${new Date().toISOString().slice(0,10)}.csv`;
     link.click(); URL.revokeObjectURL(url);
   }
 
   function descargarPDF() {
-    const inclFuego = document.getElementById('chk-fuego').checked;
-    const inclDefor = document.getElementById('chk-defor').checked;
     const datos = alertasActuales();
+    if (!datos.length) { alert('No hay alertas para exportar.'); return; }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    const hoy = new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota'});
-    const periodo = diasActual===1?'Últimas 24 horas':diasActual===7?'Últimos 7 días':'Últimos 30 días';
-    const predioLabel = predioSelIdx !== null ? todosFeatures[predioSelIdx].properties.id_predio : null;
+    const hoy = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
+    const periodo = diasActual === 1 ? 'Últimas 24 horas' : diasActual === 7 ? 'Últimos 7 días' : 'Últimos 30 días';
+    const predioLabel = predioSelId !== null ? predioSelId : null;
 
-    // Encabezado
-    doc.setFillColor(17,31,23); doc.rect(0,0,210,32,'F');
-    doc.setTextColor(76,175,125); doc.setFontSize(16); doc.setFont('helvetica','bold');
-    doc.text('Reporte consolidado de monitoreo', 14, 14);
-    doc.setFontSize(10); doc.setFont('helvetica','normal');
+    doc.setFillColor(17, 31, 23); doc.rect(0, 0, 210, 32, 'F');
+    doc.setTextColor(76, 175, 125); doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+    doc.text('Reporte de alertas de incendio', 14, 14);
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
     doc.text(`Chameza, Casanare · ${hoy}`, 14, 23);
 
-    doc.setTextColor(40,40,40); doc.setFontSize(11); doc.setFont('helvetica','bold');
-    let y = 42;
-    doc.text(`Período: ${periodo}`, 14, y); y+=8;
-    if (predioLabel) { doc.text(`Predio: ${predioLabel} · radio ${radioKm} km`, 14, y); y+=8; }
+    doc.setTextColor(40, 40, 40); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+    doc.text(`Total alertas: ${datos.length}`, 14, 42);
+    doc.text(`Período: ${periodo}`, 14, 50);
+    doc.text(`Filtro confianza: ${filtroActual === 'all' ? 'Todas' : filtroActual}`, 14, 58);
+    if (predioLabel) doc.text(`Predio: ${predioLabel} · radio ${radioKm} km`, 14, 66);
 
-    // Sección deforestación
-    if (inclDefor) {
-      doc.setFillColor(139,69,19);
-      doc.rect(14, y, 182, 8, 'F');
-      doc.setTextColor(255,220,150); doc.setFontSize(10); doc.setFont('helvetica','bold');
-      doc.text('Deforestación — Global Forest Watch / Hansen', 16, y+5.5);
-      y += 12; doc.setTextColor(40,40,40); doc.setFont('helvetica','normal'); doc.setFontSize(9);
-      doc.text(`Fuente: Hansen/UMD/Google/USGS/NASA (GFC 2023 v1.11). Resolución: 30m. Actualización: anual.`, 14, y); y+=6;
-      doc.text(`Año de referencia seleccionado: ${anioSeleccionado || 'Todos (2001–2023)'}`, 14, y); y+=6;
-      doc.text(`Capas activas: Pérdida bosque ${document.getElementById('toggle-perdida').checked?'✓':'✗'} · Ganancia bosque ${document.getElementById('toggle-ganancia').checked?'✓':'✗'} · Cobertura 2000 ${document.getElementById('toggle-cobertura').checked?'✓':'✗'}`, 14, y); y+=6;
-      doc.setTextColor(100,100,100);
-      doc.text('Nota: la capa de deforestación es visual (WMS). Para datos tabulares detallados consultar globalforestwatch.org.', 14, y); y+=10;
+    let y = predioLabel ? 76 : 68;
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.setFillColor(220, 240, 228); doc.rect(14, y, 182, 8, 'F');
+    doc.text('Fecha (Bogotá)', 16, y+5.5); doc.text('Lat', 72, y+5.5); doc.text('Lon', 98, y+5.5);
+    doc.text('Confianza', 122, y+5.5); doc.text('FRP (MW)', 153, y+5.5); doc.text('Satélite', 178, y+5.5);
+    y += 10; doc.setFont('helvetica', 'normal');
+
+    datos.slice(0, 55).forEach((a, i) => {
+      if (y > 272) { doc.addPage(); y = 20; }
+      if (i % 2 === 0) { doc.setFillColor(248, 252, 249); doc.rect(14, y-5, 182, 8, 'F'); }
+      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO', { timeZone: 'America/Bogota', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      doc.text(fecha, 16, y); doc.text(a.latitud.toFixed(4), 72, y); doc.text(a.longitud.toFixed(4), 98, y);
+      doc.text(a.firms_confidence || '—', 122, y);
+      doc.text(a.firms_frp ? a.firms_frp.toFixed(1) : '—', 153, y);
+      doc.text(a.firms_satellite || '—', 178, y); y += 8;
+    });
+    if (datos.length > 55) {
+      doc.setFont('helvetica','italic'); doc.setTextColor(120,120,120);
+      doc.text(`... y ${datos.length-55} alertas más. Usa CSV para el listado completo.`, 14, y+4);
     }
-
-    // Sección incendios
-    if (inclFuego) {
-      doc.setFillColor(232,72,10);
-      doc.rect(14, y, 182, 8, 'F');
-      doc.setTextColor(255,220,200); doc.setFontSize(10); doc.setFont('helvetica','bold');
-      doc.text(`Incendios activos — NASA FIRMS (${datos.length} alertas)`, 16, y+5.5);
-      y += 12;
-
-      if (!datos.length) {
-        doc.setTextColor(100,100,100); doc.setFont('helvetica','italic'); doc.setFontSize(9);
-        doc.text('Sin alertas de incendio en el período y área seleccionados.', 14, y); y+=10;
-      } else {
-        doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(40,40,40);
-        doc.setFillColor(220,240,228); doc.rect(14,y,182,8,'F');
-        doc.text('Fecha (Bogotá)',16,y+5.5); doc.text('Lat',72,y+5.5); doc.text('Lon',98,y+5.5);
-        doc.text('Confianza',122,y+5.5); doc.text('FRP (MW)',153,y+5.5); doc.text('Satélite',178,y+5.5);
-        y+=10; doc.setFont('helvetica','normal');
-        datos.slice(0,45).forEach((a,i)=>{
-          if(y>272){doc.addPage();y=20;}
-          if(i%2===0){doc.setFillColor(248,252,249);doc.rect(14,y-5,182,8,'F');}
-          const fecha=new Date(a.fecha_deteccion).toLocaleString('es-CO',{timeZone:'America/Bogota',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-          doc.text(fecha,16,y); doc.text(a.latitud.toFixed(4),72,y); doc.text(a.longitud.toFixed(4),98,y);
-          doc.text(a.firms_confidence||'—',122,y);
-          doc.text(a.firms_frp?a.firms_frp.toFixed(1):'—',153,y);
-          doc.text(a.firms_satellite||'—',178,y); y+=8;
-        });
-        if(datos.length>45){
-          doc.setFont('helvetica','italic');doc.setTextColor(120,120,120);
-          doc.text(`... y ${datos.length-45} alertas más. Usa CSV para el listado completo.`,14,y+4);
-        }
-      }
-    }
-
-    doc.setFontSize(8); doc.setTextColor(150,150,150); doc.setFont('helvetica','normal');
-    doc.text('Fuentes: NASA FIRMS · Hansen/UMD/GFW · Sistema de monitoreo participativo CBC Cunaguaro / TFCA Colombia', 14, 288);
-    doc.save(`reporte_consolidado_chameza_${new Date().toISOString().slice(0,10)}.pdf`);
+    doc.setFontSize(8); doc.setTextColor(150,150,150);
+    doc.text('Fuente: NASA FIRMS · Sistema de monitoreo participativo CBC Cunaguaro / TFCA Colombia', 14, 288);
+    doc.save(`reporte_alertas_chameza_${new Date().toISOString().slice(0,10)}.pdf`);
   }
 
   // ── Cargar alertas desde Supabase ──────────────────────────────────────────
@@ -927,7 +723,7 @@
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       todasAlertas = await resp.json();
       aplicarFiltros();
-    } catch(err) {
+    } catch (err) {
       document.getElementById('lista-alertas').innerHTML = `<div class="loading">Error: ${err.message}</div>`;
     }
   }
