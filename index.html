@@ -108,6 +108,9 @@
     .alerta-dot.high    { background: var(--fuego); box-shadow: 0 0 6px var(--fuego); }
     .alerta-dot.nominal { background: var(--amber); }
     .alerta-dot.low     { background: var(--verde-l); }
+    .alerta-dot.defor-leve     { background: #eab308; border-radius: 2px; }
+    .alerta-dot.defor-moderada { background: #f97316; border-radius: 2px; }
+    .alerta-dot.defor-severa   { background: #dc2626; border-radius: 2px; }
     .alerta-info { flex: 1; min-width: 0; }
     .alerta-coords { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); }
     .alerta-meta   { font-size: 11px; color: var(--texto-m); margin-top: 2px; }
@@ -310,6 +313,33 @@
           <span>Poca conectividad</span>
           <span>Mayor importancia</span>
         </div>
+      </div>
+
+      <!-- Alertas de deforestación GEE -->
+      <label class="capa-row" style="margin-top:8px">
+        <input type="checkbox" id="chk-deforestacion" onchange="toggleDeforestacion(this.checked)">
+        <span class="capa-label">Alertas deforestación (GEE)</span>
+      </label>
+      <div class="capa-sub" id="sub-deforestacion">
+        <div style="font-size:10px;color:var(--texto-m);margin-bottom:6px;line-height:1.4">
+          Sentinel-2 · cambio NDVI · actualización diaria
+        </div>
+        <!-- Filtro período -->
+        <select class="year-select" id="sel-defor-periodo" onchange="filtrarDeforestacion()">
+          <option value="1">Últimas 24 h</option>
+          <option value="7">Últimos 7 días</option>
+          <option value="30" selected>Últimos 30 días</option>
+          <option value="90">Últimos 90 días</option>
+          <option value="365">Último año</option>
+        </select>
+        <!-- Filtro severidad -->
+        <select class="year-select" id="sel-defor-severidad" style="margin-top:4px" onchange="filtrarDeforestacion()">
+          <option value="all">Todas las severidades</option>
+          <option value="leve">Leve</option>
+          <option value="moderada">Moderada</option>
+          <option value="severa">Severa</option>
+        </select>
+        <div id="defor-stats" style="font-size:11px;color:var(--texto-m);margin-top:6px"></div>
       </div>
     </div>
 
@@ -975,6 +1005,79 @@
     } catch (err) {
       document.getElementById('lista-alertas').innerHTML = `<div class="loading">Error: ${err.message}</div>`;
     }
+  }
+
+  // ── Deforestación GEE ─────────────────────────────────────────────────────
+  let marcadoresDefor = [];
+  let alertasDefor    = [];
+  let deforVisible    = false;
+
+  const COLORES_SEVERIDAD = { leve: '#eab308', moderada: '#f97316', severa: '#dc2626' };
+
+  async function toggleDeforestacion(visible) {
+    deforVisible = visible;
+    document.getElementById('sub-deforestacion').classList.toggle('visible', visible);
+    if (!visible) {
+      marcadoresDefor.forEach(m => map.removeLayer(m));
+      marcadoresDefor = [];
+      return;
+    }
+    await cargarDeforestacion();
+  }
+
+  async function cargarDeforestacion() {
+    try {
+      const dias   = parseInt(document.getElementById('sel-defor-periodo').value);
+      const inicio = new Date(Date.now() - dias * 864e5).toISOString().slice(0, 10);
+      const resp   = await fetch(
+        `${SUPABASE_URL}/rest/v1/alertas_deforestacion?select=*&fecha_deteccion=gte.${inicio}&order=fecha_deteccion.desc&limit=500`,
+        { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+      );
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      alertasDefor = await resp.json();
+      filtrarDeforestacion();
+    } catch(err) {
+      console.error('Error cargando alertas deforestacion:', err);
+      document.getElementById('defor-stats').textContent = 'Error cargando datos.';
+    }
+  }
+
+  function filtrarDeforestacion() {
+    if (!deforVisible) return;
+    const sev       = document.getElementById('sel-defor-severidad').value;
+    const filtradas = sev === 'all' ? alertasDefor : alertasDefor.filter(a => a.severidad === sev);
+
+    marcadoresDefor.forEach(m => map.removeLayer(m));
+    marcadoresDefor = [];
+
+    filtradas.forEach(a => {
+      const color = COLORES_SEVERIDAD[a.severidad] || '#f97316';
+      const radio = a.severidad === 'severa' ? 10 : a.severidad === 'moderada' ? 7 : 5;
+      const m = L.circleMarker([a.latitud, a.longitud], {
+        radius: radio, fillColor: color, color: '#fff',
+        weight: 1.5, opacity: 1, fillOpacity: 0.85
+      }).addTo(map);
+      const fecha = new Date(a.fecha_deteccion + 'T12:00:00').toLocaleDateString('es-CO');
+      m.bindPopup(
+        '<div class="popup-title" style="color:' + color + '">Alerta deforestacion · ' + a.severidad + '</div>' +
+        '<div class="popup-row">Predio <span>' + a.predio_id + '</span></div>' +
+        '<div class="popup-row">Fecha <span>' + fecha + '</span></div>' +
+        '<div class="popup-row">NDVI antes <span>' + (a.ndvi_antes != null ? Number(a.ndvi_antes).toFixed(3) : '—') + '</span></div>' +
+        '<div class="popup-row">NDVI despues <span>' + (a.ndvi_despues != null ? Number(a.ndvi_despues).toFixed(3) : '—') + '</span></div>' +
+        '<div class="popup-row">Cambio NDVI <span>' + (a.cambio_ndvi != null ? Number(a.cambio_ndvi).toFixed(3) : '—') + '</span></div>' +
+        '<div class="popup-row">Area afectada <span>' + (a.area_afectada_ha ?? '—') + ' ha</span></div>' +
+        '<div class="popup-row">Estado <span>' + a.estado + '</span></div>'
+      );
+      marcadoresDefor.push(m);
+    });
+
+    const severas   = filtradas.filter(a => a.severidad === 'severa').length;
+    const moderadas = filtradas.filter(a => a.severidad === 'moderada').length;
+    const leves     = filtradas.filter(a => a.severidad === 'leve').length;
+    document.getElementById('defor-stats').innerHTML =
+      '<span style="color:#dc2626">\u25cf ' + severas + ' severa</span> &nbsp;' +
+      '<span style="color:#f97316">\u25cf ' + moderadas + ' moderada</span> &nbsp;' +
+      '<span style="color:#eab308">\u25cf ' + leves + ' leve</span>';
   }
 
   // ── Inicio ─────────────────────────────────────────────────────────────────
