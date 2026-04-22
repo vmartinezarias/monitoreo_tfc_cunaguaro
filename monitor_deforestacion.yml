@@ -1,0 +1,44 @@
+# .github/workflows/monitor_deforestacion.yml
+# Corre el script de detección de deforestación cada día a las 8am Bogotá (13:00 UTC)
+# También se puede disparar manualmente desde GitHub → Actions → Run workflow
+
+name: Monitor deforestación diario
+
+on:
+  schedule:
+    - cron: '0 13 * * *'   # 08:00 Bogotá (UTC-5)
+  workflow_dispatch:         # disparo manual desde GitHub
+
+jobs:
+  detectar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: |
+          pip install earthengine-api requests supabase python-dotenv
+
+      - name: Escribir credenciales GEE
+        # El JSON de la service account se guarda como secret en GitHub
+        run: echo '${{ secrets.GEE_KEY_JSON }}' > gee_key.json
+
+      - name: Ejecutar detección de deforestación
+        env:
+          SUPABASE_URL:          ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:          ${{ secrets.SUPABASE_KEY }}
+          GEE_SERVICE_ACCOUNT:   ${{ secrets.GEE_SERVICE_ACCOUNT }}
+          GEE_KEY_FILE:          gee_key.json
+          GEE_PROJECT:           ${{ secrets.GEE_PROJECT }}
+        run: python monitor_deforestacion.py
+
+      - name: Limpiar credenciales
+        if: always()
+        run: rm -f gee_key.json
