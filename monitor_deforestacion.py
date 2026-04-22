@@ -1,14 +1,13 @@
 """
 monitor_deforestacion.py
-Detecta cambios de cobertura boscosa dentro del area_estudio.geojson
-usando Google Earth Engine + Sentinel-2. Escribe alertas en Supabase.
+Detecta cambios de cobertura boscosa en predios registrados usando
+Google Earth Engine + Sentinel-2. Escribe alertas en Supabase.
 
 Flujo:
-  1. Carga area_estudio.geojson desde GitHub (geometria de analisis)
-  2. Carga Predios.geojson para saber a que predio pertenece cada alerta
-  3. Compara NDVI reciente vs referencia por predio
-  4. Si el cambio supera el umbral, guarda alerta en Supabase
-  5. Evita duplicados predio+fecha
+  1. Carga Predios.geojson desde GitHub
+  2. Para cada predio, compara NDVI de imagen reciente vs imagen de referencia
+  3. Si el cambio supera el umbral, registra una alerta en Supabase
+  4. Evita duplicados por predio+fecha
 
 Requisitos:
     pip install earthengine-api requests supabase python-dotenv
@@ -17,14 +16,17 @@ Variables de entorno (.env):
     SUPABASE_URL=https://xxxx.supabase.co
     SUPABASE_KEY=sb_publishable_xxx
     GEE_SERVICE_ACCOUNT=monitor-bosques@proyecto.iam.gserviceaccount.com
-    GEE_KEY_FILE=gee_key.json
-    GEE_PROJECT=ee-vmartinezarias
+    GEE_KEY_FILE=gee_key.json   # ruta al archivo JSON de la service account
 
-Para pruebas locales sin service account:
-    Comentar bloque SA y correr ee.Authenticate() + ee.Initialize() una vez.
+Alternativa sin service account (para pruebas locales):
+    Comentar el bloque de autenticación con service account y usar:
+    ee.Authenticate()
+    ee.Initialize(project='tu-proyecto-gee')
 """
 
 import os
+import json
+import math
 import requests
 from datetime import date, timedelta
 from dotenv import load_dotenv
@@ -37,51 +39,45 @@ load_dotenv()
 
 supabase = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_KEY'])
 
-# ── Autenticacion GEE ─────────────────────────────────────────────────────────
-
+# ── Autenticación GEE ─────────────────────────────────────────────────────────
+# Opción A: Service Account (recomendada para automatización en servidor)
 KEY_FILE = os.environ.get('GEE_KEY_FILE', 'gee_key.json')
 SA       = os.environ.get('GEE_SERVICE_ACCOUNT', '')
-PROJECT  = os.environ.get('GEE_PROJECT', 'ee-vmartinezarias')
 
 if SA and os.path.exists(KEY_FILE):
     credentials = ee.ServiceAccountCredentials(SA, KEY_FILE)
-    ee.Initialize(credentials, project=PROJECT)
+    ee.Initialize(credentials)
 else:
-    # Primera vez: correr ee.Authenticate() en terminal antes de este script
-    ee.Initialize(project=PROJECT)
+    # Opción B: autenticación interactiva (para pruebas locales)
+    # La primera vez corre ee.Authenticate() manualmente
+    ee.Initialize(project=os.environ.get('GEE_PROJECT', 'ee-monitoreo-chameza'))
 
-# ── Configuracion ─────────────────────────────────────────────────────────────
+# ── Configuración ─────────────────────────────────────────────────────────────
 
-BASE_URL       = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/'
-AREA_ESTUDIO_URL = BASE_URL + 'area_estudio.geojson'
-PREDIOS_URL      = BASE_URL + 'Predios.geojson'
+GEOJSON_URL   = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/Predios.geojson'
 
-UMBRAL_NDVI   = -0.15   # caida minima para generar alerta
-DIAS_RECIENTE = 30      # ventana de imagen reciente
-DIAS_REF_FIN  = 30      # fin de ventana de referencia (dias atras)
-DIAS_REF_INI  = 90      # inicio de ventana de referencia (dias atras)
-MAX_NUBES     = 20      # % nubosidad maxima permitida
+# Umbral de caída de NDVI para considerar posible deforestación
+# -0.15 = caída del 15% en vigor vegetal → señal moderada
+UMBRAL_NDVI   = -0.15
 
-# ── Cargar geometrias ─────────────────────────────────────────────────────────
+# Días hacia atrás para imagen "reciente"
+DIAS_RECIENTE = 30
 
-def cargar_area_estudio() -> ee.Geometry:
-    """Carga area_estudio.geojson y devuelve la geometria unida como ee.Geometry."""
-    resp = requests.get(AREA_ESTUDIO_URL, timeout=30)
-    resp.raise_for_status()
-    gj   = resp.json()
-    geoms = [ee.Geometry(f['geometry']) for f in gj.get('features', [])]
-    if not geoms:
-        raise ValueError("area_estudio.geojson vacio o sin features")
-    if len(geoms) == 1:
-        return geoms[0]
-    return ee.Geometry.MultiPolygon([g for g in geoms]).dissolve(maxError=1)
+# Días hacia atrás para imagen de "referencia" (antes del evento)
+DIAS_REF_FIN  = 30
+DIAS_REF_INI  = 90
 
+# Nubosidad máxima permitida (%)
+MAX_NUBES     = 20
+
+# ── Cargar predios ────────────────────────────────────────────────────────────
 
 def cargar_predios() -> dict:
-    """Devuelve dict {id_predio: ee.Geometry} intersectando con area_estudio."""
-    resp = requests.get(PREDIOS_URL, timeout=30)
+    """Devuelve un dict {id_predio: ee.Geometry} con la unión de polígonos por predio."""
+    resp = requests.get(GEOJSON_URL, timeout=30)
     resp.raise_for_status()
-    gj   = resp.json()
+    gj = resp.json()
+
     predios = {}
     for feat in gj.get('features', []):
         pid  = feat['properties'].get('id_predio', 'sin_id')
@@ -89,13 +85,13 @@ def cargar_predios() -> dict:
         if pid not in predios:
             predios[pid] = geom
         else:
-            predios[pid] = predios[pid].union(geom, maxError=1)
+            predios[pid] = predios[pid].union(geom)
     return predios
 
-# ── Analisis NDVI ─────────────────────────────────────────────────────────────
+# ── Calcular NDVI medio en un área ───────────────────────────────────────────
 
 def ndvi_medio(geom: ee.Geometry, fecha_ini: date, fecha_fin: date) -> float | None:
-    """NDVI promedio Sentinel-2 en el periodo."""
+    """Calcula el NDVI promedio de Sentinel-2 en el período dado."""
     col = (
         ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
         .filterBounds(geom)
@@ -104,66 +100,77 @@ def ndvi_medio(geom: ee.Geometry, fecha_ini: date, fecha_fin: date) -> float | N
     )
     if col.size().getInfo() == 0:
         return None
+
     mediana = col.median()
     ndvi    = mediana.normalizedDifference(['B8', 'B4']).rename('ndvi')
     stats   = ndvi.reduceRegion(
-        reducer   = ee.Reducer.mean(),
-        geometry  = geom,
-        scale     = 10,
-        maxPixels = 1e9
+        reducer  = ee.Reducer.mean(),
+        geometry = geom,
+        scale    = 10,
+        maxPixels= 1e9
     )
     val = stats.getInfo().get('ndvi')
     return round(val, 4) if val is not None else None
 
+# ── Calcular área afectada ────────────────────────────────────────────────────
 
-def area_afectada_ha(geom: ee.Geometry,
-                     rec_ini: date, rec_fin: date,
-                     ref_ini: date, ref_fin: date) -> float:
-    """Hectareas con caida de NDVI mayor al umbral."""
-    col_rec = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
-               .filterBounds(geom).filterDate(str(rec_ini), str(rec_fin))
-               .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', MAX_NUBES)))
-    col_ref = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
-               .filterBounds(geom).filterDate(str(ref_ini), str(ref_fin))
-               .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', MAX_NUBES)))
-
+def area_afectada_ha(geom: ee.Geometry, fecha_ini: date, fecha_fin: date,
+                     fecha_ref_ini: date, fecha_ref_fin: date) -> float:
+    """Estima hectáreas con caída de NDVI > umbral."""
+    col_rec = (
+        ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+        .filterBounds(geom).filterDate(str(fecha_ini), str(fecha_fin))
+        .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', MAX_NUBES))
+    )
+    col_ref = (
+        ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+        .filterBounds(geom).filterDate(str(fecha_ref_ini), str(fecha_ref_fin))
+        .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', MAX_NUBES))
+    )
     if col_rec.size().getInfo() == 0 or col_ref.size().getInfo() == 0:
         return 0.0
 
-    ndvi_rec = col_rec.median().normalizedDifference(['B8', 'B4'])
-    ndvi_ref = col_ref.median().normalizedDifference(['B8', 'B4'])
+    ndvi_rec = col_rec.median().normalizedDifference(['B8','B4'])
+    ndvi_ref = col_ref.median().normalizedDifference(['B8','B4'])
     cambio   = ndvi_rec.subtract(ndvi_ref)
     mascara  = cambio.lt(UMBRAL_NDVI)
-    area     = mascara.multiply(ee.Image.pixelArea()).reduceRegion(
-        reducer   = ee.Reducer.sum(),
-        geometry  = geom,
-        scale     = 10,
-        maxPixels = 1e9
+
+    area = mascara.multiply(ee.Image.pixelArea()).reduceRegion(
+        reducer  = ee.Reducer.sum(),
+        geometry = geom,
+        scale    = 10,
+        maxPixels= 1e9
     )
     m2 = area.getInfo().get('nd', 0) or 0
     return round(m2 / 10000, 2)
 
-# ── Utilidades ────────────────────────────────────────────────────────────────
+# ── Calcular centroide aproximado ────────────────────────────────────────────
 
 def centroide(geom: ee.Geometry) -> tuple[float, float]:
     c   = geom.centroid(maxError=1).getInfo()
-    lon, lat = c['coordinates']
+    lon = c['coordinates'][0]
+    lat = c['coordinates'][1]
     return round(lat, 6), round(lon, 6)
 
+# ── Clasificar severidad ──────────────────────────────────────────────────────
 
 def clasificar_severidad(cambio: float) -> str:
-    if cambio > -0.20: return 'leve'
-    if cambio > -0.35: return 'moderada'
+    if cambio > -0.20:   return 'leve'
+    if cambio > -0.35:   return 'moderada'
     return 'severa'
 
+# ── Verificar duplicado ───────────────────────────────────────────────────────
 
 def ya_existe(predio_id: str, fecha: date) -> bool:
     resp = supabase.table('alertas_deforestacion').select('id').eq(
         'predio_id', predio_id).eq('fecha_deteccion', str(fecha)).execute()
     return len(resp.data) > 0
 
+# ── Guardar alerta ────────────────────────────────────────────────────────────
 
-def guardar_alerta(predio_id, lat, lon, ndvi_a, ndvi_d, cambio, area_ha, fecha):
+def guardar_alerta(predio_id: str, lat: float, lon: float,
+                   ndvi_a: float, ndvi_d: float, cambio: float,
+                   area_ha: float, fecha: date):
     supabase.table('alertas_deforestacion').insert({
         'predio_id':        predio_id,
         'fecha_deteccion':  str(fecha),
@@ -180,61 +187,51 @@ def guardar_alerta(predio_id, lat, lon, ndvi_a, ndvi_d, cambio, area_ha, fecha):
 # ── Flujo principal ───────────────────────────────────────────────────────────
 
 def main():
-    hoy     = date.today()
-    rec_ini = hoy - timedelta(days=DIAS_RECIENTE)
-    rec_fin = hoy
-    ref_fin = hoy - timedelta(days=DIAS_REF_FIN)
-    ref_ini = hoy - timedelta(days=DIAS_REF_INI)
+    hoy         = date.today()
+    # Ventana reciente: últimos DIAS_RECIENTE días
+    rec_ini     = hoy - timedelta(days=DIAS_RECIENTE)
+    rec_fin     = hoy
+    # Ventana de referencia: período anterior estable
+    ref_fin     = hoy - timedelta(days=DIAS_REF_FIN)
+    ref_ini     = hoy - timedelta(days=DIAS_REF_INI)
 
-    print(f"Fecha hoy:    {hoy}")
-    print(f"Reciente:     {rec_ini} -> {rec_fin}")
-    print(f"Referencia:   {ref_ini} -> {ref_fin}")
-    print(f"Proyecto GEE: {PROJECT}")
+    print(f'Fecha: {hoy}')
+    print(f'Reciente:    {rec_ini} → {rec_fin}')
+    print(f'Referencia:  {ref_ini} → {ref_fin}')
 
-    # Cargar area de estudio como limite de analisis
-    print("\nCargando area_estudio.geojson...", end=" ", flush=True)
-    area_estudio = cargar_area_estudio()
-    print("OK")
-
-    # Cargar predios dentro del area
-    print("Cargando predios...", end=" ", flush=True)
     predios = cargar_predios()
-    print(f"{len(predios)} predios")
+    print(f'{len(predios)} predios cargados.')
 
     nuevas = 0
-    for pid, geom_predio in predios.items():
-        print(f"\n  [{pid}]", end=" ", flush=True)
+    for pid, geom in predios.items():
+        print(f'  Procesando {pid}...', end=' ', flush=True)
 
         if ya_existe(pid, hoy):
-            print("ya procesado hoy, saltando.")
+            print('ya procesado hoy.')
             continue
-
-        # Intersectar predio con area de estudio para limitar el analisis
-        geom = geom_predio.intersection(area_estudio, maxError=1)
 
         ndvi_ref = ndvi_medio(geom, ref_ini, ref_fin)
         ndvi_rec = ndvi_medio(geom, rec_ini, rec_fin)
 
         if ndvi_ref is None or ndvi_rec is None:
-            print("sin imagenes disponibles.")
+            print('sin imágenes disponibles.')
             continue
 
         cambio = round(ndvi_rec - ndvi_ref, 4)
-        print(f"NDVI ref={ndvi_ref:.3f} rec={ndvi_rec:.3f} D={cambio:+.3f}", end=" ")
+        print(f'NDVI ref={ndvi_ref:.3f} rec={ndvi_rec:.3f} Δ={cambio:+.3f}', end=' ')
 
         if cambio >= UMBRAL_NDVI:
-            print("-> sin alerta.")
+            print('→ sin alerta.')
             continue
 
-        area_ha  = area_afectada_ha(geom, rec_ini, rec_fin, ref_ini, ref_fin)
+        # Hay caída significativa
+        area_ha = area_afectada_ha(geom, rec_ini, rec_fin, ref_ini, ref_fin)
         lat, lon = centroide(geom)
         guardar_alerta(pid, lat, lon, ndvi_ref, ndvi_rec, cambio, area_ha, hoy)
         nuevas += 1
-        sev = clasificar_severidad(cambio)
-        print(f"-> ALERTA ({sev}, {area_ha} ha).")
+        print(f'→ ALERTA ({clasificar_severidad(cambio)}, {area_ha} ha).')
 
-    print(f"\nListo. {nuevas} alertas de deforestacion nuevas guardadas.")
-
+    print(f'\nListo. {nuevas} alertas de deforestación nuevas guardadas.')
 
 if __name__ == '__main__':
     main()
