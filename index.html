@@ -35,26 +35,23 @@
     .stat { background: var(--fondo); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; }
     .stat-num { font-size: 22px; font-weight: 800; color: var(--blanco); line-height: 1; }
     .stat-num.fuego { color: var(--fuego-l); }
+    .stat-num.defor { color: #eab308; }
     .stat-label { font-size: 11px; color: var(--texto-m); margin-top: 3px; }
 
     .periodo-btns { display: flex; gap: 6px; }
     .periodo-btn { flex: 1; padding: 7px 0; border-radius: 6px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; transition: all .15s; }
     .periodo-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
 
-    /* Predios */
-    select.predio-select {
-      width: 100%; padding: 8px 10px; border-radius: 6px;
-      border: 1px solid var(--borde); background: var(--fondo);
-      color: var(--blanco); font-family: 'Syne', sans-serif; font-size: 12px;
-      cursor: pointer; margin-bottom: 10px;
-    }
+    /* Area activa badge */
+    .area-badge { display: none; align-items: center; gap: 6px; margin-top: 8px; padding: 5px 10px; background: rgba(245,166,35,.1); border: 1px solid rgba(245,166,35,.3); border-radius: 6px; font-size: 11px; color: var(--amber); }
+    .area-badge.visible { display: flex; }
+    .area-badge-x { cursor: pointer; margin-left: auto; opacity: .7; }
+    .area-badge-x:hover { opacity: 1; }
+
+    select.predio-select { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--borde); background: var(--fondo); color: var(--blanco); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; margin-bottom: 10px; }
     select.predio-select:focus { outline: none; border-color: var(--verde-l); }
 
-    .predio-info-box {
-      background: var(--fondo); border: 1px solid var(--borde);
-      border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;
-      display: none;
-    }
+    .predio-info-box { background: var(--fondo); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; display: none; }
     .predio-info-box.visible { display: block; }
     .predio-info-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
     .predio-info-label { font-size: 11px; color: var(--texto-m); }
@@ -68,11 +65,8 @@
     .slider-label { font-size: 11px; color: var(--texto-m); white-space: nowrap; }
     .slider-row input[type=range] { flex: 1; accent-color: var(--verde-l); }
     .slider-val { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); min-width: 28px; text-align: right; }
+    .radio-row input[type=range] { accent-color: var(--amber); }
 
-    .radio-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .radio-row input[type=range] { flex: 1; accent-color: var(--amber); }
-
-    /* Leyenda colores */
     .leyenda { margin-top: 8px; }
     .leyenda-item { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
     .leyenda-color { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
@@ -89,11 +83,15 @@
     .filtro-btn { padding: 5px 10px; border-radius: 20px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 11px; cursor: pointer; transition: all .15s; }
     .filtro-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
 
-    .descarga-btns { display: flex; gap: 8px; }
-    .dl-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; transition: all .15s; }
+    /* Descarga */
+    .descarga-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .dl-btn { padding: 8px; border-radius: 8px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 11px; cursor: pointer; transition: all .15s; text-align: center; }
     .dl-btn:hover { border-color: var(--verde-l); color: var(--blanco); background: rgba(77,175,125,.08); }
+    .dl-btn.fuego-btn:hover  { border-color: var(--fuego-l); background: rgba(232,72,10,.08); }
+    .dl-btn.defor-btn:hover  { border-color: #eab308; background: rgba(234,179,8,.08); }
+    .dl-btn.combo-btn { grid-column: 1/-1; background: rgba(77,175,125,.06); border-color: var(--verde-m); color: var(--verde-l); }
+    .dl-btn.combo-btn:hover  { background: rgba(77,175,125,.15); border-color: var(--verde-l); color: var(--blanco); }
 
-    /* Capas informativas */
     .capa-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
     .capa-row input[type=checkbox] { accent-color: var(--verde-l); width: 16px; height: 16px; cursor: pointer; }
     .capa-label { font-size: 12px; color: var(--texto); flex: 1; }
@@ -132,6 +130,11 @@
     .panel-footer { margin-top: auto; padding: 10px 16px; font-size: 10px; color: var(--texto-m); border-top: 1px solid var(--borde); }
     .panel-footer a { color: var(--verde-l); text-decoration: none; }
 
+    /* Tabs lista alertas */
+    .tabs { display: flex; gap: 0; margin-bottom: 10px; border-bottom: 1px solid var(--borde); }
+    .tab { flex: 1; padding: 6px 0; text-align: center; font-size: 11px; color: var(--texto-m); cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; }
+    .tab.activo { color: var(--verde-l); border-bottom-color: var(--verde-l); }
+
     @media (max-width: 700px) {
       .app { grid-template-columns: 1fr; grid-template-rows: 56px 320px 1fr; }
       aside { border-right: none; border-bottom: 1px solid var(--borde); }
@@ -154,10 +157,10 @@
     <div class="panel-section">
       <div class="panel-title">Resumen del período</div>
       <div class="stats">
-        <div class="stat"><div class="stat-num fuego" id="total-alertas">—</div><div class="stat-label">Alertas</div></div>
+        <div class="stat"><div class="stat-num fuego" id="total-alertas">—</div><div class="stat-label">Incendios</div></div>
+        <div class="stat"><div class="stat-num defor" id="total-defor">—</div><div class="stat-label">Deforestación</div></div>
         <div class="stat"><div class="stat-num" id="total-high">—</div><div class="stat-label">Confianza alta</div></div>
         <div class="stat"><div class="stat-num" id="total-frp">—</div><div class="stat-label">FRP máx (MW)</div></div>
-        <div class="stat"><div class="stat-num" id="total-area-sel">—</div><div class="stat-label">En área seleccionada</div></div>
       </div>
     </div>
 
@@ -171,72 +174,51 @@
       </div>
     </div>
 
-    <!-- Predios desde GitHub -->
-    <div class="panel-section">
-      <div class="panel-title">Predios registrados</div>
+    <!-- Área de filtro activa -->
+    <div class="panel-section" id="section-area">
+      <div class="panel-title">Área de análisis <span style="color:var(--verde-l);font-weight:400">(aplica a incendios + deforestación)</span></div>
 
+      <!-- Predios -->
       <select class="predio-select" id="predio-select" onchange="seleccionarPredio(this.value)">
         <option value="">— Selecciona un predio —</option>
       </select>
 
-      <!-- Info del predio seleccionado -->
+      <!-- Info del predio -->
       <div class="predio-info-box" id="predio-info-box">
-        <div class="predio-info-row">
-          <span class="predio-info-label">ID predio</span>
-          <span class="predio-info-val" id="info-id">—</span>
-        </div>
-        <div class="predio-info-row">
-          <span class="predio-info-label">Área (m²)</span>
-          <span class="predio-info-val" id="info-area-m">—</span>
-        </div>
-        <div class="predio-info-row">
-          <span class="predio-info-label">Área (ha)</span>
-          <span class="predio-info-val" id="info-area-ha">—</span>
-        </div>
-        <div class="predio-info-row">
-          <span class="predio-info-label">Alertas en período</span>
-          <span class="predio-info-val" id="info-alertas">—</span>
-        </div>
+        <div class="predio-info-row"><span class="predio-info-label">ID predio</span><span class="predio-info-val" id="info-id">—</span></div>
+        <div class="predio-info-row"><span class="predio-info-label">Área (ha)</span><span class="predio-info-val" id="info-area-ha">—</span></div>
+        <div class="predio-info-row"><span class="predio-info-label">Incendios en período</span><span class="predio-info-val" id="info-alertas">—</span></div>
+        <div class="predio-info-row"><span class="predio-info-label">Deforestación alertas</span><span class="predio-info-val" id="info-defor">—</span></div>
       </div>
 
-      <!-- Colorear por atributo -->
+      <!-- Controles predio -->
       <div id="predio-controles" style="display:none">
         <div class="panel-title" style="margin-bottom:6px">Colorear por</div>
         <div class="attr-btns">
           <button class="attr-btn activo" onclick="cambiarAtributo('cobertura', this)">Cobertura</button>
           <button class="attr-btn"        onclick="cambiarAtributo('uso_actual', this)">Uso actual</button>
         </div>
-
-        <!-- Transparencia -->
         <div class="slider-row">
           <span class="slider-label">Transparencia</span>
-          <input type="range" min="0" max="100" value="40" id="slider-opacidad"
-                 oninput="cambiarOpacidad(this.value)">
+          <input type="range" min="0" max="100" value="40" id="slider-opacidad" oninput="cambiarOpacidad(this.value)">
           <span class="slider-val" id="val-opacidad">40%</span>
         </div>
-
-        <!-- Radio de alerta -->
         <div class="slider-row radio-row">
-          <span class="slider-label">Radio alerta</span>
-          <input type="range" min="1" max="50" value="10" id="slider-radio"
-                 oninput="cambiarRadio(this.value)">
+          <span class="slider-label">Radio buffer</span>
+          <input type="range" min="1" max="50" value="10" id="slider-radio" oninput="cambiarRadio(this.value)">
           <span class="slider-val" id="val-radio">10 km</span>
         </div>
-
-        <!-- Leyenda dinámica -->
         <div class="leyenda" id="leyenda-colores"></div>
-
-        <!-- Botón limpiar selección -->
         <button class="tool-btn" style="margin-top:8px" onclick="limpiarPredioa()">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           Quitar selección
         </button>
       </div>
-    </div>
 
-    <!-- Dibujar área manual -->
-    <div class="panel-section">
-      <div class="panel-title">Dibujar área manual</div>
+      <!-- Separador -->
+      <div style="text-align:center;font-size:10px;color:var(--texto-m);margin:10px 0">— o dibuja en el mapa —</div>
+
+      <!-- Dibujo manual -->
       <div class="herramientas">
         <button class="tool-btn" id="btn-poligono" onclick="activarHerramienta('poligono')">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polygon points="8,1 15,6 12,14 4,14 1,6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
@@ -250,13 +232,20 @@
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           Limpiar área
         </button>
-        <div class="tool-hint" id="hint-dibujo">Haz clic en el mapa para dibujar. Doble clic para cerrar el polígono.</div>
+        <div class="tool-hint" id="hint-dibujo">Haz clic en el mapa para dibujar. Doble clic para cerrar.</div>
+      </div>
+
+      <!-- Badge área activa -->
+      <div class="area-badge" id="area-badge">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span id="area-badge-txt">Área activa</span>
+        <span class="area-badge-x" onclick="limpiarTodoFiltroArea()">✕</span>
       </div>
     </div>
 
     <!-- Filtro confianza -->
     <div class="panel-section">
-      <div class="panel-title">Filtrar alertas por confianza</div>
+      <div class="panel-title">Filtrar incendios por confianza</div>
       <div class="filtros">
         <button class="filtro-btn activo" data-filtro="all"     onclick="filtrar(this)">Todas</button>
         <button class="filtro-btn"        data-filtro="high"    onclick="filtrar(this)">Alta</button>
@@ -268,22 +257,9 @@
     <!-- Capas informativas -->
     <div class="panel-section">
       <div class="panel-title">Capas informativas</div>
-      
-      <label class="capa-row">
-        <input type="checkbox" onchange="toggleCapa('municipio', this.checked)">
-        <span class="capa-label">Municipio (Chámeza)</span>
-      </label>
-
-      <label class="capa-row">
-        <input type="checkbox" onchange="toggleCapa('estudio', this.checked)">
-        <span class="capa-label">Área de estudio</span>
-      </label>
-
-      <label class="capa-row">
-        <input type="checkbox" onchange="toggleCapa('bosque', this.checked)">
-        <span class="capa-label">Núcleos boscosos</span>
-      </label>
-
+      <label class="capa-row"><input type="checkbox" onchange="toggleCapa('municipio', this.checked)"><span class="capa-label">Municipio (Chámeza)</span></label>
+      <label class="capa-row"><input type="checkbox" onchange="toggleCapa('estudio', this.checked)"><span class="capa-label">Área de estudio</span></label>
+      <label class="capa-row"><input type="checkbox" onchange="toggleCapa('bosque', this.checked)"><span class="capa-label">Núcleos boscosos</span></label>
       <label class="capa-row">
         <input type="checkbox" id="chk-perdidas" onchange="toggleCapa('perdidas', this.checked)">
         <span class="capa-label">Pérdidas 2020-2024</span>
@@ -291,44 +267,34 @@
       <div class="capa-sub" id="sub-perdidas">
         <select class="year-select" id="sel-year" onchange="actualizarPerdidas()">
           <option value="all">Todos los años</option>
-          <option value="20">2020</option>
-          <option value="21">2021</option>
-          <option value="22">2022</option>
-          <option value="23">2023</option>
-          <option value="24">2024</option>
+          <option value="20">2020</option><option value="21">2021</option>
+          <option value="22">2022</option><option value="23">2023</option><option value="24">2024</option>
         </select>
       </div>
-
       <label class="capa-row">
         <input type="checkbox" id="chk-conectividad" onchange="toggleCapa('conectividad', this.checked)">
         <span class="capa-label">Conectividad (Deciles)</span>
       </label>
       <div class="capa-sub" id="sub-conectividad">
         <div class="slider-row" style="margin-bottom:4px">
-          <span class="slider-label">Mostrar desde cuantil:</span>
+          <span class="slider-label">Desde cuantil:</span>
           <span class="slider-val" id="val-cuantil">1</span>
         </div>
         <input type="range" min="1" max="10" value="1" style="width:100%; accent-color:var(--verde-l)" id="sel-cuantil" oninput="actualizarConectividad(this.value)">
-        <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--texto-m); margin-top:4px">
-          <span>Poca conectividad</span>
-          <span>Mayor importancia</span>
-        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--texto-m);margin-top:4px"><span>Poca conectividad</span><span>Mayor importancia</span></div>
       </div>
-
       <label class="capa-row" style="margin-top:8px">
         <input type="checkbox" id="chk-deforestacion" onchange="toggleDeforestacion(this.checked)">
-        <span class="capa-label">Alertas deforestacion (GEE)</span>
+        <span class="capa-label">Alertas deforestación (GEE)</span>
       </label>
       <div class="capa-sub" id="sub-deforestacion">
-        <div style="font-size:10px;color:var(--texto-m);margin-bottom:6px;line-height:1.4">
-          Sentinel-2 · cambio NDVI · area_estudio · actualizacion diaria
-        </div>
+        <div style="font-size:10px;color:var(--texto-m);margin-bottom:6px;line-height:1.4">Sentinel-2 · cambio NDVI · actualización diaria</div>
         <select class="year-select" id="sel-defor-periodo" onchange="cargarDeforestacion()">
-          <option value="1">Ultimas 24 h</option>
-          <option value="7">Ultimos 7 dias</option>
-          <option value="30" selected>Ultimos 30 dias</option>
-          <option value="90">Ultimos 90 dias</option>
-          <option value="365">Ultimo ano</option>
+          <option value="1">Últimas 24 h</option>
+          <option value="7">Últimos 7 días</option>
+          <option value="30" selected>Últimos 30 días</option>
+          <option value="90">Últimos 90 días</option>
+          <option value="365">Último año</option>
         </select>
         <select class="year-select" id="sel-defor-severidad" style="margin-top:4px" onchange="filtrarDeforestacion()">
           <option value="all">Todas las severidades</option>
@@ -340,25 +306,33 @@
       </div>
     </div>
 
-    <!-- Descarga -->
+    <!-- Descarga combinada -->
     <div class="panel-section">
       <div class="panel-title">Descargar reporte</div>
       <div class="descarga-btns">
-        <button class="dl-btn" onclick="descargarCSV()">CSV</button>
-        <button class="dl-btn" onclick="descargarPDF()">PDF</button>
+        <button class="dl-btn fuego-btn"  onclick="descargarCSV('incendios')">CSV Incendios</button>
+        <button class="dl-btn defor-btn"  onclick="descargarCSV('deforestacion')">CSV Deforest.</button>
+        <button class="dl-btn combo-btn"  onclick="descargarCSV('combinado')">CSV Combinado</button>
+        <button class="dl-btn fuego-btn"  onclick="descargarPDF('incendios')">PDF Incendios</button>
+        <button class="dl-btn defor-btn"  onclick="descargarPDF('deforestacion')">PDF Deforest.</button>
+        <button class="dl-btn combo-btn"  onclick="descargarPDF('combinado')">⭐ PDF Combinado</button>
       </div>
     </div>
 
-    <!-- Lista alertas -->
+    <!-- Lista alertas con tabs -->
     <div class="panel-section" style="flex:1">
       <div class="panel-title">Alertas detectadas</div>
+      <div class="tabs">
+        <div class="tab activo" onclick="cambiarTab('incendios', this)">🔥 Incendios</div>
+        <div class="tab"        onclick="cambiarTab('deforestacion', this)">🌿 Deforestación</div>
+      </div>
       <div id="lista-alertas"><div class="loading"><div class="spin"></div> Cargando...</div></div>
     </div>
 
     <div class="panel-footer">
       Datos: <a href="https://firms.modaps.eosdis.nasa.gov" target="_blank">NASA FIRMS</a> ·
-      Mapa: <a href="https://www.openstreetmap.org" target="_blank">OpenStreetMap</a> ·
-      Sistema participativo sin ánimo de lucro
+      <a href="https://earthengine.google.com" target="_blank">Google Earth Engine</a> ·
+      <a href="https://www.openstreetmap.org" target="_blank">OpenStreetMap</a>
     </div>
   </aside>
 
@@ -371,735 +345,565 @@
 <script src="https://unpkg.com/georaster"></script>
 <script src="https://unpkg.com/georaster-layer-for-leaflet"></script>
 <script>
-  // ── Configuración ──────────────────────────────────────────────────────────
-  const SUPABASE_URL  = 'https://qryktfqnicnwiuwbijvd.supabase.co';
-  const SUPABASE_KEY  = 'sb_publishable_tVzVULeeVvP-QRCXviO7cg_EOuOfX-0';
-  const GEOJSON_URL   = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/Predios.geojson';
-  const BASE_URL      = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/';
+// ── Configuración ─────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://qryktfqnicnwiuwbijvd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_tVzVULeeVvP-QRCXviO7cg_EOuOfX-0';
+const GEOJSON_URL  = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/Predios.geojson';
+const BASE_URL     = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/';
 
-  const URLS = {
-    municipio: BASE_URL + 'Chameza4326.geojson',
-    estudio:   BASE_URL + 'area_estudio.geojson',
-    bosque:    BASE_URL + 'Nucleos_boscosos.geojson',
-    perdidas:  BASE_URL + 'Perdidas2020-2024.geojson',
-    conectividad: BASE_URL + 'cum_currmap_deciles3_4326_web.tif'
-  };
+const URLS = {
+  municipio:    BASE_URL + 'Chameza4326.geojson',
+  estudio:      BASE_URL + 'area_estudio.geojson',
+  bosque:       BASE_URL + 'Nucleos_boscosos.geojson',
+  perdidas:     BASE_URL + 'Perdidas2020-2024.geojson',
+  conectividad: BASE_URL + 'cum_currmap_deciles3_4326_web.tif'
+};
 
-  // ── Paletas de colores por valor único ────────────────────────────────────
-  const PALETA = [
-    '#4caf7d','#f5a623','#e8480a','#378add','#a855f7',
-    '#ec4899','#14b8a6','#f97316','#84cc16','#64748b',
-    '#fb7185','#34d399','#fbbf24','#60a5fa','#c084fc'
-  ];
-  const mapaColores = {}; // atributo → { valor → color }
+// ── Paleta ────────────────────────────────────────────────────────────────────
+const PALETA = ['#4caf7d','#f5a623','#e8480a','#378add','#a855f7','#ec4899','#14b8a6','#f97316','#84cc16','#64748b','#fb7185','#34d399','#fbbf24','#60a5fa','#c084fc'];
+const mapaColores = {};
+function obtenerColor(attr, val) {
+  if (!mapaColores[attr]) mapaColores[attr] = {};
+  const mc = mapaColores[attr];
+  if (!mc[val]) mc[val] = PALETA[Object.keys(mc).length % PALETA.length];
+  return mc[val];
+}
 
-  function obtenerColor(atributo, valor) {
-    if (!mapaColores[atributo]) mapaColores[atributo] = {};
-    const mc = mapaColores[atributo];
-    if (!mc[valor]) {
-      const idx = Object.keys(mc).length % PALETA.length;
-      mc[valor] = PALETA[idx];
-    }
-    return mc[valor];
+// ── Mapa ───────────────────────────────────────────────────────────────────────
+const baseMaps = {
+  'Oscuro':     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',subdomains:'abcd',maxZoom:19}),
+  'Satélite':   L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{attribution:'© Google'}),
+  'Google Maps':L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{attribution:'© Google'}),
+  'Relieve':    L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'})
+};
+const map = L.map('map',{zoomControl:false,layers:[baseMaps['Oscuro']]}).setView([5.09,-72.47],11);
+L.control.zoom({position:'bottomright'}).addTo(map);
+L.control.layers(baseMaps,null,{position:'bottomright'}).addTo(map);
+
+// ── Estado ────────────────────────────────────────────────────────────────────
+let todasAlertas = [], marcadores = [];
+let filtroActual = 'all', diasActual = 1;
+let areaFiltro = null, predioSelId = null;
+let prediosAgrupados = {}, atributoActual = 'cobertura';
+let opacidadActual = 0.4, radioKm = 10;
+let capaPredioa = null, capaRadio = null;
+let tabActual = 'incendios';
+
+const drawnItems   = new L.FeatureGroup().addTo(map);
+const capaTodosGeo = new L.FeatureGroup().addTo(map);
+
+const capasInfo = { municipio:L.layerGroup().addTo(map), estudio:L.layerGroup().addTo(map), bosque:L.layerGroup().addTo(map), perdidas:L.layerGroup().addTo(map), conectividad:L.layerGroup().addTo(map) };
+let datosPerdidas = null, georasterConectividad = null, cuantilMinimo = 1;
+
+const turboColors = [null,'#30123b','#4145ab','#4675ed','#39a2ff','#1ae4b6','#62fc6b','#addc30','#e49c1b','#f25d0a','#aa1016'];
+
+// Deforestación
+let marcadoresDefor = [], alertasDefor = [], deforVisible = false;
+const COLORES_SEV = { leve:'#eab308', moderada:'#f97316', severa:'#dc2626' };
+
+// ── SVG hatch para bosques ────────────────────────────────────────────────────
+const svgNS = 'http://www.w3.org/2000/svg';
+const pat = document.createElementNS(svgNS,'pattern');
+pat.setAttribute('id','hatch'); pat.setAttribute('patternUnits','userSpaceOnUse');
+pat.setAttribute('width','8'); pat.setAttribute('height','8'); pat.setAttribute('patternTransform','rotate(45)');
+const ln = document.createElementNS(svgNS,'line');
+ln.setAttribute('x1','0'); ln.setAttribute('y1','0'); ln.setAttribute('x2','0'); ln.setAttribute('y2','8');
+ln.setAttribute('stroke','#4caf7d'); ln.setAttribute('stroke-width','2');
+pat.appendChild(ln);
+map.on('layeradd',()=>{
+  const svg=document.querySelector('#map svg');
+  if(svg&&!svg.querySelector('#hatch')){let d=svg.querySelector('defs');if(!d){d=document.createElementNS(svgNS,'defs');svg.insertBefore(d,svg.firstChild);}d.appendChild(pat);}
+});
+
+// ── Área activa (unificada incendios + deforestación) ─────────────────────────
+function obtenerAreaFiltroActiva() {
+  if (predioSelId !== null && capaRadio) {
+    const c = capaRadio.getLatLng();
+    return { tipo:'circulo', lat:c.lat, lng:c.lng, radio:radioKm };
   }
+  return areaFiltro;
+}
 
-  // ── Mapa ───────────────────────────────────────────────────────────────────
-  const baseMaps = {
-    "Oscuro": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19
-    }),
-    "Satélite": L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-      attribution: '© Google'
-    }),
-    "Google Maps": L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-      attribution: '© Google'
-    }),
-    "Relieve": L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap'
-    })
-  };
+function actualizarBadgeArea() {
+  const area = obtenerAreaFiltroActiva();
+  const badge = document.getElementById('area-badge');
+  const txt   = document.getElementById('area-badge-txt');
+  if (!area) { badge.classList.remove('visible'); return; }
+  badge.classList.add('visible');
+  if (predioSelId) txt.textContent = `Predio "${predioSelId}" + buffer ${radioKm} km`;
+  else if (area.tipo === 'circulo') txt.textContent = `Punto + radio ${area.radio} km`;
+  else txt.textContent = 'Polígono dibujado';
+}
 
-  const map = L.map('map', { 
-    zoomControl: false,
-    layers: [baseMaps["Oscuro"]] 
-  }).setView([5.09, -72.47], 11);
+function limpiarTodoFiltroArea() {
+  limpiarPredioa();
+  limpiarAreaDibujada();
+}
 
-  L.control.zoom({ position: 'bottomright' }).addTo(map);
-  L.control.layers(baseMaps, null, { position: 'bottomright' }).addTo(map);
-
-  // ── Estado global ──────────────────────────────────────────────────────────
-  let todasAlertas    = [];
-  let marcadores      = [];
-  let filtroActual    = 'all';
-  let diasActual      = 1;
-  let areaFiltro      = null;    // {tipo, coords|lat/lng/radio}
-  let predioSelId     = null;    // ID del predio seleccionado (id_predio)
-  let prediosAgrupados = {};      // id_predio -> { id, features: [], area_m: total, area_ha: total }
-  let todosFeatures   = [];      // features del GeoJSON
-  let atributoActual  = 'cobertura';
-  let opacidadActual  = 0.4;
-  let radioKm         = 10;
-  let capaPredioa     = null;    // L.geoJSON del predio seleccionado
-  let capaRadio       = null;    // L.circle de radio de alerta
-  const drawnItems    = new L.FeatureGroup().addTo(map);
-  const capaTodosGeo  = new L.FeatureGroup().addTo(map); // todos predios fondo tenue
-
-  // Capas informativas
-  const capasInfo = {
-    municipio: L.layerGroup().addTo(map),
-    estudio:   L.layerGroup().addTo(map),
-    bosque:    L.layerGroup().addTo(map),
-    perdidas:  L.layerGroup().addTo(map),
-    conectividad: L.layerGroup().addTo(map)
-  };
-  let datosPerdidas = null;
-  let georasterConectividad = null;
-  let cuantilMinimo = 1;
-
-  const turboColors = [
-    null, // index 0
-    '#30123b', '#4145ab', '#4675ed', '#39a2ff', '#1ae4b6',
-    '#62fc6b', '#addc30', '#e49c1b', '#f25d0a', '#aa1016'
-  ];
-
-  // ── Patrón de achurado para bosques ───────────────────────────────────────
-  // Creamos un patrón SVG para el achurado
-  const svgNS = "http://www.w3.org/2000/svg";
-  const pattern = document.createElementNS(svgNS, "pattern");
-  pattern.setAttribute("id", "hatch");
-  pattern.setAttribute("patternUnits", "userSpaceOnUse");
-  pattern.setAttribute("width", "8");
-  pattern.setAttribute("height", "8");
-  pattern.setAttribute("patternTransform", "rotate(45)");
-
-  const line = document.createElementNS(svgNS, "line");
-  line.setAttribute("x1", "0");
-  line.setAttribute("y1", "0");
-  line.setAttribute("x2", "0");
-  line.setAttribute("y2", "8");
-  line.setAttribute("stroke", "#4caf7d");
-  line.setAttribute("stroke-width", "2");
-  pattern.appendChild(line);
-
-  // Inyectar en el SVG del mapa cuando esté listo
-  map.on('layeradd', function() {
-    const svg = document.querySelector('#map svg');
-    if (svg && !svg.querySelector('#hatch')) {
-      let defs = svg.querySelector('defs');
-      if (!defs) {
-        defs = document.createElementNS(svgNS, "defs");
-        svg.insertBefore(defs, svg.firstChild);
-      }
-      defs.appendChild(pattern);
-    }
-  });
-
-  // ── Cargar GeoJSON de predios ──────────────────────────────────────────────
-  async function cargarPredios() {
-    try {
-      const resp = await fetch(GEOJSON_URL);
-      const gj   = await resp.json();
-      todosFeatures = gj.features || [];
-
-      // Agrupar por id_predio
-      prediosAgrupados = {};
-      todosFeatures.forEach(f => {
-        const id = f.properties.id_predio || 'Sin ID';
-        if (!prediosAgrupados[id]) {
-          prediosAgrupados[id] = {
-            id: id,
-            features: [],
-            area_m: 0,
-            area_ha: 0
-          };
-        }
-        prediosAgrupados[id].features.push(f);
-        prediosAgrupados[id].area_m += Number(f.properties.area_m || 0);
-        prediosAgrupados[id].area_ha += Number(f.properties.area_ha || 0);
-      });
-
-      // Dibujar todos en fondo tenue
-      capaTodosGeo.clearLayers();
-      L.geoJSON(gj, {
-        style: { color: '#4caf7d', weight: 1, fillColor: '#4caf7d', fillOpacity: 0.04, dashArray: '4 3' },
-        onEachFeature: (feat, layer) => {
-          layer.on('click', () => {
-            const id = feat.properties.id_predio || 'Sin ID';
-            document.getElementById('predio-select').value = id;
-            seleccionarPredio(id);
-          });
-        }
-      }).addTo(capaTodosGeo);
-
-      // Llenar select
-      const sel = document.getElementById('predio-select');
-      sel.innerHTML = '<option value="">— Selecciona un predio —</option>';
-      Object.keys(prediosAgrupados).sort().forEach(id => {
-        const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = id;
-        sel.appendChild(opt);
-      });
-    } catch(err) {
-      console.error('Error cargando predios:', err);
-    }
-  }
-
-  // ── Seleccionar predio ─────────────────────────────────────────────────────
-  function seleccionarPredio(id) {
-    if (id === '' || id === null) { limpiarPredioa(); return; }
-    predioSelId = id;
-    const predio = prediosAgrupados[id];
-    if (!predio) return;
-
-    // Info box
-    document.getElementById('info-id').textContent      = predio.id;
-    document.getElementById('info-area-m').textContent  = predio.area_m.toLocaleString('es-CO', {maximumFractionDigits:0});
-    document.getElementById('info-area-ha').textContent = predio.area_ha.toFixed(2);
-    document.getElementById('predio-info-box').classList.add('visible');
-    document.getElementById('predio-controles').style.display = 'block';
-
-    renderCapaPredioa();
-    centrarPredioa();
-    aplicarFiltros();
-  }
-
-  function renderCapaPredioa() {
-    if (capaPredioa) { map.removeLayer(capaPredioa); capaPredioa = null; }
-    if (capaRadio)   { map.removeLayer(capaRadio);   capaRadio   = null; }
-    if (predioSelId === null) return;
-
-    const predio = prediosAgrupados[predioSelId];
-    const alpha = opacidadActual;
-
-    capaPredioa = L.geoJSON(predio.features, {
-      style: f => {
-        const val   = f.properties[atributoActual] || 'Sin dato';
-        const color = obtenerColor(atributoActual, val);
-        return { color: '#fff', weight: 1.5, fillColor: color, fillOpacity: alpha };
-      },
-      onEachFeature: (f, layer) => {
-        const props = f.properties;
-        layer.bindPopup(`
-          <div class="popup-title verde">${predio.id}</div>
-          <div class="popup-row">Cobertura <span>${props.cobertura || '—'}</span></div>
-          <div class="popup-row">Uso actual <span>${props.uso_actual || '—'}</span></div>
-          <div class="popup-row">Área polígono (ha) <span>${props.area_ha ? Number(props.area_ha).toFixed(2) : '—'}</span></div>
-          <hr style="margin:5px 0; border:0; border-top:1px solid var(--borde)">
-          <div class="popup-row">Total predio (ha) <span>${predio.area_ha.toFixed(2)}</span></div>
-        `);
-      }
-    }).addTo(map);
-
-    // Radio de alerta centrado en el centroide del conjunto de polígonos
-    const bounds   = capaPredioa.getBounds();
-    const centroid = bounds.getCenter();
-    capaRadio = L.circle(centroid, {
-      radius: radioKm * 1000,
-      color: '#f5a623', weight: 1.5, dashArray: '6 4',
-      fillColor: '#f5a623', fillOpacity: 0.04
-    }).addTo(map);
-
-    renderLeyenda();
-    aplicarFiltros();
-  }
-
-  function centrarPredioa() {
-    if (capaPredioa) map.fitBounds(capaPredioa.getBounds().pad(0.3));
-  }
-
-  function limpiarPredioa() {
-    predioSelId = null;
-    if (capaPredioa) { map.removeLayer(capaPredioa); capaPredioa = null; }
-    if (capaRadio)   { map.removeLayer(capaRadio);   capaRadio   = null; }
-    document.getElementById('predio-select').value = '';
-    document.getElementById('predio-info-box').classList.remove('visible');
-    document.getElementById('predio-controles').style.display = 'none';
-    document.getElementById('leyenda-colores').innerHTML = '';
-    document.getElementById('info-alertas').textContent = '—';
-    document.getElementById('total-area-sel').textContent = '—';
-    aplicarFiltros();
-  }
-
-  function cambiarAtributo(attr, btn) {
-    atributoActual = attr;
-    document.querySelectorAll('.attr-btn').forEach(b => b.classList.remove('activo'));
-    btn.classList.add('activo');
-    renderCapaPredioa();
-  }
-
-  function cambiarOpacidad(val) {
-    opacidadActual = val / 100;
-    document.getElementById('val-opacidad').textContent = val + '%';
-    if (capaPredioa) {
-      capaPredioa.setStyle({ fillOpacity: opacidadActual });
-    }
-  }
-
-  function cambiarRadio(val) {
-    radioKm = parseInt(val);
-    document.getElementById('val-radio').textContent = val + ' km';
-    if (capaRadio) capaRadio.setRadius(radioKm * 1000);
-    aplicarFiltros();
-  }
-
-  function renderLeyenda() {
-    const mc  = mapaColores[atributoActual] || {};
-    const el  = document.getElementById('leyenda-colores');
-    el.innerHTML = Object.entries(mc).map(([val, color]) =>
-      `<div class="leyenda-item">
-        <div class="leyenda-color" style="background:${color}"></div>
-        <span class="leyenda-txt">${val}</span>
-       </div>`
-    ).join('');
-  }
-
-  // ── Área de filtro: predio seleccionado vs. dibujo manual ─────────────────
-  function obtenerAreaFiltroActiva() {
-    // Prioridad: predio seleccionado con radio > área dibujada manualmente
-    if (predioSelId !== null && capaRadio) {
-      const c = capaRadio.getLatLng();
-      return { tipo: 'circulo', lat: c.lat, lng: c.lng, radio: radioKm };
-    }
-    return areaFiltro;
-  }
-
-  // ── Filtros y alertas ──────────────────────────────────────────────────────
-  function puntoEnArea(lat, lng, area) {
-    if (!area) return true;
-    if (area.tipo === 'circulo') {
-      const d = Math.sqrt(
-        Math.pow((lat - area.lat) * 111, 2) +
-        Math.pow((lng - area.lng) * 111 * Math.cos(area.lat * Math.PI / 180), 2)
-      );
-      return d <= area.radio;
-    }
-    let dentro = false;
-    const coords = area.coords;
-    for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
-      const xi = coords[i][0], yi = coords[i][1], xj = coords[j][0], yj = coords[j][1];
-      if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) dentro = !dentro;
-    }
-    return dentro;
-  }
-
-  function alertasEnPeriodo(alertas) {
-    const inicio = new Date(Date.now() - diasActual * 864e5);
-    return alertas.filter(a => new Date(a.fecha_deteccion) >= inicio);
-  }
-
-  function aplicarFiltros() {
-    let result = alertasEnPeriodo(todasAlertas);
-    if (filtroActual !== 'all') result = result.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
-
-    const areaActiva = obtenerAreaFiltroActiva();
-    const enArea = areaActiva ? result.filter(a => puntoEnArea(a.latitud, a.longitud, areaActiva)) : result;
-
-    actualizarStats(result, enArea);
-    renderMarcadores(enArea);
-    renderLista(enArea);
-
-    if (predioSelId !== null) {
-      document.getElementById('info-alertas').textContent = enArea.length;
-    }
-    setTimeout(filtrarDeforestacion, 0);
-  }
-
-  function actualizarStats(todas, enArea) {
-    document.getElementById('total-alertas').textContent = todas.length;
-    document.getElementById('total-high').textContent    = todas.filter(a => (a.firms_confidence || '').toLowerCase() === 'high').length;
-    const frps = todas.map(a => a.firms_frp || 0).filter(Boolean);
-    document.getElementById('total-frp').textContent     = frps.length ? Math.max(...frps).toFixed(0) : '0';
-    const areaActiva = obtenerAreaFiltroActiva();
-    document.getElementById('total-area-sel').textContent = areaActiva ? enArea.length : '—';
-  }
-
-  function colorConfianza(c) {
-    if (!c) return '#f5a623';
-    const cl = c.toLowerCase();
-    if (cl === 'high') return '#e8480a';
-    if (cl === 'nominal') return '#f5a623';
-    return '#4caf7d';
-  }
-
-  function renderMarcadores(alertas) {
-    marcadores.forEach(m => map.removeLayer(m));
-    marcadores = [];
-    alertas.forEach(a => {
-      const color = colorConfianza(a.firms_confidence);
-      const m = L.circleMarker([a.latitud, a.longitud], {
-        radius: Math.max(5, Math.min(16, (a.firms_frp || 5) / 8)),
-        fillColor: color, color, weight: 1.5, opacity: .9, fillOpacity: .7
-      }).addTo(map);
-      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO', { timeZone: 'America/Bogota' });
-      m.bindPopup(`
-        <div class="popup-title">Incendio activo detectado</div>
-        <div class="popup-row">Coordenadas <span>${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</span></div>
-        <div class="popup-row">Confianza <span>${a.firms_confidence || 'N/A'}</span></div>
-        <div class="popup-row">FRP <span>${a.firms_frp ? a.firms_frp.toFixed(1) + ' MW' : 'N/A'}</span></div>
-        <div class="popup-row">Satélite <span>${a.firms_satellite || 'VIIRS'}</span></div>
-        <div class="popup-row">Detectado <span>${fecha}</span></div>
-        <div class="popup-row">Estado <span>${a.estado}</span></div>`);
-      marcadores.push(m);
+// ── Predios ───────────────────────────────────────────────────────────────────
+async function cargarPredios() {
+  try {
+    const resp = await fetch(GEOJSON_URL);
+    const gj   = await resp.json();
+    prediosAgrupados = {};
+    (gj.features||[]).forEach(f => {
+      const id = f.properties.id_predio || 'Sin ID';
+      if (!prediosAgrupados[id]) prediosAgrupados[id] = {id, features:[], area_m:0, area_ha:0};
+      prediosAgrupados[id].features.push(f);
+      prediosAgrupados[id].area_m  += Number(f.properties.area_m  || 0);
+      prediosAgrupados[id].area_ha += Number(f.properties.area_ha || 0);
     });
-  }
+    capaTodosGeo.clearLayers();
+    L.geoJSON(gj,{
+      style:{color:'#4caf7d',weight:1,fillColor:'#4caf7d',fillOpacity:0.04,dashArray:'4 3'},
+      onEachFeature:(feat,layer)=>layer.on('click',()=>{
+        const id=feat.properties.id_predio||'Sin ID';
+        document.getElementById('predio-select').value=id;
+        seleccionarPredio(id);
+      })
+    }).addTo(capaTodosGeo);
+    const sel = document.getElementById('predio-select');
+    sel.innerHTML = '<option value="">— Selecciona un predio —</option>';
+    Object.keys(prediosAgrupados).sort().forEach(id=>{
+      const o=document.createElement('option'); o.value=id; o.textContent=id; sel.appendChild(o);
+    });
+  } catch(e) { console.error('Error cargando predios:',e); }
+}
 
-  function renderLista(alertas) {
-    const el = document.getElementById('lista-alertas');
-    if (!alertas.length) { el.innerHTML = '<div class="loading">Sin alertas en este período</div>'; return; }
-    el.innerHTML = alertas.map((a, i) => {
-      const conf  = (a.firms_confidence || 'low').toLowerCase();
-      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' });
-      return `<div class="alerta-item" onclick="centrarEn(${i})">
-        <div class="alerta-dot ${conf}"></div>
-        <div class="alerta-info">
-          <div class="alerta-coords">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div>
-          <div class="alerta-meta">${fecha} · ${a.firms_satellite || 'VIIRS'}</div>
-        </div>
-        <div class="alerta-frp">${a.firms_frp ? a.firms_frp.toFixed(0) + ' MW' : '—'}</div>
-      </div>`;
+function seleccionarPredio(id) {
+  if (!id) { limpiarPredioa(); return; }
+  predioSelId = id;
+  const p = prediosAgrupados[id];
+  if (!p) return;
+  document.getElementById('info-id').textContent      = p.id;
+  document.getElementById('info-area-ha').textContent = p.area_ha.toFixed(2);
+  document.getElementById('predio-info-box').classList.add('visible');
+  document.getElementById('predio-controles').style.display = 'block';
+  renderCapaPredioa(); centrarPredioa(); aplicarFiltros();
+}
+
+function renderCapaPredioa() {
+  if (capaPredioa) { map.removeLayer(capaPredioa); capaPredioa=null; }
+  if (capaRadio)   { map.removeLayer(capaRadio);   capaRadio=null;   }
+  if (!predioSelId) return;
+  const p = prediosAgrupados[predioSelId];
+  capaPredioa = L.geoJSON(p.features,{
+    style:f=>{ const v=f.properties[atributoActual]||'Sin dato'; return {color:'#fff',weight:1.5,fillColor:obtenerColor(atributoActual,v),fillOpacity:opacidadActual}; },
+    onEachFeature:(f,layer)=>layer.bindPopup(`
+      <div class="popup-title verde">${p.id}</div>
+      <div class="popup-row">Cobertura <span>${f.properties.cobertura||'—'}</span></div>
+      <div class="popup-row">Uso actual <span>${f.properties.uso_actual||'—'}</span></div>
+      <div class="popup-row">Área polígono (ha) <span>${f.properties.area_ha?Number(f.properties.area_ha).toFixed(2):'—'}</span></div>
+      <div class="popup-row">Total predio (ha) <span>${p.area_ha.toFixed(2)}</span></div>`)
+  }).addTo(map);
+  const ctr = capaPredioa.getBounds().getCenter();
+  capaRadio = L.circle(ctr,{radius:radioKm*1000,color:'#f5a623',weight:1.5,dashArray:'6 4',fillColor:'#f5a623',fillOpacity:0.04}).addTo(map);
+  renderLeyenda(); actualizarBadgeArea(); aplicarFiltros();
+}
+
+function centrarPredioa() { if(capaPredioa) map.fitBounds(capaPredioa.getBounds().pad(0.3)); }
+
+function limpiarPredioa() {
+  predioSelId = null;
+  if (capaPredioa){map.removeLayer(capaPredioa);capaPredioa=null;}
+  if (capaRadio)  {map.removeLayer(capaRadio);  capaRadio=null;  }
+  document.getElementById('predio-select').value='';
+  document.getElementById('predio-info-box').classList.remove('visible');
+  document.getElementById('predio-controles').style.display='none';
+  document.getElementById('leyenda-colores').innerHTML='';
+  document.getElementById('info-alertas').textContent='—';
+  document.getElementById('info-defor').textContent='—';
+  actualizarBadgeArea(); aplicarFiltros();
+}
+
+function cambiarAtributo(attr,btn) { atributoActual=attr; document.querySelectorAll('.attr-btn').forEach(b=>b.classList.remove('activo')); btn.classList.add('activo'); renderCapaPredioa(); }
+function cambiarOpacidad(val) { opacidadActual=val/100; document.getElementById('val-opacidad').textContent=val+'%'; if(capaPredioa) capaPredioa.setStyle({fillOpacity:opacidadActual}); }
+function cambiarRadio(val) { radioKm=parseInt(val); document.getElementById('val-radio').textContent=val+' km'; if(capaRadio) capaRadio.setRadius(radioKm*1000); actualizarBadgeArea(); aplicarFiltros(); }
+function renderLeyenda() {
+  const mc=mapaColores[atributoActual]||{};
+  document.getElementById('leyenda-colores').innerHTML=Object.entries(mc).map(([v,c])=>`<div class="leyenda-item"><div class="leyenda-color" style="background:${c}"></div><span class="leyenda-txt">${v}</span></div>`).join('');
+}
+
+// ── Filtros ───────────────────────────────────────────────────────────────────
+function puntoEnArea(lat,lng,area) {
+  if (!area) return true;
+  if (area.tipo==='circulo') {
+    const d=Math.sqrt(Math.pow((lat-area.lat)*111,2)+Math.pow((lng-area.lng)*111*Math.cos(area.lat*Math.PI/180),2));
+    return d<=area.radio;
+  }
+  let dentro=false; const c=area.coords;
+  for(let i=0,j=c.length-1;i<c.length;j=i++){const xi=c[i][0],yi=c[i][1],xj=c[j][0],yj=c[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))dentro=!dentro;}
+  return dentro;
+}
+
+function alertasEnPeriodo(arr) {
+  const ini=new Date(Date.now()-diasActual*864e5);
+  return arr.filter(a=>new Date(a.fecha_deteccion)>=ini);
+}
+
+function aplicarFiltros() {
+  let firms=alertasEnPeriodo(todasAlertas);
+  if (filtroActual!=='all') firms=firms.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
+  const area=obtenerAreaFiltroActiva();
+  const firmsArea=area?firms.filter(a=>puntoEnArea(a.latitud,a.longitud,area)):firms;
+
+  // Deforestación también filtrada por área
+  const deforPeriodo=alertasEnPeriodo(alertasDefor);
+  const deforArea=area?deforPeriodo.filter(a=>puntoEnArea(a.latitud,a.longitud,area)):deforPeriodo;
+
+  actualizarStats(firms,firmsArea,deforArea);
+  renderMarcadores(firmsArea);
+  if (tabActual==='incendios') renderLista(firmsArea,'incendios');
+  else renderLista(deforArea,'deforestacion');
+
+  if (predioSelId) {
+    document.getElementById('info-alertas').textContent=firmsArea.length;
+    document.getElementById('info-defor').textContent=deforArea.length;
+  }
+  actualizarBadgeArea();
+  setTimeout(filtrarDeforestacion,0);
+}
+
+function actualizarStats(firms,firmsArea,deforArea) {
+  const area=obtenerAreaFiltroActiva();
+  document.getElementById('total-alertas').textContent = area?firmsArea.length:firms.length;
+  document.getElementById('total-defor').textContent   = deforArea.length;
+  document.getElementById('total-high').textContent    = firms.filter(a=>(a.firms_confidence||'').toLowerCase()==='high').length;
+  const frps=firms.map(a=>a.firms_frp||0).filter(Boolean);
+  document.getElementById('total-frp').textContent = frps.length?Math.max(...frps).toFixed(0):'0';
+}
+
+function colorConfianza(c) {
+  if(!c)return'#f5a623';const cl=c.toLowerCase();
+  if(cl==='high')return'#e8480a';if(cl==='nominal')return'#f5a623';return'#4caf7d';
+}
+
+function renderMarcadores(alertas) {
+  marcadores.forEach(m=>map.removeLayer(m)); marcadores=[];
+  alertas.forEach(a=>{
+    const color=colorConfianza(a.firms_confidence);
+    const m=L.circleMarker([a.latitud,a.longitud],{radius:Math.max(5,Math.min(16,(a.firms_frp||5)/8)),fillColor:color,color,weight:1.5,opacity:.9,fillOpacity:.7}).addTo(map);
+    const fecha=new Date(a.fecha_deteccion).toLocaleString('es-CO',{timeZone:'America/Bogota'});
+    m.bindPopup(`<div class="popup-title">Incendio activo</div><div class="popup-row">Coords <span>${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</span></div><div class="popup-row">Confianza <span>${a.firms_confidence||'N/A'}</span></div><div class="popup-row">FRP <span>${a.firms_frp?a.firms_frp.toFixed(1)+' MW':'N/A'}</span></div><div class="popup-row">Satélite <span>${a.firms_satellite||'VIIRS'}</span></div><div class="popup-row">Detectado <span>${fecha}</span></div>`);
+    marcadores.push(m);
+  });
+}
+
+// ── Tabs lista ────────────────────────────────────────────────────────────────
+function cambiarTab(tab, btn) {
+  tabActual = tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('activo'));
+  btn.classList.add('activo');
+  aplicarFiltros();
+}
+
+function renderLista(alertas, tipo) {
+  const el = document.getElementById('lista-alertas');
+  if (!alertas.length) { el.innerHTML='<div class="loading">Sin alertas en este período</div>'; return; }
+  if (tipo==='incendios') {
+    el.innerHTML=alertas.map((a,i)=>{
+      const conf=(a.firms_confidence||'low').toLowerCase();
+      const fecha=new Date(a.fecha_deteccion).toLocaleString('es-CO',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'America/Bogota'});
+      return `<div class="alerta-item" onclick="centrarEn(${i})"><div class="alerta-dot ${conf}"></div><div class="alerta-info"><div class="alerta-coords">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div><div class="alerta-meta">${fecha} · ${a.firms_satellite||'VIIRS'}</div></div><div class="alerta-frp">${a.firms_frp?a.firms_frp.toFixed(0)+' MW':'—'}</div></div>`;
+    }).join('');
+  } else {
+    el.innerHTML=alertas.map((a,i)=>{
+      const fecha=new Date(a.fecha_deteccion+'T12:00:00').toLocaleDateString('es-CO');
+      return `<div class="alerta-item" onclick="centrarEnDefor(${i})"><div class="alerta-dot defor-${a.severidad}"></div><div class="alerta-info"><div class="alerta-coords">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div><div class="alerta-meta">${fecha} · ${a.predio_id}</div></div><div class="alerta-frp" style="color:#eab308">${a.area_afectada_ha||'?'} ha</div></div>`;
     }).join('');
   }
+}
 
-  function centrarEn(i) {
-    if (marcadores[i]) { map.setView(marcadores[i].getLatLng(), 13); marcadores[i].openPopup(); }
+function centrarEn(i)      { if(marcadores[i]){map.setView(marcadores[i].getLatLng(),13);marcadores[i].openPopup();} }
+function centrarEnDefor(i) {
+  const area=obtenerAreaFiltroActiva();
+  const deforFiltrada=area?alertasDefor.filter(a=>puntoEnArea(a.latitud,a.longitud,area)):alertasDefor;
+  const a=deforFiltrada[i];
+  if(a){map.setView([a.latitud,a.longitud],13); marcadoresDefor.find(m=>{const ll=m.getLatLng();return Math.abs(ll.lat-a.latitud)<0.0001;})?.openPopup();}
+}
+
+function cambiarPeriodo(btn) { document.querySelectorAll('.periodo-btn').forEach(b=>b.classList.remove('activo')); btn.classList.add('activo'); diasActual=parseInt(btn.dataset.dias); if(deforVisible) cargarDeforestacion(); else aplicarFiltros(); }
+function filtrar(btn) { document.querySelectorAll('.filtro-btn').forEach(b=>b.classList.remove('activo')); btn.classList.add('activo'); filtroActual=btn.dataset.filtro; aplicarFiltros(); }
+
+// ── Dibujo manual ─────────────────────────────────────────────────────────────
+function activarHerramienta(tipo) {
+  limpiarAreaDibujada();
+  document.getElementById('hint-dibujo').classList.add('visible');
+  if(tipo==='poligono') {
+    document.getElementById('btn-poligono').classList.add('activo');
+    new L.Draw.Polygon(map,{shapeOptions:{color:'#f5a623',weight:2,fillOpacity:0.08}}).enable();
+  } else {
+    document.getElementById('btn-punto').classList.add('activo');
+    map.once('click',function(e){
+      drawnItems.addLayer(L.circle(e.latlng,{radius:10000,color:'#f5a623',weight:2,fillOpacity:0.06}));
+      areaFiltro={tipo:'circulo',lat:e.latlng.lat,lng:e.latlng.lng,radio:10};
+      document.getElementById('btn-punto').classList.remove('activo');
+      document.getElementById('hint-dibujo').classList.remove('visible');
+      actualizarBadgeArea(); aplicarFiltros();
+    });
   }
+}
+map.on(L.Draw.Event.CREATED,function(e){
+  drawnItems.addLayer(e.layer);
+  areaFiltro={tipo:'poligono',coords:e.layer.toGeoJSON().geometry.coordinates[0]};
+  document.getElementById('btn-poligono').classList.remove('activo');
+  document.getElementById('hint-dibujo').classList.remove('visible');
+  actualizarBadgeArea(); aplicarFiltros();
+});
+function limpiarAreaDibujada() {
+  drawnItems.clearLayers(); areaFiltro=null;
+  ['btn-poligono','btn-punto'].forEach(id=>document.getElementById(id).classList.remove('activo'));
+  document.getElementById('hint-dibujo').classList.remove('visible');
+  actualizarBadgeArea(); aplicarFiltros();
+}
 
-  function cambiarPeriodo(btn) {
-    document.querySelectorAll('.periodo-btn').forEach(b => b.classList.remove('activo'));
-    btn.classList.add('activo'); diasActual = parseInt(btn.dataset.dias); aplicarFiltros();
+// ── Descarga CSV ──────────────────────────────────────────────────────────────
+function alertasActualesIncendios() {
+  let r=alertasEnPeriodo(todasAlertas);
+  if(filtroActual!=='all') r=r.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
+  const area=obtenerAreaFiltroActiva();
+  if(area) r=r.filter(a=>puntoEnArea(a.latitud,a.longitud,area));
+  return r;
+}
+function alertasActualesDefor() {
+  let r=alertasEnPeriodo(alertasDefor);
+  const area=obtenerAreaFiltroActiva();
+  if(area) r=r.filter(a=>puntoEnArea(a.latitud,a.longitud,area));
+  return r;
+}
+
+function descargarCSV(modo) {
+  const hoy=new Date().toISOString().slice(0,10);
+  if(modo==='incendios') {
+    const d=alertasActualesIncendios();
+    if(!d.length){alert('No hay alertas de incendio para exportar.');return;}
+    const cab='tipo,fecha_deteccion,latitud,longitud,confianza,frp_mw,satelite,estado';
+    const rows=d.map(a=>['incendio',a.fecha_deteccion,a.latitud,a.longitud,a.firms_confidence||'',a.firms_frp||'',a.firms_satellite||'',a.estado].join(','));
+    _dl([cab,...rows].join('\n'),`incendios_chameza_${hoy}.csv`);
+  } else if(modo==='deforestacion') {
+    const d=alertasActualesDefor();
+    if(!d.length){alert('No hay alertas de deforestación para exportar.');return;}
+    const cab='tipo,fecha_deteccion,predio_id,latitud,longitud,ndvi_antes,ndvi_despues,cambio_ndvi,area_ha,severidad,estado';
+    const rows=d.map(a=>['deforestacion',a.fecha_deteccion,a.predio_id,a.latitud,a.longitud,a.ndvi_antes||'',a.ndvi_despues||'',a.cambio_ndvi||'',a.area_afectada_ha||'',a.severidad,a.estado].join(','));
+    _dl([cab,...rows].join('\n'),`deforestacion_chameza_${hoy}.csv`);
+  } else {
+    const fi=alertasActualesIncendios(), fd=alertasActualesDefor();
+    if(!fi.length&&!fd.length){alert('No hay datos para exportar.');return;}
+    const cab='tipo,fecha_deteccion,latitud,longitud,detalle_1,detalle_2,detalle_3,detalle_4,estado';
+    const ri=fi.map(a=>['incendio',a.fecha_deteccion,a.latitud,a.longitud,a.firms_confidence||'',a.firms_frp||'',a.firms_satellite||'','',a.estado].join(','));
+    const rd=fd.map(a=>['deforestacion',a.fecha_deteccion,a.latitud,a.longitud,a.predio_id,a.cambio_ndvi||'',a.area_afectada_ha||'',a.severidad,a.estado].join(','));
+    _dl([cab,...ri,...rd].join('\n'),`reporte_combinado_chameza_${hoy}.csv`);
   }
+}
 
-  function filtrar(btn) {
-    document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('activo'));
-    btn.classList.add('activo'); filtroActual = btn.dataset.filtro; aplicarFiltros();
-  }
+function _dl(content, filename) {
+  const blob=new Blob([content],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+}
 
-  // ── Dibujo manual ──────────────────────────────────────────────────────────
-  function activarHerramienta(tipo) {
-    limpiarAreaDibujada();
-    document.getElementById('hint-dibujo').classList.add('visible');
-    if (tipo === 'poligono') {
-      document.getElementById('btn-poligono').classList.add('activo');
-      new L.Draw.Polygon(map, { shapeOptions: { color: '#f5a623', weight: 2, fillOpacity: 0.08 } }).enable();
+// ── Descarga PDF ──────────────────────────────────────────────────────────────
+function descargarPDF(modo) {
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF();
+  const hoy=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota'});
+  const periodo=diasActual===1?'Últimas 24 h':diasActual===7?'Últimos 7 días':'Últimos 30 días';
+  const areaLabel=predioSelId?`Predio: ${predioSelId} · buffer ${radioKm} km`:areaFiltro?'Área dibujada en mapa':'Área completa';
+
+  // Header
+  doc.setFillColor(13,31,21); doc.rect(0,0,210,36,'F');
+  doc.setTextColor(76,175,125); doc.setFontSize(15); doc.setFont('helvetica','bold');
+  const titulo = modo==='incendios'?'Reporte de Incendios':modo==='deforestacion'?'Reporte de Deforestación':'Reporte Combinado · Incendios & Deforestación';
+  doc.text(titulo,14,14);
+  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(122,171,138);
+  doc.text(`Chámeza, Casanare · ${hoy} · ${periodo} · ${areaLabel}`,14,24);
+  doc.setTextColor(180,220,195);
+  doc.text('Fuente: NASA FIRMS + Google Earth Engine / Sentinel-2 · CBC Cunaguaro / TFCA Colombia',14,32);
+
+  let y=44;
+
+  // Sección incendios
+  if (modo!=='deforestacion') {
+    const fi=alertasActualesIncendios();
+    doc.setFillColor(30,53,40); doc.rect(0,y,210,9,'F');
+    doc.setTextColor(255,112,67); doc.setFontSize(11); doc.setFont('helvetica','bold');
+    doc.text(`🔥 INCENDIOS ACTIVOS (${fi.length})`,14,y+6); y+=13;
+
+    if (fi.length===0) {
+      doc.setFont('helvetica','italic'); doc.setTextColor(122,171,138); doc.setFontSize(9);
+      doc.text('Sin alertas de incendio en este período.',14,y); y+=10;
     } else {
-      document.getElementById('btn-punto').classList.add('activo');
-      map.once('click', function(e) {
-        const c = L.circle(e.latlng, { radius: 10000, color: '#f5a623', weight: 2, fillOpacity: 0.06 });
-        drawnItems.addLayer(c);
-        areaFiltro = { tipo: 'circulo', lat: e.latlng.lat, lng: e.latlng.lng, radio: 10 };
-        document.getElementById('btn-punto').classList.remove('activo');
-        document.getElementById('hint-dibujo').classList.remove('visible');
-        aplicarFiltros();
+      doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setFillColor(220,240,228);
+      doc.rect(14,y,182,7,'F'); doc.setTextColor(40,40,40);
+      doc.text('Fecha',16,y+5); doc.text('Lat',68,y+5); doc.text('Lon',92,y+5);
+      doc.text('Confianza',116,y+5); doc.text('FRP (MW)',146,y+5); doc.text('Satélite',172,y+5);
+      y+=9; doc.setFont('helvetica','normal');
+      fi.slice(0,40).forEach((a,i)=>{
+        if(y>272){doc.addPage();y=20;}
+        if(i%2===0){doc.setFillColor(248,252,249);doc.rect(14,y-4,182,7,'F');}
+        const f=new Date(a.fecha_deteccion).toLocaleString('es-CO',{timeZone:'America/Bogota',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+        doc.setTextColor(40,40,40);
+        doc.text(f,16,y); doc.text(a.latitud.toFixed(4),68,y); doc.text(a.longitud.toFixed(4),92,y);
+        doc.text(a.firms_confidence||'—',116,y); doc.text(a.firms_frp?a.firms_frp.toFixed(1):'—',146,y);
+        doc.text(a.firms_satellite||'—',172,y); y+=7;
       });
+      if(fi.length>40){doc.setFont('helvetica','italic');doc.setTextColor(120,120,120);doc.text(`... y ${fi.length-40} más. Usa CSV para el listado completo.`,14,y+3);y+=8;}
+    }
+    y+=6;
+  }
+
+  // Sección deforestación
+  if (modo!=='incendios') {
+    const fd=alertasActualesDefor();
+    if(y>240){doc.addPage();y=20;}
+    doc.setFillColor(30,53,40); doc.rect(0,y,210,9,'F');
+    doc.setTextColor(234,179,8); doc.setFontSize(11); doc.setFont('helvetica','bold');
+    doc.text(`🌿 DEFORESTACIÓN (${fd.length})`,14,y+6); y+=13;
+
+    if (fd.length===0) {
+      doc.setFont('helvetica','italic'); doc.setTextColor(122,171,138); doc.setFontSize(9);
+      doc.text('Sin alertas de deforestación en este período.',14,y); y+=10;
+    } else {
+      // Stats rápidos
+      const sev={leve:0,moderada:0,severa:0};
+      fd.forEach(a=>{ if(sev[a.severidad]!==undefined) sev[a.severidad]++; });
+      const haTotal=fd.reduce((s,a)=>s+(a.area_afectada_ha||0),0).toFixed(1);
+      doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(40,40,40);
+      doc.text(`Área total afectada: ${haTotal} ha  ·  Severa: ${sev.severa}  ·  Moderada: ${sev.moderada}  ·  Leve: ${sev.leve}`,14,y); y+=8;
+
+      doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setFillColor(220,240,228);
+      doc.rect(14,y,182,7,'F'); doc.setTextColor(40,40,40);
+      doc.text('Fecha',16,y+5); doc.text('Predio/Zona',54,y+5); doc.text('Lat',110,y+5);
+      doc.text('ΔNDVI',128,y+5); doc.text('Área (ha)',148,y+5); doc.text('Severidad',172,y+5);
+      y+=9; doc.setFont('helvetica','normal');
+      fd.slice(0,40).forEach((a,i)=>{
+        if(y>272){doc.addPage();y=20;}
+        if(i%2===0){doc.setFillColor(248,252,249);doc.rect(14,y-4,182,7,'F');}
+        const f=new Date(a.fecha_deteccion+'T12:00:00').toLocaleDateString('es-CO');
+        const scolor={'severa':[220,38,38],'moderada':[249,115,22],'leve':[234,179,8]}[a.severidad]||[40,40,40];
+        doc.setTextColor(40,40,40);
+        doc.text(f,16,y);
+        doc.text((a.predio_id||'').slice(0,22),54,y);
+        doc.text(a.latitud?.toFixed(4)||'—',110,y);
+        doc.text(a.cambio_ndvi!=null?Number(a.cambio_ndvi).toFixed(3):'—',128,y);
+        doc.text(a.area_afectada_ha!=null?String(a.area_afectada_ha):'—',148,y);
+        doc.setTextColor(...scolor); doc.text(a.severidad||'—',172,y);
+        y+=7;
+      });
+      if(fd.length>40){doc.setFont('helvetica','italic');doc.setTextColor(120,120,120);doc.text(`... y ${fd.length-40} más.`,14,y+3);y+=8;}
     }
   }
 
-  map.on(L.Draw.Event.CREATED, function(e) {
-    drawnItems.addLayer(e.layer);
-    areaFiltro = { tipo: 'poligono', coords: e.layer.toGeoJSON().geometry.coordinates[0] };
-    document.getElementById('btn-poligono').classList.remove('activo');
-    document.getElementById('hint-dibujo').classList.remove('visible');
-    aplicarFiltros();
+  // Pie de página
+  doc.setFontSize(7); doc.setTextColor(120,120,120); doc.setFont('helvetica','normal');
+  doc.text('Sistema de monitoreo participativo · CBC Cunaguaro · TFCA Colombia · datos: NASA FIRMS + GEE Sentinel-2',14,290);
+
+  const archivo=`reporte_${modo}_chameza_${new Date().toISOString().slice(0,10)}.pdf`;
+  doc.save(archivo);
+}
+
+// ── Capas informativas ────────────────────────────────────────────────────────
+async function toggleCapa(key, visible) {
+  const group=capasInfo[key];
+  if(!visible){
+    group.clearLayers();
+    if(key==='perdidas') document.getElementById('sub-perdidas').classList.remove('visible');
+    if(key==='conectividad') document.getElementById('sub-conectividad').classList.remove('visible');
+    return;
+  }
+  if(key==='perdidas') document.getElementById('sub-perdidas').classList.add('visible');
+  if(key==='conectividad') document.getElementById('sub-conectividad').classList.add('visible');
+  try {
+    if(key==='conectividad'){
+      if(!georasterConectividad){const r=await fetch(URLS.conectividad);georasterConectividad=await parseGeoraster(await r.arrayBuffer());}
+      renderRasterConectividad(); return;
+    }
+    const data=(await fetch(URLS[key])).json?await(await fetch(URLS[key])).json():null;
+    if(key==='perdidas'){datosPerdidas=data;actualizarPerdidas();return;}
+    let style={};
+    if(key==='municipio') style={color:'#000',weight:2,fillOpacity:0};
+    if(key==='estudio')   style={color:'#f00',weight:2,fillOpacity:0};
+    if(key==='bosque')    style={color:'#4caf7d',weight:1,fillOpacity:0.5};
+    const layer=L.geoJSON(data,{style,onEachFeature:(f,l)=>{if(key==='bosque')l.on('add',()=>{if(l._path)l._path.setAttribute('fill','url(#hatch)');});}});
+    group.addLayer(layer);
+  } catch(e){console.error(`Error capa ${key}:`,e);}
+}
+
+function actualizarPerdidas() {
+  if(!datosPerdidas)return;
+  const group=capasInfo.perdidas; group.clearLayers();
+  const ys=document.getElementById('sel-year').value;
+  const cy={'20':'#eab308','21':'#f97316','22':'#ef4444','23':'#ec4899','24':'#a855f7'};
+  L.geoJSON(datosPerdidas,{
+    filter:f=>ys==='all'||String(f.properties.year)===ys,
+    pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:4,fillColor:cy[String(f.properties.year)]||'#fff',color:'#000',weight:1,fillOpacity:0.8}).bindPopup(`Pérdida · Año: 20${f.properties.year}`)
+  }).addTo(group);
+}
+
+function actualizarConectividad(val) { cuantilMinimo=parseInt(val); document.getElementById('val-cuantil').textContent=val; if(capasInfo.conectividad.getLayers().length>0) renderRasterConectividad(); }
+function renderRasterConectividad() {
+  if(!georasterConectividad)return;
+  const g=capasInfo.conectividad; g.clearLayers();
+  g.addLayer(new GeoRasterLayer({georaster:georasterConectividad,opacity:0.7,pixelValuesToColorFn:v=>{const n=Math.round(v[0]);if(n<cuantilMinimo||n>10||isNaN(n))return null;return turboColors[n];},resolution:256}));
+}
+
+// ── Alertas Supabase ──────────────────────────────────────────────────────────
+async function cargarAlertas() {
+  try {
+    const r=await fetch(`${SUPABASE_URL}/rest/v1/alertas?select=*&order=fecha_deteccion.desc&limit=500`,{headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`}});
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    todasAlertas=await r.json(); aplicarFiltros();
+  } catch(e){ document.getElementById('lista-alertas').innerHTML=`<div class="loading">Error: ${e.message}</div>`; }
+}
+
+// ── Deforestación GEE ─────────────────────────────────────────────────────────
+async function toggleDeforestacion(visible) {
+  deforVisible=visible;
+  document.getElementById('sub-deforestacion').classList.toggle('visible',visible);
+  if(!visible){marcadoresDefor.forEach(m=>map.removeLayer(m));marcadoresDefor=[];document.getElementById('defor-stats').innerHTML='';aplicarFiltros();return;}
+  await cargarDeforestacion();
+}
+
+async function cargarDeforestacion() {
+  if(!deforVisible)return;
+  try {
+    const dias=parseInt(document.getElementById('sel-defor-periodo').value);
+    const ini=new Date(Date.now()-dias*864e5).toISOString().slice(0,10);
+    const r=await fetch(`${SUPABASE_URL}/rest/v1/alertas_deforestacion?select=*&fecha_deteccion=gte.${ini}&order=fecha_deteccion.desc&limit=500`,{headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`}});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    alertasDefor=await r.json(); filtrarDeforestacion(); aplicarFiltros();
+  } catch(e){ console.error('Error defor:',e); document.getElementById('defor-stats').textContent='Error cargando datos.'; }
+}
+
+function filtrarDeforestacion() {
+  if(!deforVisible)return;
+  const sev=document.getElementById('sel-defor-severidad').value;
+  const area=obtenerAreaFiltroActiva();
+  let f=sev==='all'?alertasDefor:alertasDefor.filter(a=>a.severidad===sev);
+  if(area) f=f.filter(a=>puntoEnArea(a.latitud,a.longitud,area));
+
+  marcadoresDefor.forEach(m=>map.removeLayer(m)); marcadoresDefor=[];
+  f.forEach(a=>{
+    const color=COLORES_SEV[a.severidad]||'#f97316';
+    const r=a.severidad==='severa'?10:a.severidad==='moderada'?7:5;
+    const m=L.circleMarker([a.latitud,a.longitud],{radius:r,fillColor:color,color:'#fff',weight:1.5,fillOpacity:0.85}).addTo(map);
+    const fecha=new Date(a.fecha_deteccion+'T12:00:00').toLocaleDateString('es-CO');
+    m.bindPopup(`<div class="popup-title" style="color:${color}">Deforestación · ${a.severidad}</div><div class="popup-row">Predio/Zona <span>${a.predio_id}</span></div><div class="popup-row">Fecha <span>${fecha}</span></div><div class="popup-row">NDVI antes <span>${a.ndvi_antes!=null?Number(a.ndvi_antes).toFixed(3):'-'}</span></div><div class="popup-row">NDVI después <span>${a.ndvi_despues!=null?Number(a.ndvi_despues).toFixed(3):'-'}</span></div><div class="popup-row">Δ NDVI <span>${a.cambio_ndvi!=null?Number(a.cambio_ndvi).toFixed(3):'-'}</span></div><div class="popup-row">Área afectada <span>${a.area_afectada_ha??'-'} ha</span></div><div class="popup-row">Estado <span>${a.estado}</span></div>`);
+    marcadoresDefor.push(m);
   });
 
-  function limpiarAreaDibujada() {
-    drawnItems.clearLayers(); areaFiltro = null;
-    document.getElementById('btn-poligono').classList.remove('activo');
-    document.getElementById('btn-punto').classList.remove('activo');
-    document.getElementById('hint-dibujo').classList.remove('visible');
-    aplicarFiltros();
-  }
+  const ss=f.filter(a=>a.severidad==='severa').length;
+  const sm=f.filter(a=>a.severidad==='moderada').length;
+  const sl=f.filter(a=>a.severidad==='leve').length;
+  const areaLabel=area?(predioSelId?` (predio + buffer ${radioKm} km)`:' (área dibujada)'):'';
+  document.getElementById('defor-stats').innerHTML=`<div style="color:var(--texto-m);font-size:10px;margin-bottom:3px">${f.length} alertas${areaLabel}</div><span style="color:#dc2626">● ${ss} severa</span> &nbsp;<span style="color:#f97316">● ${sm} moderada</span> &nbsp;<span style="color:#eab308">● ${sl} leve</span>`;
+}
 
-  // ── Descarga ───────────────────────────────────────────────────────────────
-  function alertasActuales() {
-    let r = alertasEnPeriodo(todasAlertas);
-    if (filtroActual !== 'all') r = r.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
-    const areaActiva = obtenerAreaFiltroActiva();
-    if (areaActiva) r = r.filter(a => puntoEnArea(a.latitud, a.longitud, areaActiva));
-    return r;
-  }
-
-  function descargarCSV() {
-    const datos = alertasActuales();
-    if (!datos.length) { alert('No hay alertas para exportar.'); return; }
-    const cab  = ['fecha_deteccion','latitud','longitud','confianza','frp_mw','satelite','estado'];
-    const fils  = datos.map(a => [a.fecha_deteccion, a.latitud, a.longitud, a.firms_confidence || '', a.firms_frp || '', a.firms_satellite || '', a.estado].join(','));
-    const blob  = new Blob([[cab.join(','), ...fils].join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url   = URL.createObjectURL(blob);
-    const link  = document.createElement('a');
-    link.href = url; link.download = `alertas_chameza_${new Date().toISOString().slice(0,10)}.csv`;
-    link.click(); URL.revokeObjectURL(url);
-  }
-
-  function descargarPDF() {
-    const datos = alertasActuales();
-    if (!datos.length) { alert('No hay alertas para exportar.'); return; }
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const hoy = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
-    const periodo = diasActual === 1 ? 'Últimas 24 horas' : diasActual === 7 ? 'Últimos 7 días' : 'Últimos 30 días';
-    const predioLabel = predioSelId !== null ? predioSelId : null;
-
-    doc.setFillColor(17, 31, 23); doc.rect(0, 0, 210, 32, 'F');
-    doc.setTextColor(76, 175, 125); doc.setFontSize(16); doc.setFont('helvetica', 'bold');
-    doc.text('Reporte de alertas de incendio', 14, 14);
-    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-    doc.text(`Chameza, Casanare · ${hoy}`, 14, 23);
-
-    doc.setTextColor(40, 40, 40); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-    doc.text(`Total alertas: ${datos.length}`, 14, 42);
-    doc.text(`Período: ${periodo}`, 14, 50);
-    doc.text(`Filtro confianza: ${filtroActual === 'all' ? 'Todas' : filtroActual}`, 14, 58);
-    if (predioLabel) doc.text(`Predio: ${predioLabel} · radio ${radioKm} km`, 14, 66);
-
-    let y = predioLabel ? 76 : 68;
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-    doc.setFillColor(220, 240, 228); doc.rect(14, y, 182, 8, 'F');
-    doc.text('Fecha (Bogotá)', 16, y+5.5); doc.text('Lat', 72, y+5.5); doc.text('Lon', 98, y+5.5);
-    doc.text('Confianza', 122, y+5.5); doc.text('FRP (MW)', 153, y+5.5); doc.text('Satélite', 178, y+5.5);
-    y += 10; doc.setFont('helvetica', 'normal');
-
-    datos.slice(0, 55).forEach((a, i) => {
-      if (y > 272) { doc.addPage(); y = 20; }
-      if (i % 2 === 0) { doc.setFillColor(248, 252, 249); doc.rect(14, y-5, 182, 8, 'F'); }
-      const fecha = new Date(a.fecha_deteccion).toLocaleString('es-CO', { timeZone: 'America/Bogota', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-      doc.text(fecha, 16, y); doc.text(a.latitud.toFixed(4), 72, y); doc.text(a.longitud.toFixed(4), 98, y);
-      doc.text(a.firms_confidence || '—', 122, y);
-      doc.text(a.firms_frp ? a.firms_frp.toFixed(1) : '—', 153, y);
-      doc.text(a.firms_satellite || '—', 178, y); y += 8;
-    });
-    if (datos.length > 55) {
-      doc.setFont('helvetica','italic'); doc.setTextColor(120,120,120);
-      doc.text(`... y ${datos.length-55} alertas más. Usa CSV para el listado completo.`, 14, y+4);
-    }
-    doc.setFontSize(8); doc.setTextColor(150,150,150);
-    doc.text('Fuente: NASA FIRMS · Sistema de monitoreo participativo CBC Cunaguaro / TFCA Colombia', 14, 288);
-    doc.save(`reporte_alertas_chameza_${new Date().toISOString().slice(0,10)}.pdf`);
-  }
-
-  // ── Capas informativas ───────────────────────────────────────────────────
-  async function toggleCapa(key, visible) {
-    const group = capasInfo[key];
-    if (!visible) {
-      group.clearLayers();
-      if (key === 'perdidas') document.getElementById('sub-perdidas').classList.remove('visible');
-      if (key === 'conectividad') document.getElementById('sub-conectividad').classList.remove('visible');
-      return;
-    }
-
-    if (key === 'perdidas') document.getElementById('sub-perdidas').classList.add('visible');
-    if (key === 'conectividad') document.getElementById('sub-conectividad').classList.add('visible');
-
-    try {
-      if (key === 'conectividad') {
-        if (!georasterConectividad) {
-          const resp = await fetch(URLS.conectividad);
-          const arrayBuffer = await resp.arrayBuffer();
-          georasterConectividad = await parseGeoraster(arrayBuffer);
-        }
-        renderRasterConectividad();
-        return;
-      }
-
-      const resp = await fetch(URLS[key]);
-      const data = await resp.json();
-
-      if (key === 'perdidas') {
-        datosPerdidas = data;
-        actualizarPerdidas();
-        return;
-      }
-
-      let style = {};
-      if (key === 'municipio') style = { color: '#000', weight: 2, fillOpacity: 0 };
-      if (key === 'estudio')   style = { color: '#f00', weight: 2, fillOpacity: 0 };
-      if (key === 'bosque')    style = { fillPattern: 'hatch', color: '#4caf7d', weight: 1, fillOpacity: 0.5, className: 'hatch-layer' };
-
-      const layer = L.geoJSON(data, {
-        style: style,
-        onEachFeature: (f, l) => {
-          if (key === 'bosque') {
-            // Aplicar el patrón manualmente si es necesario (Leaflet no lo soporta nativamente en style)
-            l.on('add', function() {
-              if (l._path) l._path.setAttribute('fill', 'url(#hatch)');
-            });
-          }
-        }
-      });
-      group.addLayer(layer);
-    } catch (err) {
-      console.error(`Error cargando capa ${key}:`, err);
-    }
-  }
-
-  function actualizarPerdidas() {
-    if (!datosPerdidas) return;
-    const group = capasInfo.perdidas;
-    group.clearLayers();
-
-    const yearSel = document.getElementById('sel-year').value;
-    const coloresYear = {
-      '20': '#eab308',
-      '21': '#f97316',
-      '22': '#ef4444',
-      '23': '#ec4899',
-      '24': '#a855f7'
-    };
-
-    L.geoJSON(datosPerdidas, {
-      filter: f => yearSel === 'all' || String(f.properties.year) === yearSel,
-      pointToLayer: (f, latlng) => {
-        const y = String(f.properties.year);
-        const color = coloresYear[y] || '#fff';
-        return L.circleMarker(latlng, {
-          radius: 4,
-          fillColor: color,
-          color: '#000',
-          weight: 1,
-          opacity: 1,
-          fillOpacity: 0.8
-        }).bindPopup(`Pérdida detectada<br>Año: 20${y}`);
-      }
-    }).addTo(group);
-  }
-
-  function actualizarConectividad(val) {
-    cuantilMinimo = parseInt(val);
-    document.getElementById('val-cuantil').textContent = val;
-    if (capasInfo.conectividad.getLayers().length > 0) {
-      renderRasterConectividad();
-    }
-  }
-
-  function renderRasterConectividad() {
-    if (!georasterConectividad) return;
-    const group = capasInfo.conectividad;
-    group.clearLayers();
-
-    const layer = new GeoRasterLayer({
-      georaster: georasterConectividad,
-      opacity: 0.7,
-      pixelValuesToColorFn: values => {
-        const val = Math.round(values[0]);
-        if (val < cuantilMinimo || val > 10 || isNaN(val)) return null;
-        return turboColors[val];
-      },
-      resolution: 256
-    });
-    group.addLayer(layer);
-  }
-
-  // ── Cargar alertas desde Supabase ──────────────────────────────────────────
-  async function cargarAlertas() {
-    try {
-      const resp = await fetch(
-        `${SUPABASE_URL}/rest/v1/alertas?select=*&order=fecha_deteccion.desc&limit=500`,
-        { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
-      );
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      todasAlertas = await resp.json();
-      aplicarFiltros();
-    } catch (err) {
-      document.getElementById('lista-alertas').innerHTML = `<div class="loading">Error: ${err.message}</div>`;
-    }
-  }
-
-
-  // ── Deforestacion GEE ──────────────────────────────────────────────────────
-  let marcadoresDefor = [];
-  let alertasDefor    = [];
-  let deforVisible    = false;
-  const COLORES_SEV   = { leve: '#eab308', moderada: '#f97316', severa: '#dc2626' };
-
-  function obtenerAreaDefor() {
-    if (predioSelId !== null && capaRadio) {
-      const c = capaRadio.getLatLng();
-      return { tipo: 'circulo', lat: c.lat, lng: c.lng, radio: radioKm };
-    }
-    if (areaFiltro) return areaFiltro;
-    return null;
-  }
-
-  async function toggleDeforestacion(visible) {
-    deforVisible = visible;
-    document.getElementById('sub-deforestacion').classList.toggle('visible', visible);
-    if (!visible) {
-      marcadoresDefor.forEach(m => map.removeLayer(m));
-      marcadoresDefor = [];
-      document.getElementById('defor-stats').innerHTML = '';
-      return;
-    }
-    await cargarDeforestacion();
-  }
-
-  async function cargarDeforestacion() {
-    if (!deforVisible) return;
-    try {
-      const dias   = parseInt(document.getElementById('sel-defor-periodo').value);
-      const inicio = new Date(Date.now() - dias * 864e5).toISOString().slice(0, 10);
-      const resp   = await fetch(
-        SUPABASE_URL + '/rest/v1/alertas_deforestacion?select=*&fecha_deteccion=gte.' + inicio + '&order=fecha_deteccion.desc&limit=500',
-        { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } }
-      );
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      alertasDefor = await resp.json();
-      filtrarDeforestacion();
-    } catch(err) {
-      console.error('Error deforestacion:', err);
-      document.getElementById('defor-stats').textContent = 'Error cargando datos.';
-    }
-  }
-
-  function filtrarDeforestacion() {
-    if (!deforVisible) return;
-    const sev     = document.getElementById('sel-defor-severidad').value;
-    const area    = obtenerAreaDefor();
-    let filtradas = sev === 'all' ? alertasDefor : alertasDefor.filter(a => a.severidad === sev);
-    if (area) filtradas = filtradas.filter(a => puntoEnArea(a.latitud, a.longitud, area));
-
-    marcadoresDefor.forEach(m => map.removeLayer(m));
-    marcadoresDefor = [];
-
-    filtradas.forEach(a => {
-      const color = COLORES_SEV[a.severidad] || '#f97316';
-      const radio = a.severidad === 'severa' ? 10 : a.severidad === 'moderada' ? 7 : 5;
-      const m = L.circleMarker([a.latitud, a.longitud], {
-        radius: radio, fillColor: color, color: '#fff',
-        weight: 1.5, opacity: 1, fillOpacity: 0.85
-      }).addTo(map);
-      const fecha = new Date(a.fecha_deteccion + 'T12:00:00').toLocaleDateString('es-CO');
-      m.bindPopup(
-        '<div class="popup-title" style="color:' + color + '">Alerta deforestacion - ' + a.severidad + '</div>' +
-        '<div class="popup-row">Predio/Area <span>' + a.predio_id + '</span></div>' +
-        '<div class="popup-row">Fecha <span>' + fecha + '</span></div>' +
-        '<div class="popup-row">NDVI antes <span>' + (a.ndvi_antes != null ? Number(a.ndvi_antes).toFixed(3) : '-') + '</span></div>' +
-        '<div class="popup-row">NDVI despues <span>' + (a.ndvi_despues != null ? Number(a.ndvi_despues).toFixed(3) : '-') + '</span></div>' +
-        '<div class="popup-row">Cambio NDVI <span>' + (a.cambio_ndvi != null ? Number(a.cambio_ndvi).toFixed(3) : '-') + '</span></div>' +
-        '<div class="popup-row">Area afectada <span>' + (a.area_afectada_ha ?? '-') + ' ha</span></div>' +
-        '<div class="popup-row">Estado <span>' + a.estado + '</span></div>'
-      );
-      marcadoresDefor.push(m);
-    });
-
-    const severas   = filtradas.filter(a => a.severidad === 'severa').length;
-    const moderadas = filtradas.filter(a => a.severidad === 'moderada').length;
-    const leves     = filtradas.filter(a => a.severidad === 'leve').length;
-    const areaLabel = area
-      ? (predioSelId ? ' (predio + buffer ' + radioKm + ' km)' : ' (area dibujada)')
-      : ' (area de estudio completa)';
-    document.getElementById('defor-stats').innerHTML =
-      '<div style="color:var(--texto-m);font-size:10px;margin-bottom:3px">' + filtradas.length + ' alertas' + areaLabel + '</div>' +
-      '<span style="color:#dc2626">&#9679; ' + severas + ' severa</span> &nbsp;' +
-      '<span style="color:#f97316">&#9679; ' + moderadas + ' moderada</span> &nbsp;' +
-      '<span style="color:#eab308">&#9679; ' + leves + ' leve</span>';
-  }
-
-  // ── Inicio ─────────────────────────────────────────────────────────────────
-  cargarPredios();
-  cargarAlertas();
-  setInterval(cargarAlertas, 5 * 60 * 1000);
-  setInterval(() => { if (deforVisible) cargarDeforestacion(); }, 10 * 60 * 1000);
+// ── Inicio ────────────────────────────────────────────────────────────────────
+cargarPredios();
+cargarAlertas();
+setInterval(cargarAlertas, 5*60*1000);
+setInterval(()=>{if(deforVisible)cargarDeforestacion();}, 10*60*1000);
 </script>
 </body>
 </html>
