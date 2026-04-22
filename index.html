@@ -315,7 +315,6 @@
         </div>
       </div>
 
-      <!-- Alertas de deforestacion GEE -->
       <label class="capa-row" style="margin-top:8px">
         <input type="checkbox" id="chk-deforestacion" onchange="toggleDeforestacion(this.checked)">
         <span class="capa-label">Alertas deforestacion (GEE)</span>
@@ -703,7 +702,7 @@
     if (predioSelId !== null) {
       document.getElementById('info-alertas').textContent = enArea.length;
     }
-    filtrarDeforestacion();
+    setTimeout(filtrarDeforestacion, 0);
   }
 
   function actualizarStats(todas, enArea) {
@@ -1013,14 +1012,13 @@
   let deforVisible    = false;
   const COLORES_SEV   = { leve: '#eab308', moderada: '#f97316', severa: '#dc2626' };
 
-  // Determina el area activa para filtrar alertas de deforestacion.
-  // Prioridad: predio seleccionado con buffer > dibujo manual > ninguna (muestra todo)
   function obtenerAreaDefor() {
     if (predioSelId !== null && capaRadio) {
       const c = capaRadio.getLatLng();
       return { tipo: 'circulo', lat: c.lat, lng: c.lng, radio: radioKm };
     }
-    return areaFiltro; // dibujo manual, o null si no hay nada
+    if (areaFiltro) return areaFiltro;
+    return null;
   }
 
   async function toggleDeforestacion(visible) {
@@ -1055,14 +1053,10 @@
 
   function filtrarDeforestacion() {
     if (!deforVisible) return;
-    const sev       = document.getElementById('sel-defor-severidad').value;
-    const area      = obtenerAreaDefor();
-    let filtradas   = sev === 'all' ? alertasDefor : alertasDefor.filter(a => a.severidad === sev);
-
-    // Filtrar por area activa si existe
-    if (area) {
-      filtradas = filtradas.filter(a => puntoEnArea(a.latitud, a.longitud, area));
-    }
+    const sev     = document.getElementById('sel-defor-severidad').value;
+    const area    = obtenerAreaDefor();
+    let filtradas = sev === 'all' ? alertasDefor : alertasDefor.filter(a => a.severidad === sev);
+    if (area) filtradas = filtradas.filter(a => puntoEnArea(a.latitud, a.longitud, area));
 
     marcadoresDefor.forEach(m => map.removeLayer(m));
     marcadoresDefor = [];
@@ -1091,7 +1085,9 @@
     const severas   = filtradas.filter(a => a.severidad === 'severa').length;
     const moderadas = filtradas.filter(a => a.severidad === 'moderada').length;
     const leves     = filtradas.filter(a => a.severidad === 'leve').length;
-    const areaLabel = area ? (predioSelId ? ' (predio + buffer ' + radioKm + ' km)' : ' (area dibujada)') : ' (area estudio)';
+    const areaLabel = area
+      ? (predioSelId ? ' (predio + buffer ' + radioKm + ' km)' : ' (area dibujada)')
+      : ' (area de estudio completa)';
     document.getElementById('defor-stats').innerHTML =
       '<div style="color:var(--texto-m);font-size:10px;margin-bottom:3px">' + filtradas.length + ' alertas' + areaLabel + '</div>' +
       '<span style="color:#dc2626">&#9679; ' + severas + ' severa</span> &nbsp;' +
@@ -1103,6 +1099,7 @@
   cargarPredios();
   cargarAlertas();
   setInterval(cargarAlertas, 5 * 60 * 1000);
+  setInterval(() => { if (deforVisible) cargarDeforestacion(); }, 10 * 60 * 1000);
 </script>
 </body>
 </html>
