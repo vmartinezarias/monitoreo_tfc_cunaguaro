@@ -315,31 +315,29 @@
         </div>
       </div>
 
-      <!-- Alertas de deforestación GEE -->
+      <!-- Alertas de deforestacion GEE -->
       <label class="capa-row" style="margin-top:8px">
         <input type="checkbox" id="chk-deforestacion" onchange="toggleDeforestacion(this.checked)">
-        <span class="capa-label">Alertas deforestación (GEE)</span>
+        <span class="capa-label">Alertas deforestacion (GEE)</span>
       </label>
       <div class="capa-sub" id="sub-deforestacion">
         <div style="font-size:10px;color:var(--texto-m);margin-bottom:6px;line-height:1.4">
-          Sentinel-2 · cambio NDVI · actualización diaria
+          Sentinel-2 · cambio NDVI · area_estudio · actualizacion diaria
         </div>
-        <!-- Filtro período -->
-        <select class="year-select" id="sel-defor-periodo" onchange="filtrarDeforestacion()">
-          <option value="1">Últimas 24 h</option>
-          <option value="7">Últimos 7 días</option>
-          <option value="30" selected>Últimos 30 días</option>
-          <option value="90">Últimos 90 días</option>
-          <option value="365">Último año</option>
+        <select class="year-select" id="sel-defor-periodo" onchange="cargarDeforestacion()">
+          <option value="1">Ultimas 24 h</option>
+          <option value="7">Ultimos 7 dias</option>
+          <option value="30" selected>Ultimos 30 dias</option>
+          <option value="90">Ultimos 90 dias</option>
+          <option value="365">Ultimo ano</option>
         </select>
-        <!-- Filtro severidad -->
         <select class="year-select" id="sel-defor-severidad" style="margin-top:4px" onchange="filtrarDeforestacion()">
           <option value="all">Todas las severidades</option>
           <option value="leve">Leve</option>
           <option value="moderada">Moderada</option>
           <option value="severa">Severa</option>
         </select>
-        <div id="defor-stats" style="font-size:11px;color:var(--texto-m);margin-top:6px"></div>
+        <div id="defor-stats" style="font-size:11px;color:var(--texto-m);margin-top:6px;line-height:1.6"></div>
       </div>
     </div>
 
@@ -705,6 +703,7 @@
     if (predioSelId !== null) {
       document.getElementById('info-alertas').textContent = enArea.length;
     }
+    filtrarDeforestacion();
   }
 
   function actualizarStats(todas, enArea) {
@@ -1007,12 +1006,22 @@
     }
   }
 
-  // ── Deforestación GEE ─────────────────────────────────────────────────────
+
+  // ── Deforestacion GEE ──────────────────────────────────────────────────────
   let marcadoresDefor = [];
   let alertasDefor    = [];
   let deforVisible    = false;
+  const COLORES_SEV   = { leve: '#eab308', moderada: '#f97316', severa: '#dc2626' };
 
-  const COLORES_SEVERIDAD = { leve: '#eab308', moderada: '#f97316', severa: '#dc2626' };
+  // Determina el area activa para filtrar alertas de deforestacion.
+  // Prioridad: predio seleccionado con buffer > dibujo manual > ninguna (muestra todo)
+  function obtenerAreaDefor() {
+    if (predioSelId !== null && capaRadio) {
+      const c = capaRadio.getLatLng();
+      return { tipo: 'circulo', lat: c.lat, lng: c.lng, radio: radioKm };
+    }
+    return areaFiltro; // dibujo manual, o null si no hay nada
+  }
 
   async function toggleDeforestacion(visible) {
     deforVisible = visible;
@@ -1020,24 +1029,26 @@
     if (!visible) {
       marcadoresDefor.forEach(m => map.removeLayer(m));
       marcadoresDefor = [];
+      document.getElementById('defor-stats').innerHTML = '';
       return;
     }
     await cargarDeforestacion();
   }
 
   async function cargarDeforestacion() {
+    if (!deforVisible) return;
     try {
       const dias   = parseInt(document.getElementById('sel-defor-periodo').value);
       const inicio = new Date(Date.now() - dias * 864e5).toISOString().slice(0, 10);
       const resp   = await fetch(
-        `${SUPABASE_URL}/rest/v1/alertas_deforestacion?select=*&fecha_deteccion=gte.${inicio}&order=fecha_deteccion.desc&limit=500`,
-        { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+        SUPABASE_URL + '/rest/v1/alertas_deforestacion?select=*&fecha_deteccion=gte.' + inicio + '&order=fecha_deteccion.desc&limit=500',
+        { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } }
       );
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
       alertasDefor = await resp.json();
       filtrarDeforestacion();
     } catch(err) {
-      console.error('Error cargando alertas deforestacion:', err);
+      console.error('Error deforestacion:', err);
       document.getElementById('defor-stats').textContent = 'Error cargando datos.';
     }
   }
@@ -1045,13 +1056,19 @@
   function filtrarDeforestacion() {
     if (!deforVisible) return;
     const sev       = document.getElementById('sel-defor-severidad').value;
-    const filtradas = sev === 'all' ? alertasDefor : alertasDefor.filter(a => a.severidad === sev);
+    const area      = obtenerAreaDefor();
+    let filtradas   = sev === 'all' ? alertasDefor : alertasDefor.filter(a => a.severidad === sev);
+
+    // Filtrar por area activa si existe
+    if (area) {
+      filtradas = filtradas.filter(a => puntoEnArea(a.latitud, a.longitud, area));
+    }
 
     marcadoresDefor.forEach(m => map.removeLayer(m));
     marcadoresDefor = [];
 
     filtradas.forEach(a => {
-      const color = COLORES_SEVERIDAD[a.severidad] || '#f97316';
+      const color = COLORES_SEV[a.severidad] || '#f97316';
       const radio = a.severidad === 'severa' ? 10 : a.severidad === 'moderada' ? 7 : 5;
       const m = L.circleMarker([a.latitud, a.longitud], {
         radius: radio, fillColor: color, color: '#fff',
@@ -1059,13 +1076,13 @@
       }).addTo(map);
       const fecha = new Date(a.fecha_deteccion + 'T12:00:00').toLocaleDateString('es-CO');
       m.bindPopup(
-        '<div class="popup-title" style="color:' + color + '">Alerta deforestacion · ' + a.severidad + '</div>' +
-        '<div class="popup-row">Predio <span>' + a.predio_id + '</span></div>' +
+        '<div class="popup-title" style="color:' + color + '">Alerta deforestacion - ' + a.severidad + '</div>' +
+        '<div class="popup-row">Predio/Area <span>' + a.predio_id + '</span></div>' +
         '<div class="popup-row">Fecha <span>' + fecha + '</span></div>' +
-        '<div class="popup-row">NDVI antes <span>' + (a.ndvi_antes != null ? Number(a.ndvi_antes).toFixed(3) : '—') + '</span></div>' +
-        '<div class="popup-row">NDVI despues <span>' + (a.ndvi_despues != null ? Number(a.ndvi_despues).toFixed(3) : '—') + '</span></div>' +
-        '<div class="popup-row">Cambio NDVI <span>' + (a.cambio_ndvi != null ? Number(a.cambio_ndvi).toFixed(3) : '—') + '</span></div>' +
-        '<div class="popup-row">Area afectada <span>' + (a.area_afectada_ha ?? '—') + ' ha</span></div>' +
+        '<div class="popup-row">NDVI antes <span>' + (a.ndvi_antes != null ? Number(a.ndvi_antes).toFixed(3) : '-') + '</span></div>' +
+        '<div class="popup-row">NDVI despues <span>' + (a.ndvi_despues != null ? Number(a.ndvi_despues).toFixed(3) : '-') + '</span></div>' +
+        '<div class="popup-row">Cambio NDVI <span>' + (a.cambio_ndvi != null ? Number(a.cambio_ndvi).toFixed(3) : '-') + '</span></div>' +
+        '<div class="popup-row">Area afectada <span>' + (a.area_afectada_ha ?? '-') + ' ha</span></div>' +
         '<div class="popup-row">Estado <span>' + a.estado + '</span></div>'
       );
       marcadoresDefor.push(m);
@@ -1074,10 +1091,12 @@
     const severas   = filtradas.filter(a => a.severidad === 'severa').length;
     const moderadas = filtradas.filter(a => a.severidad === 'moderada').length;
     const leves     = filtradas.filter(a => a.severidad === 'leve').length;
+    const areaLabel = area ? (predioSelId ? ' (predio + buffer ' + radioKm + ' km)' : ' (area dibujada)') : ' (area estudio)';
     document.getElementById('defor-stats').innerHTML =
-      '<span style="color:#dc2626">\u25cf ' + severas + ' severa</span> &nbsp;' +
-      '<span style="color:#f97316">\u25cf ' + moderadas + ' moderada</span> &nbsp;' +
-      '<span style="color:#eab308">\u25cf ' + leves + ' leve</span>';
+      '<div style="color:var(--texto-m);font-size:10px;margin-bottom:3px">' + filtradas.length + ' alertas' + areaLabel + '</div>' +
+      '<span style="color:#dc2626">&#9679; ' + severas + ' severa</span> &nbsp;' +
+      '<span style="color:#f97316">&#9679; ' + moderadas + ' moderada</span> &nbsp;' +
+      '<span style="color:#eab308">&#9679; ' + leves + ' leve</span>';
   }
 
   // ── Inicio ─────────────────────────────────────────────────────────────────
