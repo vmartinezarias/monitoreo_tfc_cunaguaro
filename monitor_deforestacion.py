@@ -1,5 +1,5 @@
 """
-monitor_deforestacion.py  v2
+monitor_deforestacion.py  v2.1
 Detecta cambios de cobertura boscosa usando Google Earth Engine + Sentinel-2.
 Escribe alertas en Supabase tabla `alertas_deforestacion`.
 
