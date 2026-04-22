@@ -70,7 +70,7 @@ try:
     zona_test = ee.Geometry.Point([-72.47, 5.09]).buffer(1000)
     n_test = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
               .filterBounds(zona_test)
-              .filterDate('2024-01-01', '2024-12-31')
+              .filterDate('2024-01-01', '2026-12-31')
               .size().getInfo())
     print(f'[GEE] Imagenes S2 en 2024 sobre Chameza: {n_test}')
 
