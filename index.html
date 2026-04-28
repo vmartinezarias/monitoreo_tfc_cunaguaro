@@ -1145,6 +1145,1605 @@ function filtrarDeforestacion() {
 
 // ══════════════════════════════════════════════════════════════
 // GFW — Global Forest Watch Integration
+// ──────────────────────────────────────────────────────────────
+// GLAD / RADD integrado → POST con geometría del área de estudio
+//   endpoint: /dataset/gfw_integrated_alerts/latest/query/json
+//   campos:   latitude, longitude, gfw_integrated_alerts__date,
+//             gfw_integrated_alerts__confidence, gfw_integrated_alerts__intensity
+// RADD        → /dataset/wur_radd_alerts/latest/query/json
+//   campos:   latitude, longitude, alert__date, wur_radd_alerts__confidence
+// Hansen      → tiles dinámicos (raster, no hay puntos)
+// Fires       → /dataset/nasa_viirs_fire_alerts/latest/query/json  (vectorial)
+// ══════════════════════════════════════════════════════════════
+
+// Geometría del área de estudio (se carga una sola vez)
+let areaEstudioGeom = null;
+let areaEstudioCargando = false;
+
+async function obtenerGeomAreaEstudio() {
+  if (areaEstudioGeom) return areaEstudioGeom;
+  if (areaEstudioCargando) {
+    // Esperar hasta que cargue
+    await new Promise(r => { const t = setInterval(()=>{ if(!areaEstudioCargando){clearInterval(t);r();} },100); });
+    return areaEstudioGeom;
+  }
+  areaEstudioCargando = true;
+  try {
+    const resp = await fetch('https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/area_estudio.geojson');
+    const gj   = await resp.json();
+    // Tomar la geometría del primer feature
+    const feat = gj.features ? gj.features[0] : gj;
+    areaEstudioGeom = feat.geometry;
+    console.log('Área de estudio cargada:', areaEstudioGeom.type);
+  } catch(e) {
+    console.error('Error cargando área de estudio:', e);
+    // Fallback: bbox de Chameza como Polygon
+    areaEstudioGeom = {
+      type: 'Polygon',
+      coordinates: [[
+        [-72.80, 4.85], [-72.20, 4.85],
+        [-72.20, 5.35], [-72.80, 5.35],
+        [-72.80, 4.85]
+      ]]
+    };
+  }
+  areaEstudioCargando = false;
+  return areaEstudioGeom;
+}
+
+function setGFWStatus(msg, tipo='') {
+  const el = document.getElementById('gfw-status');
+  el.textContent = msg;
+  el.className = 'gfw-status' + (tipo ? ' '+tipo : '');
+}
+
+function gfwFechas(dias) {
+  const fin = new Date(), ini = new Date(Date.now()-dias*864e5);
+  return { startDate: ini.toISOString().slice(0,10), endDate: fin.toISOString().slice(0,10) };
+}
+
+// ── Toggle principal ──────────────────────────────────────────
+async function toggleGFW(key, visible) {
+  const capa = gfwCapas[key];
+  capa.visible = visible;
+  document.getElementById(`sub-${key}`).classList.toggle('visible', visible);
+  if (!visible) {
+    capa.marcadores.forEach(m=>map.removeLayer(m)); capa.marcadores=[];
+    if (capa.tileLayer) { map.removeLayer(capa.tileLayer); capa.tileLayer=null; }
+    document.getElementById(`stats-${key}`).innerHTML = 'Sin datos cargados';
+    if (!Object.values(gfwCapas).some(c=>c.visible)) setGFWStatus('—');
+    return;
+  }
+  if (key === 'hansen') cargarGFWTilesHansen();
+  else await cargarGFWAlertas(key);
+}
+
+// ── Hansen: solo tiles (raster puro) ─────────────────────────
+function cargarGFWTilesHansen() {
+  const capa = gfwCapas.hansen;
+  if (capa.tileLayer) { map.removeLayer(capa.tileLayer); capa.tileLayer=null; }
+  const K = GFW_API_KEY;
+  capa.tileLayer = L.layerGroup([
+    L.tileLayer(`https://tiles.globalforestwatch.org/umd_tree_cover_density_2000/latest/dynamic/{z}/{x}/{y}.png?x-api-key=${K}`,{opacity:hansenOpacity,maxZoom:13}),
+    L.tileLayer(`https://tiles.globalforestwatch.org/umd_tree_cover_loss/latest/dynamic/{z}/{x}/{y}.png?x-api-key=${K}`,{opacity:hansenOpacity,maxZoom:13})
+  ]).addTo(map);
+  document.getElementById('stats-hansen').innerHTML =
+    `Cobertura 2000 <span style="color:#22c55e">●</span> &nbsp; Pérdida 2001-2023 <span style="color:#dc2626">●</span><br>Opacidad: <span>${Math.round(hansenOpacity*100)}%</span>`;
+  setGFWStatus('✓ OK','ok');
+}
+
+function actualizarOpacidadHansen(val) {
+  hansenOpacity = val/100;
+  document.getElementById('val-hansen').textContent = val+'%';
+  const capa = gfwCapas.hansen;
+  if (capa.tileLayer) capa.tileLayer.getLayers().forEach(l=>{ if(l.setOpacity) l.setOpacity(hansenOpacity); });
+  document.getElementById('stats-hansen').innerHTML =
+    `Cobertura 2000 <span style="color:#22c55e">●</span> &nbsp; Pérdida 2001-2023 <span style="color:#dc2626">●</span><br>Opacidad: <span>${val}%</span>`;
+}
+
+// ── GLAD / RADD / Fires: POST con geometría ───────────────────
+// Configuración de cada dataset
+const GFW_CFG = {
+  glad: {
+    dataset: 'gfw_integrated_alerts',
+    sqlFn: (s,e) =>
+      `SELECT latitude, longitude,
+              gfw_integrated_alerts__date      AS fecha,
+              gfw_integrated_alerts__confidence AS confianza,
+              gfw_integrated_alerts__intensity  AS intensidad
+       FROM results
+       WHERE gfw_integrated_alerts__date >= '${s}'
+         AND gfw_integrated_alerts__date <= '${e}'`,
+    colorFn: row => {
+      const c = (row.confianza||'').toLowerCase();
+      return c.includes('high') ? '#dc2626' : '#f97316';
+    },
+    radiusFn: row => (row.confianza||'').toLowerCase().includes('high') ? 8 : 5,
+    popupFn: (row,lat,lng) => `
+      <div class="popup-title gfw">Alerta GLAD integrada</div>
+      <div class="popup-row">Coords <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
+      <div class="popup-row">Fecha <span>${row.fecha||'N/D'}</span></div>
+      <div class="popup-row">Confianza <span>${row.confianza||'N/D'}</span></div>
+      <div class="popup-row">Intensidad <span>${row.intensidad||'N/D'}</span></div>
+      <div class="popup-row">Fuente <span>Landsat · Univ. Maryland</span></div>`
+  },
+  radd: {
+    dataset: 'wur_radd_alerts',
+    sqlFn: (s,e) =>
+      `SELECT latitude, longitude,
+              alert__date                 AS fecha,
+              wur_radd_alerts__confidence AS confianza
+       FROM results
+       WHERE alert__date >= '${s}'
+         AND alert__date <= '${e}'`,
+    colorFn: row => {
+      const c = (row.confianza||'').toLowerCase();
+      return c === 'confirmed' ? '#7c3aed' : '#a78bfa';
+    },
+    radiusFn: row => (row.confianza||'').toLowerCase() === 'confirmed' ? 8 : 5,
+    popupFn: (row,lat,lng) => `
+      <div class="popup-title gfw" style="color:#a78bfa">Alerta RADD · Sentinel-1</div>
+      <div class="popup-row">Coords <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
+      <div class="popup-row">Fecha <span>${row.fecha||'N/D'}</span></div>
+      <div class="popup-row">Confianza <span>${row.confianza||'N/D'}</span></div>
+      <div class="popup-row">Fuente <span>Radar SAR · Univ. Wageningen</span></div>`
+  },
+  fires: {
+    dataset: 'nasa_viirs_fire_alerts',
+    sqlFn: (s,e) =>
+      `SELECT latitude, longitude,
+              acq_date           AS fecha,
+              confidence__cat    AS confianza,
+              "frp__MW"          AS frp
+       FROM results
+       WHERE acq_date >= '${s}'
+         AND acq_date <= '${e}'`,
+    colorFn: row => {
+      const c=(row.confianza||'').toLowerCase(), f=parseFloat(row.frp||0);
+      return (c==='high'||f>80)?'#ff2200':(c==='nominal'||f>30)?'#ff8800':'#ffcc00';
+    },
+    radiusFn: row => {
+      const c=(row.confianza||'').toLowerCase(), f=parseFloat(row.frp||0);
+      return (c==='high'||f>80)?8:(c==='nominal'||f>30)?6:5;
+    },
+    popupFn: (row,lat,lng) => `
+      <div class="popup-title gfw">Incendio GFW · VIIRS</div>
+      <div class="popup-row">Coords <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
+      <div class="popup-row">Fecha <span>${row.fecha||'N/D'}</span></div>
+      <div class="popup-row">Confianza <span>${row.confianza||'N/D'}</span></div>
+      <div class="popup-row">FRP <span>${row.frp?parseFloat(row.frp).toFixed(1)+' MW':'N/D'}</span></div>`
+  }
+};
+
+async function cargarGFWAlertas(key) {
+  setGFWStatus('Cargando…','loading');
+  const statsEl = document.getElementById(`stats-${key}`);
+  statsEl.innerHTML = '<span style="color:var(--amber)">⏳ Consultando GFW con área de estudio…</span>';
+
+  const cfg = GFW_CFG[key];
+  const dias = key==='fires'
+    ? parseInt(document.getElementById('sel-fires-periodo')?.value||7)
+    : diasActual;
+  const {startDate, endDate} = gfwFechas(dias);
+
+  // Obtener geometría del área de estudio
+  const geom = await obtenerGeomAreaEstudio();
+
+  // Filtro de confianza GLAD
+  let sql = cfg.sqlFn(startDate, endDate);
+  if (key==='glad') {
+    const conf = document.getElementById('sel-glad-conf')?.value;
+    if (conf==='high')    sql += ` AND gfw_integrated_alerts__confidence IN ('high','highest')`;
+    if (conf==='highest') sql += ` AND gfw_integrated_alerts__confidence = 'highest'`;
+  }
+  sql += ' LIMIT 2000';
+
+  try {
+    const resp = await fetch(
+      `${GFW_BASE}/dataset/${cfg.dataset}/latest/query/json`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'x-api-key': GFW_API_KEY },
+        body: JSON.stringify({ sql, geometry: geom })
+      }
+    );
+
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${txt.slice(0,150)}`);
+    }
+
+    const data = await resp.json();
+    const rows = data.data || [];
+    gfwCapas[key].datos = rows;
+    renderGFWMarcadores(key, rows);
+
+  } catch(e) {
+    console.error(`GFW ${key}:`, e);
+    statsEl.innerHTML = `<span style="color:var(--fuego-l)">❌ Error: ${e.message.slice(0,80)}</span>`;
+    setGFWStatus('Error','err');
+  }
+}
+
+function renderGFWMarcadores(key, rows) {
+  const capa = gfwCapas[key];
+  capa.marcadores.forEach(m=>map.removeLayer(m)); capa.marcadores=[];
+  const cfg = GFW_CFG[key];
+  const statsEl = document.getElementById(`stats-${key}`);
+
+  // Filtro adicional de confianza GLAD desde el selector
+  const gladConf = key==='glad' ? (document.getElementById('sel-glad-conf')?.value||'') : '';
+
+  let counts = {};
+
+  rows.forEach(row => {
+    const lat = parseFloat(row.latitude), lng = parseFloat(row.longitude);
+    if (isNaN(lat)||isNaN(lng)) return;
+
+    const conf = (row.confianza||row.confidence||'').toLowerCase();
+
+    // Filtro confianza GLAD en el render
+    if (key==='glad' && gladConf==='high'    && conf==='nominal') return;
+    if (key==='glad' && gladConf==='highest' && conf!=='highest') return;
+
+    counts[conf] = (counts[conf]||0) + 1;
+
+    const color  = cfg.colorFn(row);
+    const radius = cfg.radiusFn(row);
+    const m = L.circleMarker([lat,lng], {
+      radius, fillColor:color, color:'#fff', weight:1.2, fillOpacity:.88
+    }).addTo(map);
+    m.bindPopup(cfg.popupFn(row,lat,lng));
+    capa.marcadores.push(m);
+  });
+
+  const tot = capa.marcadores.length;
+  const {startDate,endDate} = gfwFechas(
+    key==='fires' ? parseInt(document.getElementById('sel-fires-periodo')?.value||7) : diasActual
+  );
+
+  if (tot===0) {
+    statsEl.innerHTML = `<span>Sin alertas en el área de estudio · ${startDate} → ${endDate}</span>`;
+    setGFWStatus('✓ 0 alertas','ok');
+  } else {
+    const confResumen = Object.entries(counts)
+      .map(([c,n])=>`<span style="color:${key==='glad'?(c.includes('high')?'#dc2626':'#f97316'):key==='radd'?(c==='confirmed'?'#7c3aed':'#a78bfa'):(c==='high'?'#ff2200':c==='nominal'?'#ff8800':'#ffcc00')}">${n} ${c||'?'}</span>`)
+      .join(' &nbsp; ');
+    statsEl.innerHTML =
+      `<b style="color:var(--gfw-l)">${tot} alertas</b> dentro del área de estudio<br>
+       ${startDate} → ${endDate}<br>${confResumen}`;
+    setGFWStatus(`✓ ${tot} alertas`, 'ok');
+  }
+}
+
+function filtrarGFW(key) {
+  if (!gfwCapas[key].visible) return;
+  if (key==='hansen') return;
+  // Re-renderizar desde datos en memoria (sin nueva llamada API)
+  if (gfwCapas[key].datos.length) renderGFWMarcadores(key, gfwCapas[key].datos);
+  else cargarGFWAlertas(key);
+}
+
+function recargarGFWTile(key) {
+  // Para GLAD/RADD ya no hay tile que recargar, solo re-filtrar marcadores
+  if (gfwCapas[key].visible) {
+    if (gfwCapas[key].datos.length) renderGFWMarcadores(key, gfwCapas[key].datos);
+    else cargarGFWAlertas(key);
+  }
+}
+
+// ── DESCARGA CSV GFW ──────────────────────────────────────────
+async function descargarGFW(key) {
+  const hoy = new Date().toISOString().slice(0,10);
+  const btn = event?.target, origText = btn?.textContent||'';
+  if (btn) { btn.textContent='⏳ Generando…'; btn.disabled=true; }
+
+  const portales = {
+    glad:   'https://data.globalforestwatch.org/datasets/gfw::integrated-deforestation-alerts/about',
+    radd:   'https://data.globalforestwatch.org/datasets/gfw::radd-forest-disturbance-alerts/about',
+    hansen: 'https://data.globalforestwatch.org/datasets/gfw::tree-cover-loss/about',
+    fires:  'https://data.globalforestwatch.org/datasets/gfw::viirs-active-fires/about'
+  };
+
+  try {
+    // Hansen no tiene datos en memoria → abrir portal
+    if (key==='hansen') {
+      window.open(portales.hansen, '_blank');
+      if (btn) { btn.textContent=origText; btn.disabled=false; }
+      return;
+    }
+
+    // GLAD, RADD, Fires: usar datos ya en memoria
+    const datos = gfwCapas[key].datos;
+    if (!datos.length) {
+      alert(`Primero activa la capa ${key.toUpperCase()} y espera que cargue los datos.`);
+      if (btn) { btn.textContent=origText; btn.disabled=false; }
+      return;
+    }
+
+    // Construir CSV según el tipo
+    let cab, rows;
+    if (key==='glad') {
+      cab  = 'fuente,fecha,latitud,longitud,confianza,intensidad';
+      rows = datos.map(r => ['GFW_GLAD', r.fecha||'', r.latitude||'', r.longitude||'', r.confianza||'', r.intensidad||''].join(','));
+    } else if (key==='radd') {
+      cab  = 'fuente,fecha,latitud,longitud,confianza';
+      rows = datos.map(r => ['GFW_RADD', r.fecha||'', r.latitude||'', r.longitude||'', r.confianza||''].join(','));
+    } else {
+      cab  = 'fuente,fecha,latitud,longitud,confianza,frp_MW';
+      rows = datos.map(r => ['GFW_VIIRS', r.fecha||'', r.latitude||'', r.longitude||'', r.confianza||'', r.frp||''].join(','));
+    }
+
+    _dl([cab, ...rows].join('\n'), `gfw_${key}_chameza_${hoy}.csv`);
+    if (btn) { btn.textContent='✓ Descargado'; setTimeout(()=>{ btn.textContent=origText; btn.disabled=false; },2000); }
+
+  } catch(e) {
+    console.error('GFW download:', e);
+    if (btn) { btn.textContent=origText; btn.disabled=false; }
+    if (confirm(`Error (${e.message.slice(0,60)})\n\n¿Abrir portal GFW?`)) window.open(portales[key],'_blank');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// CUNAGÜITO
+// ══════════════════════════════════════════════════════════
+const CUNA_DATOS = {
+  mapabase: {
+    img: 'mapabase.png',
+    msg: `Para cambiar el mapa base, usa el control de capas en la <b>esquina inferior derecha</b> del mapa (ícono de capas apiladas). Encontrarás cuatro opciones:<br><br>
+          <b>Oscuro</b> — vista nocturna predeterminada<br>
+          <b>Satélite</b> — imágenes reales de Google<br>
+          <b>Google Maps</b> — mapa de calles<br>
+          <b>Relieve</b> — curvas de nivel y topografía<br><br>
+          Haz clic en cualquiera y el fondo del mapa cambiará al instante.`
+  },
+  incendios: {
+    img: 'incendios.png',
+    msg: `En el panel izquierdo, busca la sección <b>Descargar reporte</b>. Allí encontrarás:<br><br>
+          <b>CSV Incendios</b> — tabla de datos lista para Excel<br>
+          <b>PDF Incendios</b> — reporte formateado imprimible<br><br>
+          <b>Tip:</b> Antes de descargar, filtra el período (24 h / 7 / 30 días), el nivel de confianza (Alta / Nominal / Baja) y, si quieres, selecciona un predio o dibuja un área para exportar solo los puntos dentro de tu zona de interés.`
+  },
+  deforestacion: {
+    img: 'deforestacion.png',
+    msg: `Primero activa la capa <b>Alertas deforestación (GEE)</b> en la sección <b>Capas informativas</b> del panel izquierdo. Elige el período y la severidad que deseas analizar.<br><br>
+          Luego, en <b>Descargar reporte</b>:<br>
+          <b>CSV Deforest.</b> — incluye NDVI, área y severidad<br>
+          <b>PDF Deforest.</b> — resumen ejecutivo con estadísticas<br><br>
+          <b>Tip:</b> El <b>PDF Combinado</b> integra incendios y deforestación en un solo documento, ideal para informes de campo.`
+  },
+  conectividad: {
+    img: 'conectividad.png',
+    msg: `En la sección <b>Capas informativas</b>, marca <b>Conectividad (Deciles)</b>. Aparecerá un control deslizante llamado <b>"Desde cuantil"</b>.<br><br>
+          Los deciles van del 1 al 10, donde valores más altos representan zonas de <b>mayor importancia</b> para la conectividad del paisaje. Desliza hacia la derecha para mostrar solo las áreas más críticas.<br><br>
+          Los colores siguen la escala <b>Turbo</b>: desde violeta (menor) hasta rojo intenso (mayor importancia).`
+  },
+  // ── NUEVO: GFW ──
+  gfw: {
+    img: 'gfw.png',
+    msg: `En el panel izquierdo encontrarás la sección <b class="gfw">Global Forest Watch</b> con cuatro capas satelitales:<br><br>
+          🌲 <b>GLAD</b> — Alertas semanales de deforestación por Landsat (Univ. Maryland). Filtra por confianza: media o alta.<br><br>
+          📡 <b>RADD</b> — Alertas por radar Sentinel-1. Funciona incluso bajo nubosidad densa, ideal para la Orinoquía.<br><br>
+          🌳 <b>Hansen</b> — Cobertura forestal base (2000) y pérdida acumulada 2001-2023. Usa el deslizador de opacidad para combinarla con otras capas.<br><br>
+          🔥 <b>Incendios GFW</b> — Puntos de calor VIIRS/MODIS con actualización cada 3 horas. Elige el período (24 h, 48 h o 7 días).<br><br>
+          <b>Tip:</b> Selecciona un predio o dibuja un área en el mapa para que las capas GFW también se filtren a tu zona de interés.`
+  }
+};
+
+const CUNA_MSGS = {
+  mapabase:     'Así puedes cambiar el mapa base:',
+  incendios:    'Así puedes descargar las alertas de incendios:',
+  deforestacion:'Así puedes descargar las alertas de deforestación:',
+  conectividad: 'Así puedes explorar el modelo de conectividad:',
+  gfw:          '🛰️ Así usas las capas de Global Forest Watch:'
+};
+
+function cunaAbrir() { document.getElementById('cuna-overlay').classList.add('open'); }
+function cunaCerrar() { document.getElementById('cuna-overlay').classList.remove('open'); setTimeout(cunaVolver, 300); }
+function cunaOverlayClick(e) { if(e.target===document.getElementById('cuna-overlay'))cunaCerrar(); }
+
+function cunaIr(key) {
+  const d = CUNA_DATOS[key];
+  const avatar = document.getElementById('cuna-avatar');
+  avatar.style.opacity='0';
+  setTimeout(()=>{ avatar.src='Cunaguito_pensando.png'; avatar.style.opacity='1'; }, 150);
+  const msg = document.getElementById('cuna-msg');
+  msg.style.opacity='0';
+  setTimeout(()=>{ msg.innerHTML=CUNA_MSGS[key]; msg.style.opacity='1'; }, 150);
+  document.getElementById('cuna-detail-img').src = d.img;
+  document.getElementById('cuna-detail-img').alt = key;
+  document.getElementById('cuna-detail-text').innerHTML = d.msg;
+  const menu=document.getElementById('cuna-menu');
+  const detail=document.getElementById('cuna-detail');
+  menu.style.opacity='0';
+  setTimeout(()=>{
+    menu.style.display='none';
+    detail.classList.add('visible');
+    detail.style.opacity='0';
+    setTimeout(()=>{ detail.style.opacity='1'; }, 20);
+  }, 180);
+}
+
+function cunaVolver() {
+  const avatar=document.getElementById('cuna-avatar');
+  avatar.style.opacity='0';
+  setTimeout(()=>{ avatar.src='Cunaguito1.png'; avatar.style.opacity='1'; }, 150);
+  const msg=document.getElementById('cuna-msg');
+  msg.style.opacity='0';
+  setTimeout(()=>{ msg.textContent='¡Hola! Soy Cunagüito. Estoy aquí para guiarte en los pormenores del manejo de nuestro aplicativo. Por favor, dime qué quieres hacer:'; msg.style.opacity='1'; }, 150);
+  const menu=document.getElementById('cuna-menu');
+  const detail=document.getElementById('cuna-detail');
+  detail.style.opacity='0';
+  setTimeout(()=>{
+    detail.classList.remove('visible');
+    menu.style.display='grid';
+    menu.style.opacity='0';
+    setTimeout(()=>{ menu.style.opacity='1'; }, 20);
+  }, 180);
+}
+
+// ── Inicio ────────────────────────────────────────────────────────────────────
+cargarPredios();
+cargarAlertas();
+setInterval(cargarAlertas, 5*60*1000);
+setInterval(()=>{ if(deforVisible)cargarDeforestacion(); }, 10*60*1000);
+// Refrescar capas GFW cada 15 min
+setInterval(()=>{
+  Object.keys(gfwCapas).forEach(k=>{
+    if (!gfwCapas[k].visible) return;
+    if (k === 'fires') cargarGFWFires();
+    else if (k !== 'hansen') cargarGFWTiles(k);
+  });
+}, 15*60*1000);
+</script>
+</body>
+</html><!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Monitor Bosques — Chameza</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --verde:   #1a4a2e; --verde-m: #2d7a4f; --verde-l: #4caf7d;
+      --fuego:   #e8480a; --fuego-l: #ff7043; --amber:   #f5a623;
+      --fondo:   #0d1f15; --panel:   #111f17; --borde:   #1e3528;
+      --texto:   #d4e8db; --texto-m: #7aab8a; --blanco:  #f0f7f2;
+      --gfw:     #00b4d8; --gfw-l:   #90e0ef;
+    }
+    html, body { height: 100%; font-family: 'Syne', sans-serif; background: var(--fondo); color: var(--texto); }
+    .app { display: grid; grid-template-rows: 56px 1fr; grid-template-columns: 340px 1fr; height: 100vh; }
+
+    header { grid-column: 1/-1; background: var(--panel); border-bottom: 1px solid var(--borde); display: flex; align-items: center; gap: 14px; padding: 0 20px; }
+    header img { height: 34px; object-fit: contain; filter: brightness(0) invert(1); }
+    header h1 { font-size: 14px; font-weight: 800; letter-spacing: .04em; color: var(--blanco); }
+    header h1 span { color: var(--verde-l); }
+    .badge-live { margin-left: auto; display: flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--verde-l); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--verde-l); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    aside { background: var(--panel); border-right: 1px solid var(--borde); overflow-y: auto; display: flex; flex-direction: column; }
+    .panel-section { padding: 14px 16px; border-bottom: 1px solid var(--borde); }
+    .panel-title { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--texto-m); margin-bottom: 10px; }
+
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat { background: var(--fondo); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; }
+    .stat-num { font-size: 22px; font-weight: 800; color: var(--blanco); line-height: 1; }
+    .stat-num.fuego { color: var(--fuego-l); }
+    .stat-num.defor { color: #eab308; }
+    .stat-label { font-size: 11px; color: var(--texto-m); margin-top: 3px; }
+
+    .periodo-btns { display: flex; gap: 6px; }
+    .periodo-btn { flex: 1; padding: 7px 0; border-radius: 6px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; transition: all .15s; }
+    .periodo-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
+
+    .area-badge { display: none; align-items: center; gap: 6px; margin-top: 8px; padding: 5px 10px; background: rgba(245,166,35,.1); border: 1px solid rgba(245,166,35,.3); border-radius: 6px; font-size: 11px; color: var(--amber); }
+    .area-badge.visible { display: flex; }
+    .area-badge-x { cursor: pointer; margin-left: auto; opacity: .7; }
+    .area-badge-x:hover { opacity: 1; }
+
+    select.predio-select { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--borde); background: var(--fondo); color: var(--blanco); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; margin-bottom: 10px; }
+    select.predio-select:focus { outline: none; border-color: var(--verde-l); }
+
+    .predio-info-box { background: var(--fondo); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; display: none; }
+    .predio-info-box.visible { display: block; }
+    .predio-info-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .predio-info-label { font-size: 11px; color: var(--texto-m); }
+    .predio-info-val   { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); }
+
+    .attr-btns { display: flex; gap: 6px; margin-bottom: 10px; }
+    .attr-btn { flex: 1; padding: 6px 0; border-radius: 6px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 11px; cursor: pointer; transition: all .15s; }
+    .attr-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
+
+    .slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .slider-label { font-size: 11px; color: var(--texto-m); white-space: nowrap; }
+    .slider-row input[type=range] { flex: 1; accent-color: var(--verde-l); }
+    .slider-val { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); min-width: 28px; text-align: right; }
+    .radio-row input[type=range] { accent-color: var(--amber); }
+
+    .leyenda { margin-top: 8px; }
+    .leyenda-item { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+    .leyenda-color { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+    .leyenda-txt { font-size: 11px; color: var(--texto-m); }
+
+    .herramientas { display: flex; flex-direction: column; gap: 6px; }
+    .tool-btn { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 12px; cursor: pointer; transition: all .15s; text-align: left; width: 100%; }
+    .tool-btn:hover { border-color: var(--verde-l); color: var(--blanco); }
+    .tool-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
+    .tool-hint { font-size: 10px; color: var(--texto-m); margin-top: 6px; line-height: 1.4; display: none; }
+    .tool-hint.visible { display: block; }
+
+    .filtros { display: flex; gap: 6px; flex-wrap: wrap; }
+    .filtro-btn { padding: 5px 10px; border-radius: 20px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 11px; cursor: pointer; transition: all .15s; }
+    .filtro-btn.activo { background: var(--verde-m); border-color: var(--verde-l); color: var(--blanco); }
+
+    .descarga-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .dl-btn { padding: 8px; border-radius: 8px; border: 1px solid var(--borde); background: transparent; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 11px; cursor: pointer; transition: all .15s; text-align: center; }
+    .dl-btn:hover { border-color: var(--verde-l); color: var(--blanco); background: rgba(77,175,125,.08); }
+    .dl-btn.fuego-btn:hover  { border-color: var(--fuego-l); background: rgba(232,72,10,.08); }
+    .dl-btn.defor-btn:hover  { border-color: #eab308; background: rgba(234,179,8,.08); }
+    .dl-btn.combo-btn { grid-column: 1/-1; background: rgba(77,175,125,.06); border-color: var(--verde-m); color: var(--verde-l); }
+    .dl-btn.combo-btn:hover  { background: rgba(77,175,125,.15); border-color: var(--verde-l); color: var(--blanco); }
+
+    .capa-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
+    .capa-row input[type=checkbox] { accent-color: var(--verde-l); width: 16px; height: 16px; cursor: pointer; }
+    .capa-label { font-size: 12px; color: var(--texto); flex: 1; }
+    .capa-sub { margin-left: 26px; margin-top: -4px; margin-bottom: 10px; display: none; }
+    .capa-sub.visible { display: block; }
+    .year-select { width: 100%; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--borde); background: var(--fondo); color: var(--blanco); font-size: 11px; font-family: 'Syne', sans-serif; }
+
+    /* ── GFW styles ── */
+    .gfw-section-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 10px;
+    }
+    .gfw-badge {
+      font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      background: rgba(0,180,216,.15); border: 1px solid rgba(0,180,216,.4);
+      color: var(--gfw); border-radius: 4px; padding: 2px 6px;
+      text-transform: uppercase;
+    }
+    .gfw-status {
+      font-family: 'Space Mono', monospace; font-size: 10px;
+      color: var(--texto-m); margin-left: auto;
+    }
+    .gfw-status.ok  { color: var(--gfw-l); }
+    .gfw-status.err { color: var(--fuego-l); }
+    .gfw-status.loading { color: var(--amber); }
+
+    /* GFW checkbox accent diferenciado */
+    .capa-row.gfw input[type=checkbox] { accent-color: var(--gfw); }
+
+    .gfw-sub-info {
+      font-size: 10px; color: var(--texto-m); line-height: 1.5;
+      margin-bottom: 6px;
+    }
+    .gfw-leyenda { margin-top: 6px; }
+    .gfw-leyenda-item { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+    .gfw-leyenda-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .gfw-leyenda-txt { font-size: 10px; color: var(--texto-m); }
+    .gfw-stats-box {
+      background: rgba(0,180,216,.06); border: 1px solid rgba(0,180,216,.2);
+      border-radius: 6px; padding: 6px 10px; margin-top: 6px;
+      font-size: 10px; color: var(--texto-m); line-height: 1.7;
+    }
+    .gfw-stats-box span { color: var(--gfw-l); font-family: 'Space Mono', monospace; }
+
+    /* Hansen opacity slider */
+    .gfw-slider { width: 100%; accent-color: var(--gfw); }
+
+    .alerta-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--borde); cursor: pointer; transition: background .15s; }
+    .alerta-item:last-child { border-bottom: none; }
+    .alerta-item:hover { background: rgba(77,175,125,.05); margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+    .alerta-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+    .alerta-dot.high    { background: var(--fuego); box-shadow: 0 0 6px var(--fuego); }
+    .alerta-dot.nominal { background: var(--amber); }
+    .alerta-dot.low     { background: var(--verde-l); }
+    .alerta-dot.defor-leve     { background: #eab308; border-radius: 2px; }
+    .alerta-dot.defor-moderada { background: #f97316; border-radius: 2px; }
+    .alerta-dot.defor-severa   { background: #dc2626; border-radius: 2px; }
+    .alerta-info { flex: 1; min-width: 0; }
+    .alerta-coords { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--blanco); }
+    .alerta-meta   { font-size: 11px; color: var(--texto-m); margin-top: 2px; }
+    .alerta-frp    { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--fuego-l); white-space: nowrap; }
+
+    .loading { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px; color: var(--texto-m); font-size: 13px; }
+    .spin { width: 14px; height: 14px; border: 2px solid var(--borde); border-top-color: var(--verde-l); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #map { width: 100%; height: 100%; }
+    .leaflet-container { background: #0a1a0f; }
+    .leaflet-popup-content-wrapper { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; color: var(--texto); box-shadow: 0 8px 32px rgba(0,0,0,.6); }
+    .leaflet-popup-tip { background: var(--panel); }
+    .popup-title { font-size: 13px; font-weight: 700; color: var(--fuego-l); margin-bottom: 6px; }
+    .popup-title.verde { color: var(--verde-l); }
+    .popup-title.gfw   { color: var(--gfw-l); }
+    .popup-row   { font-size: 12px; color: var(--texto-m); margin: 2px 0; }
+    .popup-row span { color: var(--blanco); font-family: 'Space Mono', monospace; }
+
+    .panel-footer { margin-top: auto; padding: 10px 16px; font-size: 10px; color: var(--texto-m); border-top: 1px solid var(--borde); }
+    .panel-footer a { color: var(--verde-l); text-decoration: none; }
+
+    .tabs { display: flex; gap: 0; margin-bottom: 10px; border-bottom: 1px solid var(--borde); }
+    .tab { flex: 1; padding: 6px 0; text-align: center; font-size: 11px; color: var(--texto-m); cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; }
+    .tab.activo { color: var(--verde-l); border-bottom-color: var(--verde-l); }
+
+    @media (max-width: 700px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: 56px 320px 1fr; }
+      aside { border-right: none; border-bottom: 1px solid var(--borde); }
+    }
+
+    /* ── Cunagüito ── */
+    .cuna-fab {
+      position: fixed; bottom: 24px; left: 24px; z-index: 9000;
+      width: 54px; height: 54px; border-radius: 50%;
+      background: linear-gradient(135deg, #1a4a2e, #2d7a4f);
+      border: 2px solid var(--verde-l); cursor: pointer;
+      box-shadow: 0 4px 20px rgba(76,175,125,.45);
+      display: flex; align-items: center; justify-content: center;
+      transition: transform .2s, box-shadow .2s;
+      font-size: 20px; font-weight: 800; color: var(--blanco);
+      font-family: 'Syne', sans-serif;
+    }
+    .cuna-fab:hover { transform: scale(1.1); box-shadow: 0 6px 30px rgba(76,175,125,.65); }
+    .cuna-fab-wrap { position: fixed; bottom: 24px; left: 24px; z-index: 9000; }
+    .cuna-tooltip {
+      position: absolute; bottom: 62px; left: 50%; transform: translateX(-50%);
+      background: var(--panel); border: 1px solid var(--borde);
+      border-radius: 8px; padding: 5px 11px;
+      font-size: 11px; color: var(--verde-l); white-space: nowrap;
+      pointer-events: none; opacity: 0; transition: opacity .2s;
+    }
+    .cuna-fab-wrap:hover .cuna-tooltip { opacity: 1; }
+
+    .cuna-overlay {
+      position: fixed; inset: 0; z-index: 9100;
+      background: rgba(0,0,0,.58); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center;
+    }
+    .cuna-overlay.open { display: flex; }
+
+    .cuna-modal {
+      background: var(--panel); border: 1px solid var(--borde);
+      border-radius: 18px; width: 490px; max-width: 95vw;
+      box-shadow: 0 24px 70px rgba(0,0,0,.75); overflow: hidden;
+      animation: cunaIn .28s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes cunaIn {
+      from { opacity:0; transform:scale(.86) translateY(14px); }
+      to   { opacity:1; transform:none; }
+    }
+    .cuna-header {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 18px 20px 14px; border-bottom: 1px solid var(--borde);
+      background: linear-gradient(135deg, rgba(26,74,46,.6), rgba(17,31,23,.6));
+    }
+    .cuna-avatar {
+      width: 72px; height: 72px; border-radius: 14px; object-fit: cover;
+      flex-shrink: 0; border: 2px solid var(--verde-m); background: var(--fondo);
+      transition: opacity .3s;
+    }
+    .cuna-header-text { flex: 1; padding-top: 4px; }
+    .cuna-header-name { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--verde-l); margin-bottom: 5px; }
+    .cuna-header-text p { font-size: 13px; color: var(--texto); line-height: 1.55; margin: 0; transition: opacity .25s; }
+    .cuna-close { background: none; border: none; color: var(--texto-m); font-size: 18px; cursor: pointer; padding: 0 2px; transition: color .15s; line-height: 1; flex-shrink: 0; }
+    .cuna-close:hover { color: var(--blanco); }
+    .cuna-body { padding: 16px 20px 20px; }
+
+    /* Menú 3 columnas para acomodar GFW */
+    .cuna-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .cuna-opt {
+      display: flex; flex-direction: column; align-items: center; gap: 7px;
+      padding: 16px 12px 14px; background: var(--fondo); border: 1px solid var(--borde);
+      border-radius: 12px; cursor: pointer; transition: all .18s; text-align: center;
+    }
+    .cuna-opt:hover { border-color: var(--verde-l); background: rgba(76,175,125,.08); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(76,175,125,.15); }
+    .cuna-opt.gfw-opt:hover { border-color: var(--gfw); background: rgba(0,180,216,.08); box-shadow: 0 4px 16px rgba(0,180,216,.15); }
+    .cuna-opt-icon { font-size: 24px; }
+    .cuna-opt-label { font-size: 12px; font-weight: 600; color: var(--blanco); line-height: 1.3; }
+    .cuna-opt-label small { display: block; font-size: 10px; color: var(--texto-m); font-weight: 400; margin-top: 2px; }
+
+    .cuna-detail { display: none; flex-direction: column; gap: 0; }
+    .cuna-detail.visible { display: flex; }
+    .cuna-detail-img { width: 100%; height: 190px; object-fit: cover; border-radius: 12px; margin-bottom: 13px; border: 1px solid var(--borde); background: var(--fondo); }
+    .cuna-detail-text { font-size: 13px; color: var(--texto); line-height: 1.65; }
+    .cuna-detail-text b { color: var(--verde-l); font-weight: 600; }
+    .cuna-detail-text b.gfw { color: var(--gfw-l); }
+    .cuna-back { margin-top: 16px; padding: 8px 0; background: transparent; border: 1px solid var(--borde); border-radius: 10px; color: var(--texto-m); font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; width: 100%; letter-spacing: .03em; }
+    .cuna-back:hover { border-color: var(--verde-l); color: var(--verde-l); background: rgba(76,175,125,.06); }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <img src="fondoaccion.png" alt="TFCA Fondo Acción">
+    <img src="cunaguaro.png"   alt="CBC Cunaguaro">
+    <h1>Monitor Bosques <span>Chameza</span></h1>
+    <div class="badge-live"><div class="dot"></div> En vivo · NASA FIRMS</div>
+  </header>
+
+  <aside>
+
+    <!-- Stats -->
+    <div class="panel-section">
+      <div class="panel-title">Resumen del período</div>
+      <div class="stats">
+        <div class="stat"><div class="stat-num fuego" id="total-alertas">—</div><div class="stat-label">Incendios</div></div>
+        <div class="stat"><div class="stat-num defor" id="total-defor">—</div><div class="stat-label">Deforestación</div></div>
+        <div class="stat"><div class="stat-num" id="total-high">—</div><div class="stat-label">Confianza alta</div></div>
+        <div class="stat"><div class="stat-num" id="total-frp">—</div><div class="stat-label">FRP máx (MW)</div></div>
+      </div>
+    </div>
+
+    <!-- Período -->
+    <div class="panel-section">
+      <div class="panel-title">Período de consulta</div>
+      <div class="periodo-btns">
+        <button class="periodo-btn activo" data-dias="1"  onclick="cambiarPeriodo(this)">24 h</button>
+        <button class="periodo-btn"        data-dias="7"  onclick="cambiarPeriodo(this)">7 días</button>
+        <button class="periodo-btn"        data-dias="30" onclick="cambiarPeriodo(this)">30 días</button>
+      </div>
+    </div>
+
+    <!-- Área de filtro -->
+    <div class="panel-section" id="section-area">
+      <div class="panel-title">Área de análisis <span style="color:var(--verde-l);font-weight:400">(aplica a incendios + deforestación)</span></div>
+
+      <select class="predio-select" id="predio-select" onchange="seleccionarPredio(this.value)">
+        <option value="">— Selecciona un predio —</option>
+      </select>
+
+      <div class="predio-info-box" id="predio-info-box">
+        <div class="predio-info-row"><span class="predio-info-label">ID predio</span><span class="predio-info-val" id="info-id">—</span></div>
+        <div class="predio-info-row"><span class="predio-info-label">Área (ha)</span><span class="predio-info-val" id="info-area-ha">—</span></div>
+        <div class="predio-info-row"><span class="predio-info-label">Incendios en período</span><span class="predio-info-val" id="info-alertas">—</span></div>
+        <div class="predio-info-row"><span class="predio-info-label">Deforestación alertas</span><span class="predio-info-val" id="info-defor">—</span></div>
+      </div>
+
+      <div id="predio-controles" style="display:none">
+        <div class="panel-title" style="margin-bottom:6px">Colorear por</div>
+        <div class="attr-btns">
+          <button class="attr-btn activo" onclick="cambiarAtributo('cobertura', this)">Cobertura</button>
+          <button class="attr-btn"        onclick="cambiarAtributo('uso_actual', this)">Uso actual</button>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Transparencia</span>
+          <input type="range" min="0" max="100" value="40" id="slider-opacidad" oninput="cambiarOpacidad(this.value)">
+          <span class="slider-val" id="val-opacidad">40%</span>
+        </div>
+        <div class="slider-row radio-row">
+          <span class="slider-label">Radio buffer</span>
+          <input type="range" min="1" max="50" value="10" id="slider-radio" oninput="cambiarRadio(this.value)">
+          <span class="slider-val" id="val-radio">10 km</span>
+        </div>
+        <div class="leyenda" id="leyenda-colores"></div>
+        <button class="tool-btn" style="margin-top:8px" onclick="limpiarPredioa()">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Quitar selección
+        </button>
+      </div>
+
+      <div style="text-align:center;font-size:10px;color:var(--texto-m);margin:10px 0">— o dibuja en el mapa —</div>
+
+      <div class="herramientas">
+        <button class="tool-btn" id="btn-poligono" onclick="activarHerramienta('poligono')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polygon points="8,1 15,6 12,14 4,14 1,6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          Dibujar polígono
+        </button>
+        <button class="tool-btn" id="btn-punto" onclick="activarHerramienta('punto')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>
+          Punto con radio (10 km)
+        </button>
+        <button class="tool-btn" onclick="limpiarAreaDibujada()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Limpiar área
+        </button>
+        <div class="tool-hint" id="hint-dibujo">Haz clic en el mapa para dibujar. Doble clic para cerrar.</div>
+      </div>
+
+      <div class="area-badge" id="area-badge">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span id="area-badge-txt">Área activa</span>
+        <span class="area-badge-x" onclick="limpiarTodoFiltroArea()">✕</span>
+      </div>
+    </div>
+
+    <!-- Filtro confianza -->
+    <div class="panel-section">
+      <div class="panel-title">Filtrar incendios por confianza</div>
+      <div class="filtros">
+        <button class="filtro-btn activo" data-filtro="all"     onclick="filtrar(this)">Todas</button>
+        <button class="filtro-btn"        data-filtro="high"    onclick="filtrar(this)">Alta</button>
+        <button class="filtro-btn"        data-filtro="nominal" onclick="filtrar(this)">Nominal</button>
+        <button class="filtro-btn"        data-filtro="low"     onclick="filtrar(this)">Baja</button>
+      </div>
+    </div>
+
+    <!-- Capas informativas -->
+    <div class="panel-section">
+      <div class="panel-title">Capas informativas</div>
+      <label class="capa-row"><input type="checkbox" onchange="toggleCapa('municipio', this.checked)"><span class="capa-label">Municipio (Chámeza)</span></label>
+      <label class="capa-row"><input type="checkbox" onchange="toggleCapa('estudio', this.checked)"><span class="capa-label">Área de estudio</span></label>
+      <label class="capa-row"><input type="checkbox" onchange="toggleCapa('bosque', this.checked)"><span class="capa-label">Núcleos boscosos</span></label>
+      <label class="capa-row">
+        <input type="checkbox" id="chk-perdidas" onchange="toggleCapa('perdidas', this.checked)">
+        <span class="capa-label">Pérdidas 2020-2024</span>
+      </label>
+      <div class="capa-sub" id="sub-perdidas">
+        <select class="year-select" id="sel-year" onchange="actualizarPerdidas()">
+          <option value="all">Todos los años</option>
+          <option value="20">2020</option><option value="21">2021</option>
+          <option value="22">2022</option><option value="23">2023</option><option value="24">2024</option>
+        </select>
+      </div>
+      <label class="capa-row">
+        <input type="checkbox" id="chk-conectividad" onchange="toggleCapa('conectividad', this.checked)">
+        <span class="capa-label">Conectividad (Deciles)</span>
+      </label>
+      <div class="capa-sub" id="sub-conectividad">
+        <div class="slider-row" style="margin-bottom:4px">
+          <span class="slider-label">Desde cuantil:</span>
+          <span class="slider-val" id="val-cuantil">1</span>
+        </div>
+        <input type="range" min="1" max="10" value="1" style="width:100%; accent-color:var(--verde-l)" id="sel-cuantil" oninput="actualizarConectividad(this.value)">
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--texto-m);margin-top:4px"><span>Poca conectividad</span><span>Mayor importancia</span></div>
+      </div>
+      <label class="capa-row" style="margin-top:8px">
+        <input type="checkbox" id="chk-deforestacion" onchange="toggleDeforestacion(this.checked)">
+        <span class="capa-label">Alertas deforestación (GEE)</span>
+      </label>
+      <div class="capa-sub" id="sub-deforestacion">
+        <div style="font-size:10px;color:var(--texto-m);margin-bottom:6px;line-height:1.4">Sentinel-2 · cambio NDVI · actualización diaria</div>
+        <select class="year-select" id="sel-defor-periodo" onchange="cargarDeforestacion()">
+          <option value="1">Últimas 24 h</option>
+          <option value="7">Últimos 7 días</option>
+          <option value="30" selected>Últimos 30 días</option>
+          <option value="90">Últimos 90 días</option>
+          <option value="365">Último año</option>
+        </select>
+        <select class="year-select" id="sel-defor-severidad" style="margin-top:4px" onchange="filtrarDeforestacion()">
+          <option value="all">Todas las severidades</option>
+          <option value="leve">Leve</option>
+          <option value="moderada">Moderada</option>
+          <option value="severa">Severa</option>
+        </select>
+        <div id="defor-stats" style="font-size:11px;color:var(--texto-m);margin-top:6px;line-height:1.6"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         SECCIÓN GFW — Global Forest Watch
+    ═══════════════════════════════════════ -->
+    <div class="panel-section">
+      <div class="gfw-section-header">
+        <div class="panel-title" style="margin-bottom:0">Global Forest Watch</div>
+        <div class="gfw-badge">GFW API</div>
+        <div class="gfw-status" id="gfw-status">—</div>
+      </div>
+      <div style="font-size:10px;color:var(--texto-m);line-height:1.4;margin-bottom:10px">
+        Datos satelitales en tiempo casi-real para Chámeza, Casanare.
+      </div>
+
+      <!-- GLAD Alerts -->
+      <label class="capa-row gfw">
+        <input type="checkbox" id="chk-glad" onchange="toggleGFW('glad', this.checked)">
+        <span class="capa-label">🌲 Alertas GLAD <span style="font-size:10px;color:var(--texto-m)">(deforestación semanal)</span></span>
+      </label>
+      <div class="capa-sub" id="sub-glad">
+        <div class="gfw-sub-info">Detección semanal Landsat · Universidad de Maryland</div>
+        <select class="year-select" id="sel-glad-conf" onchange="recargarGFWTile('glad')" style="margin-bottom:6px">
+          <option value="">Toda confianza</option>
+          <option value="high">Alta confianza</option>
+          <option value="highest">Máxima confianza</option>
+        </select>
+        <div class="gfw-leyenda">
+          <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#dc2626"></div><span class="gfw-leyenda-txt">Alta confianza</span></div>
+          <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#f97316"></div><span class="gfw-leyenda-txt">Confianza media</span></div>
+        </div>
+        <div class="gfw-stats-box" id="stats-glad">Capa de teselas activa · zoom ≥ 6 para ver alertas</div>
+        <button class="dl-btn" style="width:100%;margin-top:6px;border-color:rgba(0,180,216,.4);color:var(--gfw-l)" onclick="descargarGFW('glad')">
+          ⬇ Descargar CSV GLAD (Chámeza)
+        </button>
+      </div>
+
+      <!-- RADD Alerts -->
+      <label class="capa-row gfw">
+        <input type="checkbox" id="chk-radd" onchange="toggleGFW('radd', this.checked)">
+        <span class="capa-label">📡 Alertas RADD <span style="font-size:10px;color:var(--texto-m)">(radar Sentinel-1)</span></span>
+      </label>
+      <div class="capa-sub" id="sub-radd">
+        <div class="gfw-sub-info">Detección por radar SAR · Funciona bajo nubes</div>
+        <div class="gfw-leyenda">
+          <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#7c3aed"></div><span class="gfw-leyenda-txt">Alerta confirmada</span></div>
+          <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#a78bfa"></div><span class="gfw-leyenda-txt">Alerta provisional</span></div>
+        </div>
+        <div class="gfw-stats-box" id="stats-radd">Capa de teselas activa · zoom ≥ 6 para ver alertas</div>
+        <button class="dl-btn" style="width:100%;margin-top:6px;border-color:rgba(0,180,216,.4);color:var(--gfw-l)" onclick="descargarGFW('radd')">
+          ⬇ Descargar CSV RADD (Chámeza)
+        </button>
+      </div>
+
+      <!-- Hansen Tree Cover Loss -->
+      <label class="capa-row gfw">
+        <input type="checkbox" id="chk-hansen" onchange="toggleGFW('hansen', this.checked)">
+        <span class="capa-label">🌳 Cobertura forestal <span style="font-size:10px;color:var(--texto-m)">(Hansen/GFW)</span></span>
+      </label>
+      <div class="capa-sub" id="sub-hansen">
+        <div class="gfw-sub-info">Pérdida de cobertura arbórea 2001-2023 · Hansen et al.</div>
+        <div class="slider-row" style="margin-bottom:6px">
+          <span class="slider-label">Opacidad</span>
+          <input type="range" min="10" max="100" value="70" class="gfw-slider" id="slider-hansen" oninput="actualizarOpacidadHansen(this.value)">
+          <span class="slider-val" id="val-hansen">70%</span>
+        </div>
+        <div class="gfw-leyenda">
+          <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#22c55e;border-radius:2px"></div><span class="gfw-leyenda-txt">Cobertura forestal 2000</span></div>
+          <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#dc2626;border-radius:2px"></div><span class="gfw-leyenda-txt">Pérdida 2001-2023</span></div>
+        </div>
+        <div class="gfw-stats-box" id="stats-hansen">Capa de teselas · renderizado en tiempo real</div>
+        <button class="dl-btn" style="width:100%;margin-top:6px;border-color:rgba(0,180,216,.4);color:var(--gfw-l)" onclick="descargarGFW('hansen')">
+          ⬇ Descargar CSV pérdida forestal
+        </button>
+      </div>
+
+      <!-- VIIRS/MODIS GFW Fires -->
+      <label class="capa-row gfw">
+        <input type="checkbox" id="chk-fires" onchange="toggleGFW('fires', this.checked)">
+        <span class="capa-label">🔥 Incendios GFW <span style="font-size:10px;color:var(--texto-m)">(VIIRS/MODIS)</span></span>
+      </label>
+      <div class="capa-sub" id="sub-fires">
+        <div class="gfw-sub-info">Puntos de calor activos · actualización cada 3 h</div>
+        <select class="year-select" id="sel-fires-periodo" onchange="filtrarGFW('fires')" style="margin-bottom:6px">
+          <option value="1">Últimas 24 h</option>
+          <option value="2">Últimas 48 h</option>
+          <option value="7" selected>Últimos 7 días</option>
+        </select>
+        <div class="gfw-leyenda">
+          <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#ff2200;box-shadow:0 0 6px #ff2200"></div><span class="gfw-leyenda-txt">Alta confianza (VIIRS)</span></div>
+          <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#ff8800"></div><span class="gfw-leyenda-txt">Confianza media</span></div>
+          <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#ffcc00"></div><span class="gfw-leyenda-txt">Baja confianza</span></div>
+        </div>
+        <div class="gfw-stats-box" id="stats-fires">Sin datos cargados</div>
+        <button class="dl-btn" style="width:100%;margin-top:6px;border-color:rgba(232,72,10,.4);color:var(--fuego-l)" onclick="descargarGFW('fires')">
+          ⬇ Descargar CSV incendios GFW
+        </button>
+      </div>
+    </div>
+<!-- FIN GFW -->
+
+    <!-- Descarga combinada -->
+    <div class="panel-section">
+      <div class="panel-title">Descargar reporte</div>
+      <div class="descarga-btns">
+        <button class="dl-btn fuego-btn"  onclick="descargarCSV('incendios')">CSV Incendios</button>
+        <button class="dl-btn defor-btn"  onclick="descargarCSV('deforestacion')">CSV Deforest.</button>
+        <button class="dl-btn combo-btn"  onclick="descargarCSV('combinado')">CSV Combinado</button>
+        <button class="dl-btn fuego-btn"  onclick="descargarPDF('incendios')">PDF Incendios</button>
+        <button class="dl-btn defor-btn"  onclick="descargarPDF('deforestacion')">PDF Deforest.</button>
+        <button class="dl-btn combo-btn"  onclick="descargarPDF('combinado')">⭐ PDF Combinado</button>
+      </div>
+    </div>
+
+    <!-- Lista alertas con tabs -->
+    <div class="panel-section" style="flex:1">
+      <div class="panel-title">Alertas detectadas</div>
+      <div class="tabs">
+        <div class="tab activo" onclick="cambiarTab('incendios', this)">🔥 Incendios</div>
+        <div class="tab"        onclick="cambiarTab('deforestacion', this)">🌿 Deforestación</div>
+      </div>
+      <div id="lista-alertas"><div class="loading"><div class="spin"></div> Cargando...</div></div>
+    </div>
+
+    <div class="panel-footer">
+      Datos: <a href="https://firms.modaps.eosdis.nasa.gov" target="_blank">NASA FIRMS</a> ·
+      <a href="https://earthengine.google.com" target="_blank">Google Earth Engine</a> ·
+      <a href="https://www.globalforestwatch.org" target="_blank">Global Forest Watch</a> ·
+      <a href="https://www.openstreetmap.org" target="_blank">OpenStreetMap</a>
+    </div>
+  </aside>
+
+  <div id="map"></div>
+</div>
+
+<!-- ── Cunagüito ── -->
+<div class="cuna-fab-wrap">
+  <button class="cuna-fab" onclick="cunaAbrir()">?</button>
+  <div class="cuna-tooltip">¡Pregúntale a Cunagüito!</div>
+</div>
+
+<div class="cuna-overlay" id="cuna-overlay" onclick="cunaOverlayClick(event)">
+  <div class="cuna-modal">
+    <div class="cuna-header">
+      <img id="cuna-avatar" class="cuna-avatar" src="Cunaguito1.png" alt="Cunagüito">
+      <div class="cuna-header-text">
+        <div class="cuna-header-name">Cunagüito · Asistente</div>
+        <p id="cuna-msg">¡Hola! Soy Cunagüito. Estoy aquí para guiarte en los pormenores del manejo de nuestro aplicativo. Por favor, dime qué quieres hacer:</p>
+      </div>
+      <button class="cuna-close" onclick="cunaCerrar()" title="Cerrar">✕</button>
+    </div>
+    <div class="cuna-body">
+      <div class="cuna-menu" id="cuna-menu">
+        <div class="cuna-opt" onclick="cunaIr('mapabase')">
+          <span class="cuna-opt-icon">🗺️</span>
+          <span class="cuna-opt-label">Cambiar mapa base</span>
+        </div>
+        <div class="cuna-opt" onclick="cunaIr('incendios')">
+          <span class="cuna-opt-icon">🔥</span>
+          <span class="cuna-opt-label">Descargar alertas de incendios</span>
+        </div>
+        <div class="cuna-opt" onclick="cunaIr('deforestacion')">
+          <span class="cuna-opt-icon">🌿</span>
+          <span class="cuna-opt-label">Descargar alertas de deforestación</span>
+        </div>
+        <div class="cuna-opt" onclick="cunaIr('conectividad')">
+          <span class="cuna-opt-icon">🔗</span>
+          <span class="cuna-opt-label">Explorar modelo de conectividad</span>
+        </div>
+        <!-- NUEVO: GFW -->
+        <div class="cuna-opt gfw-opt" onclick="cunaIr('gfw')" style="grid-column:1/-1">
+          <span class="cuna-opt-icon">🛰️</span>
+          <span class="cuna-opt-label">Capas Global Forest Watch
+            <small>GLAD · RADD · Hansen · Incendios GFW</small>
+          </span>
+        </div>
+      </div>
+      <div class="cuna-detail" id="cuna-detail">
+        <img id="cuna-detail-img" class="cuna-detail-img" src="" alt="">
+        <div class="cuna-detail-text" id="cuna-detail-text"></div>
+        <button class="cuna-back" onclick="cunaVolver()">← Volver al menú principal</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/georaster"></script>
+<script src="https://unpkg.com/georaster-layer-for-leaflet"></script>
+<script>
+// ── Configuración ─────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://qryktfqnicnwiuwbijvd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_tVzVULeeVvP-QRCXviO7cg_EOuOfX-0';
+const GEOJSON_URL  = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/Predios.geojson';
+const BASE_URL     = 'https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/';
+
+// ── GFW Config ────────────────────────────────────────────────────────────────
+const GFW_API_KEY  = '6b196681-4bfb-4c71-8757-b745b9290f95';
+const GFW_BASE     = 'https://data-api.globalforestwatch.org';
+// Bounding box de Chámeza, Casanare (expandido ~0.5°)
+const CHAMEZA_BBOX = { xmin: -72.80, ymin: 4.85, xmax: -72.20, ymax: 5.35 };
+// Dataset IDs GFW
+const GFW_DATASETS = {
+  glad:   'gfw_integrated_alerts',
+  radd:   'wur_radd_alerts',
+  hansen: 'umd_tree_cover_loss',
+  fires:  'nasa_viirs_fire_alerts'
+};
+
+const URLS = {
+  municipio:    BASE_URL + 'Chameza4326.geojson',
+  estudio:      BASE_URL + 'area_estudio.geojson',
+  bosque:       BASE_URL + 'Nucleos_boscosos.geojson',
+  perdidas:     BASE_URL + 'Perdidas2020-2024.geojson',
+  conectividad: BASE_URL + 'cum_currmap_deciles3_4326_web.tif'
+};
+
+// ── Paleta ────────────────────────────────────────────────────────────────────
+const PALETA = ['#4caf7d','#f5a623','#e8480a','#378add','#a855f7','#ec4899','#14b8a6','#f97316','#84cc16','#64748b','#fb7185','#34d399','#fbbf24','#60a5fa','#c084fc'];
+const mapaColores = {};
+function obtenerColor(attr, val) {
+  if (!mapaColores[attr]) mapaColores[attr] = {};
+  const mc = mapaColores[attr];
+  if (!mc[val]) mc[val] = PALETA[Object.keys(mc).length % PALETA.length];
+  return mc[val];
+}
+
+// ── Mapa ───────────────────────────────────────────────────────────────────────
+const baseMaps = {
+  'Oscuro':      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',subdomains:'abcd',maxZoom:19}),
+  'Satélite':    L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{attribution:'© Google'}),
+  'Google Maps': L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{attribution:'© Google'}),
+  'Relieve':     L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'})
+};
+const map = L.map('map',{zoomControl:false,layers:[baseMaps['Oscuro']]}).setView([5.09,-72.47],11);
+L.control.zoom({position:'bottomright'}).addTo(map);
+L.control.layers(baseMaps,null,{position:'bottomright'}).addTo(map);
+
+// ── Estado ────────────────────────────────────────────────────────────────────
+let todasAlertas = [], marcadores = [];
+let filtroActual = 'all', diasActual = 1;
+let areaFiltro = null, predioSelId = null;
+let prediosAgrupados = {}, atributoActual = 'cobertura';
+let opacidadActual = 0.4, radioKm = 10;
+let capaPredioa = null, capaRadio = null;
+let tabActual = 'incendios';
+
+const drawnItems   = new L.FeatureGroup().addTo(map);
+const capaTodosGeo = new L.FeatureGroup().addTo(map);
+
+const capasInfo = {
+  municipio:    L.layerGroup().addTo(map),
+  estudio:      L.layerGroup().addTo(map),
+  bosque:       L.layerGroup().addTo(map),
+  perdidas:     L.layerGroup().addTo(map),
+  conectividad: L.layerGroup().addTo(map)
+};
+let datosPerdidas = null, georasterConectividad = null, cuantilMinimo = 1;
+const turboColors = [null,'#30123b','#4145ab','#4675ed','#39a2ff','#1ae4b6','#62fc6b','#addc30','#e49c1b','#f25d0a','#aa1016'];
+
+// Deforestación GEE
+let marcadoresDefor = [], alertasDefor = [], deforVisible = false;
+const COLORES_SEV = { leve:'#eab308', moderada:'#f97316', severa:'#dc2626' };
+
+// ── GFW Estado ────────────────────────────────────────────────────────────────
+const gfwCapas = {
+  glad:   { visible: false, marcadores: [], datos: [], tileLayer: null },
+  radd:   { visible: false, marcadores: [], datos: [], tileLayer: null },
+  hansen: { visible: false, marcadores: [], datos: [], tileLayer: null },
+  fires:  { visible: false, marcadores: [], datos: [], tileLayer: null }
+};
+let hansenOpacity = 0.7;
+
+// ── SVG hatch ─────────────────────────────────────────────────────────────────
+const svgNS = 'http://www.w3.org/2000/svg';
+const pat = document.createElementNS(svgNS,'pattern');
+pat.setAttribute('id','hatch'); pat.setAttribute('patternUnits','userSpaceOnUse');
+pat.setAttribute('width','8'); pat.setAttribute('height','8'); pat.setAttribute('patternTransform','rotate(45)');
+const ln = document.createElementNS(svgNS,'line');
+ln.setAttribute('x1','0'); ln.setAttribute('y1','0'); ln.setAttribute('x2','0'); ln.setAttribute('y2','8');
+ln.setAttribute('stroke','#4caf7d'); ln.setAttribute('stroke-width','2');
+pat.appendChild(ln);
+map.on('layeradd',()=>{
+  const svg=document.querySelector('#map svg');
+  if(svg&&!svg.querySelector('#hatch')){let d=svg.querySelector('defs');if(!d){d=document.createElementNS(svgNS,'defs');svg.insertBefore(d,svg.firstChild);}d.appendChild(pat);}
+});
+
+// ── Área activa ───────────────────────────────────────────────────────────────
+function obtenerAreaFiltroActiva() {
+  if (predioSelId !== null && capaRadio) {
+    const c = capaRadio.getLatLng();
+    return { tipo:'circulo', lat:c.lat, lng:c.lng, radio:radioKm };
+  }
+  return areaFiltro;
+}
+function actualizarBadgeArea() {
+  const area = obtenerAreaFiltroActiva();
+  const badge = document.getElementById('area-badge');
+  const txt   = document.getElementById('area-badge-txt');
+  if (!area) { badge.classList.remove('visible'); return; }
+  badge.classList.add('visible');
+  if (predioSelId) txt.textContent = `Predio "${predioSelId}" + buffer ${radioKm} km`;
+  else if (area.tipo === 'circulo') txt.textContent = `Punto + radio ${area.radio} km`;
+  else txt.textContent = 'Polígono dibujado';
+}
+function limpiarTodoFiltroArea() { limpiarPredioa(); limpiarAreaDibujada(); }
+
+// ── Predios ───────────────────────────────────────────────────────────────────
+async function cargarPredios() {
+  try {
+    const resp = await fetch(GEOJSON_URL);
+    const gj   = await resp.json();
+    prediosAgrupados = {};
+    (gj.features||[]).forEach(f => {
+      const id = f.properties.id_predio || 'Sin ID';
+      if (!prediosAgrupados[id]) prediosAgrupados[id] = {id, features:[], area_m:0, area_ha:0};
+      prediosAgrupados[id].features.push(f);
+      prediosAgrupados[id].area_m  += Number(f.properties.area_m  || 0);
+      prediosAgrupados[id].area_ha += Number(f.properties.area_ha || 0);
+    });
+    capaTodosGeo.clearLayers();
+    L.geoJSON(gj,{
+      style:{color:'#4caf7d',weight:1,fillColor:'#4caf7d',fillOpacity:0.04,dashArray:'4 3'},
+      onEachFeature:(feat,layer)=>layer.on('click',()=>{
+        const id=feat.properties.id_predio||'Sin ID';
+        document.getElementById('predio-select').value=id;
+        seleccionarPredio(id);
+      })
+    }).addTo(capaTodosGeo);
+    const sel = document.getElementById('predio-select');
+    sel.innerHTML = '<option value="">— Selecciona un predio —</option>';
+    Object.keys(prediosAgrupados).sort().forEach(id=>{
+      const o=document.createElement('option'); o.value=id; o.textContent=id; sel.appendChild(o);
+    });
+  } catch(e) { console.error('Error cargando predios:',e); }
+}
+
+function seleccionarPredio(id) {
+  if (!id) { limpiarPredioa(); return; }
+  predioSelId = id;
+  const p = prediosAgrupados[id];
+  if (!p) return;
+  document.getElementById('info-id').textContent      = p.id;
+  document.getElementById('info-area-ha').textContent = p.area_ha.toFixed(2);
+  document.getElementById('predio-info-box').classList.add('visible');
+  document.getElementById('predio-controles').style.display = 'block';
+  renderCapaPredioa(); centrarPredioa(); aplicarFiltros();
+}
+
+function renderCapaPredioa() {
+  if (capaPredioa) { map.removeLayer(capaPredioa); capaPredioa=null; }
+  if (capaRadio)   { map.removeLayer(capaRadio);   capaRadio=null;   }
+  if (!predioSelId) return;
+  const p = prediosAgrupados[predioSelId];
+  capaPredioa = L.geoJSON(p.features,{
+    style:f=>{ const v=f.properties[atributoActual]||'Sin dato'; return {color:'#fff',weight:1.5,fillColor:obtenerColor(atributoActual,v),fillOpacity:opacidadActual}; },
+    onEachFeature:(f,layer)=>layer.bindPopup(`
+      <div class="popup-title verde">${p.id}</div>
+      <div class="popup-row">Cobertura <span>${f.properties.cobertura||'—'}</span></div>
+      <div class="popup-row">Uso actual <span>${f.properties.uso_actual||'—'}</span></div>
+      <div class="popup-row">Área polígono (ha) <span>${f.properties.area_ha?Number(f.properties.area_ha).toFixed(2):'—'}</span></div>
+      <div class="popup-row">Total predio (ha) <span>${p.area_ha.toFixed(2)}</span></div>`)
+  }).addTo(map);
+  const ctr = capaPredioa.getBounds().getCenter();
+  capaRadio = L.circle(ctr,{radius:radioKm*1000,color:'#f5a623',weight:1.5,dashArray:'6 4',fillColor:'#f5a623',fillOpacity:0.04}).addTo(map);
+  renderLeyenda(); actualizarBadgeArea(); aplicarFiltros();
+}
+
+function centrarPredioa() { if(capaPredioa) map.fitBounds(capaPredioa.getBounds().pad(0.3)); }
+
+function limpiarPredioa() {
+  predioSelId = null;
+  if (capaPredioa){map.removeLayer(capaPredioa);capaPredioa=null;}
+  if (capaRadio)  {map.removeLayer(capaRadio);  capaRadio=null;  }
+  document.getElementById('predio-select').value='';
+  document.getElementById('predio-info-box').classList.remove('visible');
+  document.getElementById('predio-controles').style.display='none';
+  document.getElementById('leyenda-colores').innerHTML='';
+  document.getElementById('info-alertas').textContent='—';
+  document.getElementById('info-defor').textContent='—';
+  actualizarBadgeArea(); aplicarFiltros();
+}
+
+function cambiarAtributo(attr,btn) { atributoActual=attr; document.querySelectorAll('.attr-btn').forEach(b=>b.classList.remove('activo')); btn.classList.add('activo'); renderCapaPredioa(); }
+function cambiarOpacidad(val) { opacidadActual=val/100; document.getElementById('val-opacidad').textContent=val+'%'; if(capaPredioa) capaPredioa.setStyle({fillOpacity:opacidadActual}); }
+function cambiarRadio(val) { radioKm=parseInt(val); document.getElementById('val-radio').textContent=val+' km'; if(capaRadio) capaRadio.setRadius(radioKm*1000); actualizarBadgeArea(); aplicarFiltros(); }
+function renderLeyenda() {
+  const mc=mapaColores[atributoActual]||{};
+  document.getElementById('leyenda-colores').innerHTML=Object.entries(mc).map(([v,c])=>`<div class="leyenda-item"><div class="leyenda-color" style="background:${c}"></div><span class="leyenda-txt">${v}</span></div>`).join('');
+}
+
+// ── Filtros ───────────────────────────────────────────────────────────────────
+function puntoEnArea(lat,lng,area) {
+  if (!area) return true;
+  if (area.tipo==='circulo') {
+    const d=Math.sqrt(Math.pow((lat-area.lat)*111,2)+Math.pow((lng-area.lng)*111*Math.cos(area.lat*Math.PI/180),2));
+    return d<=area.radio;
+  }
+  let dentro=false; const c=area.coords;
+  for(let i=0,j=c.length-1;i<c.length;j=i++){const xi=c[i][0],yi=c[i][1],xj=c[j][0],yj=c[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))dentro=!dentro;}
+  return dentro;
+}
+function alertasEnPeriodo(arr) {
+  const ini=new Date(Date.now()-diasActual*864e5);
+  return arr.filter(a=>new Date(a.fecha_deteccion)>=ini);
+}
+
+function aplicarFiltros() {
+  let firms=alertasEnPeriodo(todasAlertas);
+  if (filtroActual!=='all') firms=firms.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
+  const area=obtenerAreaFiltroActiva();
+  const firmsArea=area?firms.filter(a=>puntoEnArea(a.latitud,a.longitud,area)):firms;
+  const deforPeriodo=alertasEnPeriodo(alertasDefor);
+  const deforArea=area?deforPeriodo.filter(a=>puntoEnArea(a.latitud,a.longitud,area)):deforPeriodo;
+  actualizarStats(firms,firmsArea,deforArea);
+  renderMarcadores(firmsArea);
+  if (tabActual==='incendios') renderLista(firmsArea,'incendios');
+  else renderLista(deforArea,'deforestacion');
+  if (predioSelId) {
+    document.getElementById('info-alertas').textContent=firmsArea.length;
+    document.getElementById('info-defor').textContent=deforArea.length;
+  }
+  actualizarBadgeArea();
+  setTimeout(filtrarDeforestacion,0);
+  // Refiltrar capas GFW también
+  Object.keys(gfwCapas).forEach(k=>{ if(gfwCapas[k].visible && k!=='hansen') filtrarGFW(k); });
+}
+
+function actualizarStats(firms,firmsArea,deforArea) {
+  const area=obtenerAreaFiltroActiva();
+  document.getElementById('total-alertas').textContent = area?firmsArea.length:firms.length;
+  document.getElementById('total-defor').textContent   = deforArea.length;
+  document.getElementById('total-high').textContent    = firms.filter(a=>(a.firms_confidence||'').toLowerCase()==='high').length;
+  const frps=firms.map(a=>a.firms_frp||0).filter(Boolean);
+  document.getElementById('total-frp').textContent = frps.length?Math.max(...frps).toFixed(0):'0';
+}
+
+function colorConfianza(c) {
+  if(!c)return'#f5a623';const cl=c.toLowerCase();
+  if(cl==='high')return'#e8480a';if(cl==='nominal')return'#f5a623';return'#4caf7d';
+}
+function renderMarcadores(alertas) {
+  marcadores.forEach(m=>map.removeLayer(m)); marcadores=[];
+  alertas.forEach(a=>{
+    const color=colorConfianza(a.firms_confidence);
+    const m=L.circleMarker([a.latitud,a.longitud],{radius:Math.max(5,Math.min(16,(a.firms_frp||5)/8)),fillColor:color,color,weight:1.5,opacity:.9,fillOpacity:.7}).addTo(map);
+    const fecha=new Date(a.fecha_deteccion).toLocaleString('es-CO',{timeZone:'America/Bogota'});
+    m.bindPopup(`<div class="popup-title">Incendio activo</div><div class="popup-row">Coords <span>${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</span></div><div class="popup-row">Confianza <span>${a.firms_confidence||'N/A'}</span></div><div class="popup-row">FRP <span>${a.firms_frp?a.firms_frp.toFixed(1)+' MW':'N/A'}</span></div><div class="popup-row">Satélite <span>${a.firms_satellite||'VIIRS'}</span></div><div class="popup-row">Detectado <span>${fecha}</span></div>`);
+    marcadores.push(m);
+  });
+}
+
+function cambiarTab(tab,btn) {
+  tabActual=tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('activo'));
+  btn.classList.add('activo');
+  aplicarFiltros();
+}
+function renderLista(alertas,tipo) {
+  const el=document.getElementById('lista-alertas');
+  if (!alertas.length){el.innerHTML='<div class="loading">Sin alertas en este período</div>';return;}
+  if (tipo==='incendios') {
+    el.innerHTML=alertas.map((a,i)=>{
+      const conf=(a.firms_confidence||'low').toLowerCase();
+      const fecha=new Date(a.fecha_deteccion).toLocaleString('es-CO',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'America/Bogota'});
+      return `<div class="alerta-item" onclick="centrarEn(${i})"><div class="alerta-dot ${conf}"></div><div class="alerta-info"><div class="alerta-coords">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div><div class="alerta-meta">${fecha} · ${a.firms_satellite||'VIIRS'}</div></div><div class="alerta-frp">${a.firms_frp?a.firms_frp.toFixed(0)+' MW':'—'}</div></div>`;
+    }).join('');
+  } else {
+    el.innerHTML=alertas.map((a,i)=>{
+      const fecha=new Date(a.fecha_deteccion+'T12:00:00').toLocaleDateString('es-CO');
+      return `<div class="alerta-item" onclick="centrarEnDefor(${i})"><div class="alerta-dot defor-${a.severidad}"></div><div class="alerta-info"><div class="alerta-coords">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div><div class="alerta-meta">${fecha} · ${a.predio_id}</div></div><div class="alerta-frp" style="color:#eab308">${a.area_afectada_ha||'?'} ha</div></div>`;
+    }).join('');
+  }
+}
+function centrarEn(i)      { if(marcadores[i]){map.setView(marcadores[i].getLatLng(),13);marcadores[i].openPopup();} }
+function centrarEnDefor(i) {
+  const area=obtenerAreaFiltroActiva();
+  const deforFiltrada=area?alertasDefor.filter(a=>puntoEnArea(a.latitud,a.longitud,area)):alertasDefor;
+  const a=deforFiltrada[i];
+  if(a){map.setView([a.latitud,a.longitud],13);marcadoresDefor.find(m=>{const ll=m.getLatLng();return Math.abs(ll.lat-a.latitud)<0.0001;})?.openPopup();}
+}
+function cambiarPeriodo(btn) { document.querySelectorAll('.periodo-btn').forEach(b=>b.classList.remove('activo')); btn.classList.add('activo'); diasActual=parseInt(btn.dataset.dias); if(deforVisible)cargarDeforestacion();else aplicarFiltros(); }
+function filtrar(btn) { document.querySelectorAll('.filtro-btn').forEach(b=>b.classList.remove('activo')); btn.classList.add('activo'); filtroActual=btn.dataset.filtro; aplicarFiltros(); }
+
+// ── Dibujo manual ─────────────────────────────────────────────────────────────
+function activarHerramienta(tipo) {
+  limpiarAreaDibujada();
+  document.getElementById('hint-dibujo').classList.add('visible');
+  if(tipo==='poligono') {
+    document.getElementById('btn-poligono').classList.add('activo');
+    new L.Draw.Polygon(map,{shapeOptions:{color:'#f5a623',weight:2,fillOpacity:0.08}}).enable();
+  } else {
+    document.getElementById('btn-punto').classList.add('activo');
+    map.once('click',function(e){
+      drawnItems.addLayer(L.circle(e.latlng,{radius:10000,color:'#f5a623',weight:2,fillOpacity:0.06}));
+      areaFiltro={tipo:'circulo',lat:e.latlng.lat,lng:e.latlng.lng,radio:10};
+      document.getElementById('btn-punto').classList.remove('activo');
+      document.getElementById('hint-dibujo').classList.remove('visible');
+      actualizarBadgeArea(); aplicarFiltros();
+    });
+  }
+}
+map.on(L.Draw.Event.CREATED,function(e){
+  drawnItems.addLayer(e.layer);
+  areaFiltro={tipo:'poligono',coords:e.layer.toGeoJSON().geometry.coordinates[0]};
+  document.getElementById('btn-poligono').classList.remove('activo');
+  document.getElementById('hint-dibujo').classList.remove('visible');
+  actualizarBadgeArea(); aplicarFiltros();
+});
+function limpiarAreaDibujada() {
+  drawnItems.clearLayers(); areaFiltro=null;
+  ['btn-poligono','btn-punto'].forEach(id=>document.getElementById(id).classList.remove('activo'));
+  document.getElementById('hint-dibujo').classList.remove('visible');
+  actualizarBadgeArea(); aplicarFiltros();
+}
+
+// ── Descarga CSV ──────────────────────────────────────────────────────────────
+function alertasActualesIncendios() {
+  let r=alertasEnPeriodo(todasAlertas);
+  if(filtroActual!=='all')r=r.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
+  const area=obtenerAreaFiltroActiva();
+  if(area)r=r.filter(a=>puntoEnArea(a.latitud,a.longitud,area));
+  return r;
+}
+function alertasActualesDefor() {
+  let r=alertasEnPeriodo(alertasDefor);
+  const area=obtenerAreaFiltroActiva();
+  if(area)r=r.filter(a=>puntoEnArea(a.latitud,a.longitud,area));
+  return r;
+}
+function descargarCSV(modo) {
+  const hoy=new Date().toISOString().slice(0,10);
+  if(modo==='incendios'){
+    const d=alertasActualesIncendios();
+    if(!d.length){alert('No hay alertas de incendio para exportar.');return;}
+    const cab='tipo,fecha_deteccion,latitud,longitud,confianza,frp_mw,satelite,estado';
+    const rows=d.map(a=>['incendio',a.fecha_deteccion,a.latitud,a.longitud,a.firms_confidence||'',a.firms_frp||'',a.firms_satellite||'',a.estado].join(','));
+    _dl([cab,...rows].join('\n'),`incendios_chameza_${hoy}.csv`);
+  } else if(modo==='deforestacion'){
+    const d=alertasActualesDefor();
+    if(!d.length){alert('No hay alertas de deforestación para exportar.');return;}
+    const cab='tipo,fecha_deteccion,predio_id,latitud,longitud,ndvi_antes,ndvi_despues,cambio_ndvi,area_ha,severidad,estado';
+    const rows=d.map(a=>['deforestacion',a.fecha_deteccion,a.predio_id,a.latitud,a.longitud,a.ndvi_antes||'',a.ndvi_despues||'',a.cambio_ndvi||'',a.area_afectada_ha||'',a.severidad,a.estado].join(','));
+    _dl([cab,...rows].join('\n'),`deforestacion_chameza_${hoy}.csv`);
+  } else {
+    const fi=alertasActualesIncendios(),fd=alertasActualesDefor();
+    if(!fi.length&&!fd.length){alert('No hay datos para exportar.');return;}
+    const cab='tipo,fecha_deteccion,latitud,longitud,detalle_1,detalle_2,detalle_3,detalle_4,estado';
+    const ri=fi.map(a=>['incendio',a.fecha_deteccion,a.latitud,a.longitud,a.firms_confidence||'',a.firms_frp||'',a.firms_satellite||'','',a.estado].join(','));
+    const rd=fd.map(a=>['deforestacion',a.fecha_deteccion,a.latitud,a.longitud,a.predio_id,a.cambio_ndvi||'',a.area_afectada_ha||'',a.severidad,a.estado].join(','));
+    _dl([cab,...ri,...rd].join('\n'),`reporte_combinado_chameza_${hoy}.csv`);
+  }
+}
+function _dl(content,filename){const blob=new Blob([content],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);}
+
+// ── Descarga PDF ──────────────────────────────────────────────────────────────
+function descargarPDF(modo) {
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF();
+  const hoy=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota'});
+  const periodo=diasActual===1?'Últimas 24 h':diasActual===7?'Últimos 7 días':'Últimos 30 días';
+  const areaLabel=predioSelId?`Predio: ${predioSelId} · buffer ${radioKm} km`:areaFiltro?'Área dibujada en mapa':'Área completa';
+  doc.setFillColor(13,31,21);doc.rect(0,0,210,36,'F');
+  doc.setTextColor(76,175,125);doc.setFontSize(15);doc.setFont('helvetica','bold');
+  const titulo=modo==='incendios'?'Reporte de Incendios':modo==='deforestacion'?'Reporte de Deforestación':'Reporte Combinado · Incendios & Deforestación';
+  doc.text(titulo,14,14);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(122,171,138);
+  doc.text(`Chámeza, Casanare · ${hoy} · ${periodo} · ${areaLabel}`,14,24);
+  doc.setTextColor(180,220,195);
+  doc.text('Fuente: NASA FIRMS + Google Earth Engine / Sentinel-2 · CBC Cunaguaro / TFCA Colombia',14,32);
+  let y=44;
+  if(modo!=='deforestacion'){
+    const fi=alertasActualesIncendios();
+    doc.setFillColor(30,53,40);doc.rect(0,y,210,9,'F');
+    doc.setTextColor(255,112,67);doc.setFontSize(11);doc.setFont('helvetica','bold');
+    doc.text(`INCENDIOS ACTIVOS (${fi.length})`,14,y+6);y+=13;
+    if(fi.length===0){doc.setFont('helvetica','italic');doc.setTextColor(122,171,138);doc.setFontSize(9);doc.text('Sin alertas de incendio en este período.',14,y);y+=10;}
+    else{
+      doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setFillColor(220,240,228);
+      doc.rect(14,y,182,7,'F');doc.setTextColor(40,40,40);
+      doc.text('Fecha',16,y+5);doc.text('Lat',68,y+5);doc.text('Lon',92,y+5);
+      doc.text('Confianza',116,y+5);doc.text('FRP (MW)',146,y+5);doc.text('Satélite',172,y+5);
+      y+=9;doc.setFont('helvetica','normal');
+      fi.slice(0,40).forEach((a,i)=>{
+        if(y>272){doc.addPage();y=20;}
+        if(i%2===0){doc.setFillColor(248,252,249);doc.rect(14,y-4,182,7,'F');}
+        const f=new Date(a.fecha_deteccion).toLocaleString('es-CO',{timeZone:'America/Bogota',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+        doc.setTextColor(40,40,40);
+        doc.text(f,16,y);doc.text(a.latitud.toFixed(4),68,y);doc.text(a.longitud.toFixed(4),92,y);
+        doc.text(a.firms_confidence||'—',116,y);doc.text(a.firms_frp?a.firms_frp.toFixed(1):'—',146,y);
+        doc.text(a.firms_satellite||'—',172,y);y+=7;
+      });
+      if(fi.length>40){doc.setFont('helvetica','italic');doc.setTextColor(120,120,120);doc.text(`... y ${fi.length-40} más. Usa CSV para el listado completo.`,14,y+3);y+=8;}
+    }
+    y+=6;
+  }
+  if(modo!=='incendios'){
+    const fd=alertasActualesDefor();
+    if(y>240){doc.addPage();y=20;}
+    doc.setFillColor(30,53,40);doc.rect(0,y,210,9,'F');
+    doc.setTextColor(234,179,8);doc.setFontSize(11);doc.setFont('helvetica','bold');
+    doc.text(`DEFORESTACION (${fd.length})`,14,y+6);y+=13;
+    if(fd.length===0){doc.setFont('helvetica','italic');doc.setTextColor(122,171,138);doc.setFontSize(9);doc.text('Sin alertas de deforestación en este período.',14,y);y+=10;}
+    else{
+      const sev={leve:0,moderada:0,severa:0};
+      fd.forEach(a=>{if(sev[a.severidad]!==undefined)sev[a.severidad]++;});
+      const haTotal=fd.reduce((s,a)=>s+(a.area_afectada_ha||0),0).toFixed(1);
+      doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(40,40,40);
+      doc.text(`Área total afectada: ${haTotal} ha  ·  Severa: ${sev.severa}  ·  Moderada: ${sev.moderada}  ·  Leve: ${sev.leve}`,14,y);y+=8;
+      doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setFillColor(220,240,228);
+      doc.rect(14,y,182,7,'F');doc.setTextColor(40,40,40);
+      doc.text('Fecha',16,y+5);doc.text('Predio/Zona',54,y+5);doc.text('Lat',110,y+5);
+      doc.text('NDVI',128,y+5);doc.text('Área (ha)',148,y+5);doc.text('Severidad',172,y+5);
+      y+=9;doc.setFont('helvetica','normal');
+      fd.slice(0,40).forEach((a,i)=>{
+        if(y>272){doc.addPage();y=20;}
+        if(i%2===0){doc.setFillColor(248,252,249);doc.rect(14,y-4,182,7,'F');}
+        const f=new Date(a.fecha_deteccion+'T12:00:00').toLocaleDateString('es-CO');
+        const scolor={'severa':[220,38,38],'moderada':[249,115,22],'leve':[234,179,8]}[a.severidad]||[40,40,40];
+        doc.setTextColor(40,40,40);
+        doc.text(f,16,y);doc.text((a.predio_id||'').slice(0,22),54,y);
+        doc.text(a.latitud?.toFixed(4)||'—',110,y);
+        doc.text(a.cambio_ndvi!=null?Number(a.cambio_ndvi).toFixed(3):'—',128,y);
+        doc.text(a.area_afectada_ha!=null?String(a.area_afectada_ha):'—',148,y);
+        doc.setTextColor(...scolor);doc.text(a.severidad||'—',172,y);y+=7;
+      });
+      if(fd.length>40){doc.setFont('helvetica','italic');doc.setTextColor(120,120,120);doc.text(`... y ${fd.length-40} más.`,14,y+3);y+=8;}
+    }
+  }
+  doc.setFontSize(7);doc.setTextColor(120,120,120);doc.setFont('helvetica','normal');
+  doc.text('Sistema de monitoreo participativo · CBC Cunaguaro · TFCA Colombia · datos: NASA FIRMS + GEE Sentinel-2',14,290);
+  doc.save(`reporte_${modo}_chameza_${new Date().toISOString().slice(0,10)}.pdf`);
+}
+
+// ── Capas informativas ────────────────────────────────────────────────────────
+async function toggleCapa(key,visible) {
+  const group=capasInfo[key];
+  if(!visible){
+    group.clearLayers();
+    if(key==='perdidas')document.getElementById('sub-perdidas').classList.remove('visible');
+    if(key==='conectividad')document.getElementById('sub-conectividad').classList.remove('visible');
+    return;
+  }
+  if(key==='perdidas')document.getElementById('sub-perdidas').classList.add('visible');
+  if(key==='conectividad')document.getElementById('sub-conectividad').classList.add('visible');
+  try {
+    if(key==='conectividad'){
+      if(!georasterConectividad){const r=await fetch(URLS.conectividad);georasterConectividad=await parseGeoraster(await r.arrayBuffer());}
+      renderRasterConectividad();return;
+    }
+    const data=await(await fetch(URLS[key])).json();
+    if(key==='perdidas'){datosPerdidas=data;actualizarPerdidas();return;}
+    let style={};
+    if(key==='municipio')style={color:'#000',weight:2,fillOpacity:0};
+    if(key==='estudio')  style={color:'#f00',weight:2,fillOpacity:0};
+    if(key==='bosque')   style={color:'#4caf7d',weight:1,fillOpacity:0.5};
+    const layer=L.geoJSON(data,{style,onEachFeature:(f,l)=>{if(key==='bosque')l.on('add',()=>{if(l._path)l._path.setAttribute('fill','url(#hatch)');});}});
+    group.addLayer(layer);
+  } catch(e){console.error(`Error capa ${key}:`,e);}
+}
+function actualizarPerdidas(){
+  if(!datosPerdidas)return;
+  const group=capasInfo.perdidas;group.clearLayers();
+  const ys=document.getElementById('sel-year').value;
+  const cy={'20':'#eab308','21':'#f97316','22':'#ef4444','23':'#ec4899','24':'#a855f7'};
+  L.geoJSON(datosPerdidas,{
+    filter:f=>ys==='all'||String(f.properties.year)===ys,
+    pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:4,fillColor:cy[String(f.properties.year)]||'#fff',color:'#000',weight:1,fillOpacity:0.8}).bindPopup(`Pérdida · Año: 20${f.properties.year}`)
+  }).addTo(group);
+}
+function actualizarConectividad(val){cuantilMinimo=parseInt(val);document.getElementById('val-cuantil').textContent=val;if(capasInfo.conectividad.getLayers().length>0)renderRasterConectividad();}
+function renderRasterConectividad(){
+  if(!georasterConectividad)return;
+  const g=capasInfo.conectividad;g.clearLayers();
+  g.addLayer(new GeoRasterLayer({georaster:georasterConectividad,opacity:0.7,pixelValuesToColorFn:v=>{const n=Math.round(v[0]);if(n<cuantilMinimo||n>10||isNaN(n))return null;return turboColors[n];},resolution:256}));
+}
+
+// ── Alertas Supabase ──────────────────────────────────────────────────────────
+async function cargarAlertas() {
+  try {
+    const r=await fetch(`${SUPABASE_URL}/rest/v1/alertas?select=*&order=fecha_deteccion.desc&limit=500`,{headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`}});
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    todasAlertas=await r.json();aplicarFiltros();
+  } catch(e){document.getElementById('lista-alertas').innerHTML=`<div class="loading">Error: ${e.message}</div>`;}
+}
+
+// ── Deforestación GEE ─────────────────────────────────────────────────────────
+async function toggleDeforestacion(visible) {
+  deforVisible=visible;
+  document.getElementById('sub-deforestacion').classList.toggle('visible',visible);
+  if(!visible){marcadoresDefor.forEach(m=>map.removeLayer(m));marcadoresDefor=[];document.getElementById('defor-stats').innerHTML='';aplicarFiltros();return;}
+  await cargarDeforestacion();
+}
+async function cargarDeforestacion() {
+  if(!deforVisible)return;
+  try {
+    const dias=parseInt(document.getElementById('sel-defor-periodo').value);
+    const ini=new Date(Date.now()-dias*864e5).toISOString().slice(0,10);
+    const r=await fetch(`${SUPABASE_URL}/rest/v1/alertas_deforestacion?select=*&fecha_deteccion=gte.${ini}&order=fecha_deteccion.desc&limit=500`,{headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`}});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    alertasDefor=await r.json();filtrarDeforestacion();aplicarFiltros();
+  } catch(e){console.error('Error defor:',e);document.getElementById('defor-stats').textContent='Error cargando datos.';}
+}
+function filtrarDeforestacion() {
+  if(!deforVisible)return;
+  const sev=document.getElementById('sel-defor-severidad').value;
+  const area=obtenerAreaFiltroActiva();
+  let f=sev==='all'?alertasDefor:alertasDefor.filter(a=>a.severidad===sev);
+  if(area)f=f.filter(a=>puntoEnArea(a.latitud,a.longitud,area));
+  marcadoresDefor.forEach(m=>map.removeLayer(m));marcadoresDefor=[];
+  f.forEach(a=>{
+    const color=COLORES_SEV[a.severidad]||'#f97316';
+    const r=a.severidad==='severa'?10:a.severidad==='moderada'?7:5;
+    const m=L.circleMarker([a.latitud,a.longitud],{radius:r,fillColor:color,color:'#fff',weight:1.5,fillOpacity:0.85}).addTo(map);
+    const fecha=new Date(a.fecha_deteccion+'T12:00:00').toLocaleDateString('es-CO');
+    m.bindPopup(`<div class="popup-title" style="color:${color}">Deforestación · ${a.severidad}</div><div class="popup-row">Predio/Zona <span>${a.predio_id}</span></div><div class="popup-row">Fecha <span>${fecha}</span></div><div class="popup-row">NDVI antes <span>${a.ndvi_antes!=null?Number(a.ndvi_antes).toFixed(3):'-'}</span></div><div class="popup-row">NDVI después <span>${a.ndvi_despues!=null?Number(a.ndvi_despues).toFixed(3):'-'}</span></div><div class="popup-row">Δ NDVI <span>${a.cambio_ndvi!=null?Number(a.cambio_ndvi).toFixed(3):'-'}</span></div><div class="popup-row">Área afectada <span>${a.area_afectada_ha??'-'} ha</span></div><div class="popup-row">Estado <span>${a.estado}</span></div>`);
+    marcadoresDefor.push(m);
+  });
+  const ss=f.filter(a=>a.severidad==='severa').length;
+  const sm=f.filter(a=>a.severidad==='moderada').length;
+  const sl=f.filter(a=>a.severidad==='leve').length;
+  const areaLabel=area?(predioSelId?` (predio + buffer ${radioKm} km)`:' (área dibujada)'):'';
+  document.getElementById('defor-stats').innerHTML=`<div style="color:var(--texto-m);font-size:10px;margin-bottom:3px">${f.length} alertas${areaLabel}</div><span style="color:#dc2626">● ${ss} severa</span> &nbsp;<span style="color:#f97316">● ${sm} moderada</span> &nbsp;<span style="color:#eab308">● ${sl} leve</span>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// GFW — Global Forest Watch Integration
 // GLAD/RADD/Hansen → Tiles dinámicos (raster)
 // Fires → query vectorial REST  |  Descarga → /download/csv API
 // ══════════════════════════════════════════════════════════════
