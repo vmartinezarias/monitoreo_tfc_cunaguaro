@@ -492,28 +492,8 @@
         </button>
       </div>
 
-      <!-- VIIRS/MODIS GFW Fires -->
-      <label class="capa-row gfw">
-        <input type="checkbox" id="chk-fires" onchange="toggleGFW('fires', this.checked)">
-        <span class="capa-label">🔥 Incendios GFW <span style="font-size:10px;color:var(--texto-m)">(VIIRS/MODIS)</span></span>
-      </label>
-      <div class="capa-sub" id="sub-fires">
-        <div class="gfw-sub-info">Puntos de calor activos · actualización cada 3 h</div>
-        <select class="year-select" id="sel-fires-periodo" onchange="filtrarGFW('fires')" style="margin-bottom:6px">
-          <option value="1">Últimas 24 h</option>
-          <option value="2">Últimas 48 h</option>
-          <option value="7" selected>Últimos 7 días</option>
-        </select>
-        <div class="gfw-leyenda">
-          <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#ff2200;box-shadow:0 0 6px #ff2200"></div><span class="gfw-leyenda-txt">Alta confianza (VIIRS)</span></div>
-          <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#ff8800"></div><span class="gfw-leyenda-txt">Confianza media</span></div>
-          <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#ffcc00"></div><span class="gfw-leyenda-txt">Baja confianza</span></div>
-        </div>
-        <div class="gfw-stats-box" id="stats-fires">Sin datos cargados</div>
-        <button class="dl-btn" style="width:100%;margin-top:6px;border-color:rgba(232,72,10,.4);color:var(--fuego-l)" onclick="descargarGFW('fires')">
-          ⬇ Descargar CSV incendios GFW
-        </button>
-      </div>
+      <!-- Incendios GFW eliminados: ya cubiertos por NASA FIRMS en Supabase -->
+      <div style="display:none" id="sub-fires"><div id="stats-fires"></div></div>
     </div>
 <!-- FIN GFW -->
 
@@ -1271,11 +1251,11 @@ const GFW_CFG = {
     dataset: 'wur_radd_alerts',
     sqlFn: (s,e) =>
       `SELECT latitude, longitude,
-              alert__date                 AS fecha,
+              wur_radd_alerts__date       AS fecha,
               wur_radd_alerts__confidence AS confianza
        FROM results
-       WHERE alert__date >= '${s}'
-         AND alert__date <= '${e}'`,
+       WHERE wur_radd_alerts__date >= '${s}'
+         AND wur_radd_alerts__date <= '${e}'`,
     colorFn: row => {
       const c = (row.confianza||'').toLowerCase();
       return c === 'confirmed' ? '#7c3aed' : '#a78bfa';
