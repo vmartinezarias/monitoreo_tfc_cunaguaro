@@ -1,541 +1,429 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="h-full">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Monitor Bosques — Chameza</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --verde:   #1a4a2e; --verde-m: #2d7a4f; --verde-l: #4caf7d;
-      --fuego:   #e8480a; --fuego-l: #ff7043; --amber:   #f5a623;
-      --fondo:   #f4f6f3; --panel:   #ffffff; --borde:   #dde8e1;
-      --texto:   #1e3528; --texto-m: #5a8068; --blanco:  #ffffff;
-      --gfw:     #00b4d8; --gfw-l:   #0096b4;
-      --sombra:  0 2px 12px rgba(26,74,46,.10);
+      --verde: #1a4a2e; --verde-m: #2d7a4f; --verde-l: #4caf7d;
+      --fuego: #e8480a; --fuego-l: #ff7043; --amber: #f5a623;
+      --gfw: #00b4d8; --gfw-l: #0096b4;
     }
-    html, body { height:100%; font-family:'Syne',sans-serif; background:var(--fondo); color:var(--texto); }
-    .app { display:grid; grid-template-rows:56px 1fr; grid-template-columns:320px 1fr; height:100vh; }
+    body { font-family: 'Inter', sans-serif; background: #f0f4f1; }
+    .glass { background: rgba(255,255,255,0.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.55); box-shadow: 0 8px 32px rgba(0,0,0,0.06); }
+    .syne { font-family: 'Syne', sans-serif; }
+    .mono { font-family: 'Space Mono', monospace; }
 
-    /* ── Header ── */
-    header { grid-column:1/-1; background:var(--verde); border-bottom:1px solid rgba(255,255,255,.1); display:flex; align-items:center; gap:14px; padding:0 20px; box-shadow:0 2px 8px rgba(0,0,0,.18); }
-    header img { height:32px; object-fit:contain; filter:brightness(0) invert(1); opacity:.9; }
-    header h1 { font-size:14px; font-weight:800; letter-spacing:.04em; color:#fff; }
-    header h1 span { color:var(--verde-l); }
-    .badge-live { margin-left:auto; display:flex; align-items:center; gap:6px; font-family:'Space Mono',monospace; font-size:11px; color:var(--verde-l); }
-    .dot { width:6px; height:6px; border-radius:50%; background:var(--verde-l); animation:pulse 2s infinite; }
+    /* Scrollbar */
+    .scroll::-webkit-scrollbar { width: 4px; }
+    .scroll::-webkit-scrollbar-track { background: transparent; }
+    .scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 10px; }
+
+    /* Mapa */
+    #map { height: 100%; width: 100%; }
+    .leaflet-container { background: #e8eee5 !important; }
+    .leaflet-popup-content-wrapper { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; box-shadow: 0 8px 30px rgba(0,0,0,0.12); color: #1e293b; font-family: 'Inter', sans-serif; }
+    .leaflet-popup-tip { background: #fff; }
+    .popup-title { font-size: 13px; font-weight: 700; color: var(--fuego); margin-bottom: 6px; }
+    .popup-title.verde { color: var(--verde); }
+    .popup-title.gfw   { color: var(--gfw-l); }
+    .popup-row { font-size: 11px; color: #64748b; margin: 2px 0; }
+    .popup-row span { color: #1e293b; font-family: 'Space Mono', monospace; }
+
+    /* Periodo botones */
+    .btn-per { transition: all .15s; }
+    .btn-per.activo { background: var(--verde) !important; color: white !important; box-shadow: 0 4px 12px rgba(26,74,46,0.25); }
+
+    /* Tipo alerta */
+    .btn-tipo { transition: all .18s; border: 1.5px solid transparent; }
+    .btn-tipo.activo { border-color: var(--verde-l); background: rgba(76,175,125,0.09) !important; }
+    .btn-tipo.activo.fuego { border-color: var(--fuego-l) !important; background: rgba(232,72,10,0.07) !important; }
+    .btn-tipo.activo.gfw   { border-color: var(--gfw) !important; background: rgba(0,180,216,0.07) !important; }
+
+    /* Área opts */
+    .area-opt { transition: all .15s; border: 1.5px solid transparent; }
+    .area-opt.activo { border-color: var(--verde-l); background: rgba(76,175,125,0.08) !important; }
+
+    /* GFW */
+    .gfw-badge { font-size: 9px; font-weight: 700; letter-spacing: .1em; background: rgba(0,180,216,.12); border: 1px solid rgba(0,180,216,.3); color: var(--gfw-l); border-radius: 4px; padding: 2px 6px; text-transform: uppercase; }
+    .gfw-status { font-family: 'Space Mono', monospace; font-size: 10px; }
+    .gfw-status.ok  { color: #16a34a; }
+    .gfw-status.err { color: var(--fuego); }
+    .gfw-status.loading { color: var(--amber); }
+    .gfw-box { background: rgba(0,180,216,.05); border: 1px solid rgba(0,180,216,.18); border-radius: 8px; padding: 6px 10px; font-size: 10px; color: #475569; line-height: 1.7; }
+    .gfw-box span { color: var(--gfw-l); font-family: 'Space Mono', monospace; }
+
+    /* Tabs */
+    .tab-act { color: var(--verde); border-bottom: 2px solid var(--verde); }
+    .tab-inact { color: #94a3b8; border-bottom: 2px solid transparent; }
+
+    /* Bouncing Cunagüito */
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+    .float { animation: float 3s ease-in-out infinite; }
+
+    /* Cunagüito modal detail */
+    .cuna-detail-text b { color: var(--verde); font-weight: 600; }
+    .cuna-detail-text b.gfw { color: var(--gfw-l); }
+
+    /* Dot pulse */
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .dot-pulse { animation: pulse 2s infinite; }
 
-    /* ── Sidebar ── */
-    aside { background:var(--panel); border-right:1px solid var(--borde); overflow-y:auto; display:flex; flex-direction:column; box-shadow:var(--sombra); }
-    .panel-section { padding:14px 16px; border-bottom:1px solid var(--borde); }
-    .panel-title { font-size:10px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; color:var(--texto-m); margin-bottom:10px; }
+    /* Slider */
+    input[type=range] { accent-color: var(--gfw); }
 
-    /* ── Cunagüito banner ── */
-    .cuna-banner {
-      display:flex; align-items:center; gap:10px;
-      padding:10px 16px; background:linear-gradient(135deg,#1a4a2e,#2d7a4f);
-      cursor:pointer; transition:filter .2s;
-    }
-    .cuna-banner:hover { filter:brightness(1.1); }
-    .cuna-banner-avatar { width:38px; height:38px; border-radius:10px; object-fit:cover; border:2px solid rgba(76,175,125,.5); flex-shrink:0; background:#0d1f15; }
-    .cuna-banner-txt { flex:1; }
-    .cuna-banner-name { font-size:11px; font-weight:700; color:var(--verde-l); letter-spacing:.06em; }
-    .cuna-banner-sub  { font-size:10px; color:rgba(212,232,219,.7); margin-top:1px; }
-    .cuna-banner-arr  { font-size:16px; color:var(--verde-l); opacity:.7; }
-
-    /* ── Período ── */
-    .periodo-btns { display:flex; gap:6px; }
-    .periodo-btn { flex:1; padding:8px 0; border-radius:8px; border:1.5px solid var(--borde); background:transparent; color:var(--texto-m); font-family:'Syne',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all .15s; }
-    .periodo-btn.activo { background:var(--verde); border-color:var(--verde); color:#fff; box-shadow:0 2px 8px rgba(26,74,46,.25); }
-    .periodo-btn:hover:not(.activo) { border-color:var(--verde-l); color:var(--verde); }
-
-    /* ── Tipo alerta ── */
-    .tipo-btns { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    .tipo-btn {
-      display:flex; flex-direction:column; align-items:center; gap:5px;
-      padding:12px 8px; border-radius:10px; border:1.5px solid var(--borde);
-      background:transparent; cursor:pointer; transition:all .18s; font-family:'Syne',sans-serif;
-    }
-    .tipo-btn .tipo-icon { font-size:22px; }
-    .tipo-btn .tipo-label { font-size:11px; font-weight:700; color:var(--texto-m); text-align:center; line-height:1.3; }
-    .tipo-btn.activo.fuego { background:#fff4f0; border-color:var(--fuego-l); box-shadow:0 2px 8px rgba(232,72,10,.15); }
-    .tipo-btn.activo.fuego .tipo-label { color:var(--fuego); }
-    .tipo-btn.activo.gfw   { background:#f0fafd; border-color:var(--gfw);    box-shadow:0 2px 8px rgba(0,180,216,.15); }
-    .tipo-btn.activo.gfw   .tipo-label { color:var(--gfw-l); }
-    .tipo-btn:hover:not(.activo) { border-color:var(--verde-l); background:#f4faf7; }
-
-    /* ── Panel tipo: opciones según selección ── */
-    .tipo-panel { display:none; }
-    .tipo-panel.visible { display:block; }
-
-    /* Confianza incendios */
-    .filtros { display:flex; gap:6px; flex-wrap:wrap; }
-    .filtro-btn { padding:5px 11px; border-radius:20px; border:1.5px solid var(--borde); background:transparent; color:var(--texto-m); font-family:'Syne',sans-serif; font-size:11px; font-weight:600; cursor:pointer; transition:all .15s; }
-    .filtro-btn.activo { background:var(--fuego); border-color:var(--fuego); color:#fff; }
-
-    /* GFW opciones */
-    .gfw-badge { font-size:9px; font-weight:700; letter-spacing:.1em; background:rgba(0,180,216,.1); border:1px solid rgba(0,180,216,.35); color:var(--gfw-l); border-radius:4px; padding:2px 6px; text-transform:uppercase; }
-    .gfw-status { font-family:'Space Mono',monospace; font-size:10px; color:var(--texto-m); }
-    .gfw-status.ok  { color:#16a34a; }
-    .gfw-status.err { color:var(--fuego); }
-    .gfw-status.loading { color:var(--amber); }
-    .gfw-sub-info { font-size:10px; color:var(--texto-m); line-height:1.5; margin-bottom:6px; }
-    .gfw-stats-box { background:#f0fafd; border:1px solid rgba(0,180,216,.2); border-radius:6px; padding:6px 10px; margin-top:6px; font-size:10px; color:var(--texto-m); line-height:1.7; }
-    .gfw-stats-box span { color:var(--gfw-l); font-family:'Space Mono',monospace; }
-    .gfw-leyenda { margin-top:6px; }
-    .gfw-leyenda-item { display:flex; align-items:center; gap:6px; margin-bottom:3px; }
-    .gfw-leyenda-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-    .gfw-leyenda-txt { font-size:10px; color:var(--texto-m); }
-    .gfw-slider { width:100%; accent-color:var(--gfw); }
-    .slider-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-    .slider-label { font-size:11px; color:var(--texto-m); white-space:nowrap; }
-    .slider-val { font-family:'Space Mono',monospace; font-size:11px; color:var(--texto); min-width:28px; text-align:right; }
-
-    /* ── Área de análisis ── */
-    .area-opts { display:flex; flex-direction:column; gap:7px; }
-    .area-opt {
-      display:flex; align-items:center; gap:10px;
-      padding:9px 12px; border-radius:9px; border:1.5px solid var(--borde);
-      background:transparent; cursor:pointer; transition:all .15s; font-family:'Syne',sans-serif;
-      width:100%; text-align:left;
-    }
-    .area-opt input[type=checkbox] { width:16px; height:16px; accent-color:var(--verde); cursor:pointer; flex-shrink:0; }
-    .area-opt-txt { flex:1; }
-    .area-opt-label { font-size:12px; font-weight:700; color:var(--texto); display:block; }
-    .area-opt-sub   { font-size:10px; color:var(--texto-m); display:block; margin-top:1px; }
-    .area-opt.activo { border-color:var(--verde-l); background:#f4faf7; box-shadow:0 1px 6px rgba(26,74,46,.1); }
-    .area-activa-badge {
-      display:none; align-items:center; gap:6px; margin-top:8px;
-      padding:5px 10px; background:rgba(76,175,125,.1); border:1px solid rgba(76,175,125,.3);
-      border-radius:6px; font-size:11px; color:var(--verde-m); font-weight:600;
-    }
-    .area-activa-badge.visible { display:flex; }
-
-    /* ── Descarga ── */
-    .dl-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    .dl-btn { padding:9px 0; border-radius:9px; border:1.5px solid var(--borde); background:transparent; color:var(--texto-m); font-family:'Syne',sans-serif; font-size:12px; font-weight:700; cursor:pointer; transition:all .15s; text-align:center; }
-    .dl-btn:hover { border-color:var(--verde-l); color:var(--verde); background:#f4faf7; }
-    .dl-btn.csv { border-color:var(--verde-m); color:var(--verde); }
-    .dl-btn.csv:hover { background:var(--verde); color:#fff; }
-    .dl-btn.pdf { border-color:var(--fuego-l); color:var(--fuego); }
-    .dl-btn.pdf:hover { background:var(--fuego); color:#fff; }
-    .dl-btn.combo { grid-column:1/-1; background:var(--verde); color:#fff; border-color:var(--verde); }
-    .dl-btn.combo:hover { background:#1a4a2e; }
-
-    /* ── Capas opcionales (ocultas, mantenidas funcionales) ── */
-    .capas-extra { display:flex; flex-direction:column; gap:6px; }
-    .capa-row-light { display:flex; align-items:center; gap:8px; cursor:pointer; padding:4px 0; }
-    .capa-row-light input[type=checkbox] { accent-color:var(--verde-l); width:15px; height:15px; cursor:pointer; }
-    .capa-row-light .capa-label { font-size:12px; color:var(--texto); }
-    .capa-sub-light { margin-left:23px; margin-top:2px; margin-bottom:6px; display:none; }
-    .capa-sub-light.visible { display:block; }
-    .year-select { width:100%; padding:4px 8px; border-radius:6px; border:1.5px solid var(--borde); background:#f9fafb; color:var(--texto); font-size:11px; font-family:'Syne',sans-serif; }
-
-    /* ── Alertas lista ── */
-    .tabs { display:flex; border-bottom:2px solid var(--borde); margin-bottom:10px; }
-    .tab { flex:1; padding:7px 0; text-align:center; font-size:11px; font-weight:700; color:var(--texto-m); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .15s; letter-spacing:.04em; }
-    .tab.activo { color:var(--verde); border-bottom-color:var(--verde); }
-    .alerta-item { display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid var(--borde); cursor:pointer; transition:background .15s; }
-    .alerta-item:last-child { border-bottom:none; }
-    .alerta-item:hover { background:rgba(76,175,125,.05); margin:0 -16px; padding-left:16px; padding-right:16px; }
-    .alerta-dot { width:8px; height:8px; border-radius:50%; margin-top:4px; flex-shrink:0; }
-    .alerta-dot.high    { background:var(--fuego); box-shadow:0 0 5px var(--fuego); }
-    .alerta-dot.nominal { background:var(--amber); }
-    .alerta-dot.low     { background:var(--verde-l); }
-    .alerta-dot.defor-leve     { background:#eab308; border-radius:2px; }
-    .alerta-dot.defor-moderada { background:#f97316; border-radius:2px; }
-    .alerta-dot.defor-severa   { background:#dc2626; border-radius:2px; }
-    .alerta-info { flex:1; min-width:0; }
-    .alerta-coords { font-family:'Space Mono',monospace; font-size:11px; color:var(--texto); }
-    .alerta-meta   { font-size:11px; color:var(--texto-m); margin-top:2px; }
-    .alerta-frp    { font-family:'Space Mono',monospace; font-size:11px; color:var(--fuego); white-space:nowrap; }
-    .loading { display:flex; align-items:center; justify-content:center; gap:8px; padding:20px; color:var(--texto-m); font-size:13px; }
-    .spin { width:14px; height:14px; border:2px solid var(--borde); border-top-color:var(--verde-l); border-radius:50%; animation:spin .8s linear infinite; }
-    @keyframes spin { to { transform:rotate(360deg); } }
-
-    /* ── Stats ── */
-    .stats-mini { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:0; }
-    .stat-mini { background:var(--fondo); border:1.5px solid var(--borde); border-radius:8px; padding:8px 6px; text-align:center; }
-    .stat-mini-num { font-size:18px; font-weight:800; color:var(--texto); line-height:1; }
-    .stat-mini-num.fuego { color:var(--fuego); }
-    .stat-mini-num.defor { color:#ca8a04; }
-    .stat-mini-label { font-size:9px; color:var(--texto-m); margin-top:2px; line-height:1.2; }
-
-    /* ── Mapa ── */
-    #map { width:100%; height:100%; }
-    .leaflet-container { background:#e8eee5; }
-    .leaflet-popup-content-wrapper { background:var(--panel); border:1px solid var(--borde); border-radius:10px; color:var(--texto); box-shadow:0 8px 32px rgba(0,0,0,.15); }
-    .leaflet-popup-tip { background:var(--panel); }
-    .popup-title { font-size:13px; font-weight:700; color:var(--fuego); margin-bottom:6px; }
-    .popup-title.verde { color:var(--verde); }
-    .popup-title.gfw   { color:var(--gfw-l); }
-    .popup-row { font-size:12px; color:var(--texto-m); margin:2px 0; }
-    .popup-row span { color:var(--texto); font-family:'Space Mono',monospace; }
-
-    .panel-footer { margin-top:auto; padding:8px 16px; font-size:9px; color:var(--texto-m); border-top:1px solid var(--borde); }
-    .panel-footer a { color:var(--verde-m); text-decoration:none; }
-
-    @media (max-width:700px) {
-      .app { grid-template-columns:1fr; grid-template-rows:56px 360px 1fr; }
-      aside { border-right:none; border-bottom:1px solid var(--borde); }
-    }
-
-    /* ── Cunagüito modal ── */
-    .cuna-overlay { position:fixed; inset:0; z-index:9100; background:rgba(0,0,0,.45); backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center; }
-    .cuna-overlay.open { display:flex; }
-    .cuna-modal { background:#fff; border:1px solid var(--borde); border-radius:18px; width:490px; max-width:95vw; box-shadow:0 24px 70px rgba(0,0,0,.2); overflow:hidden; animation:cunaIn .28s cubic-bezier(.34,1.56,.64,1); }
-    @keyframes cunaIn { from{opacity:0;transform:scale(.86) translateY(14px)} to{opacity:1;transform:none} }
-    .cuna-header { display:flex; align-items:flex-start; gap:14px; padding:18px 20px 14px; border-bottom:1px solid var(--borde); background:linear-gradient(135deg,#1a4a2e,#2d7a4f); }
-    .cuna-avatar { width:72px; height:72px; border-radius:14px; object-fit:cover; flex-shrink:0; border:2px solid rgba(76,175,125,.5); background:#0d1f15; transition:opacity .3s; }
-    .cuna-header-text { flex:1; padding-top:4px; }
-    .cuna-header-name { font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--verde-l); margin-bottom:5px; }
-    .cuna-header-text p { font-size:13px; color:#d4e8db; line-height:1.55; margin:0; transition:opacity .25s; }
-    .cuna-close { background:none; border:none; color:rgba(255,255,255,.6); font-size:18px; cursor:pointer; padding:0 2px; transition:color .15s; line-height:1; flex-shrink:0; }
-    .cuna-close:hover { color:#fff; }
-    .cuna-body { padding:16px 20px 20px; }
-    .cuna-menu { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    .cuna-opt { display:flex; flex-direction:column; align-items:center; gap:7px; padding:16px 12px 14px; background:var(--fondo); border:1.5px solid var(--borde); border-radius:12px; cursor:pointer; transition:all .18s; text-align:center; }
-    .cuna-opt:hover { border-color:var(--verde-l); background:#f4faf7; transform:translateY(-2px); box-shadow:0 4px 16px rgba(26,74,46,.12); }
-    .cuna-opt.gfw-opt:hover { border-color:var(--gfw); background:#f0fafd; }
-    .cuna-opt-icon { font-size:24px; }
-    .cuna-opt-label { font-size:12px; font-weight:600; color:var(--texto); line-height:1.3; }
-    .cuna-opt-label small { display:block; font-size:10px; color:var(--texto-m); font-weight:400; margin-top:2px; }
-    .cuna-detail { display:none; flex-direction:column; gap:0; }
-    .cuna-detail.visible { display:flex; }
-    .cuna-detail-img { width:100%; height:190px; object-fit:cover; border-radius:12px; margin-bottom:13px; border:1px solid var(--borde); background:var(--fondo); }
-    .cuna-detail-text { font-size:13px; color:var(--texto); line-height:1.65; }
-    .cuna-detail-text b { color:var(--verde); font-weight:600; }
-    .cuna-detail-text b.gfw { color:var(--gfw-l); }
-    .cuna-back { margin-top:16px; padding:8px 0; background:transparent; border:1.5px solid var(--borde); border-radius:10px; color:var(--texto-m); font-family:'Syne',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all .15s; width:100%; letter-spacing:.03em; }
-    .cuna-back:hover { border-color:var(--verde-l); color:var(--verde); background:#f4faf7; }
-
-    /* hidden preserved elements */
-    #section-area, .predio-select, .predio-info-box, #predio-controles,
-    #hint-dibujo, #btn-poligono, #btn-punto, .area-badge { display:none !important; }
+    /* Hidden compatibility elements */
+    #section-area, #btn-poligono, #btn-punto,
+    #hint-dibujo, .area-badge { display: none !important; }
   </style>
 </head>
-<body>
-<div class="app">
+<body class="h-full flex flex-col overflow-hidden">
 
-  <header>
-    <img src="fondoaccion.png" alt="TFCA Fondo Acción">
-    <img src="cunaguaro.png"   alt="CBC Cunaguaro">
-    <h1>Monitor Bosques <span>Chameza</span></h1>
-    <div class="badge-live"><div class="dot"></div> En vivo · NASA FIRMS</div>
-  </header>
+<!-- ═══════════════ HEADER ═══════════════ -->
+<header class="relative z-20 flex items-center justify-between px-6 py-3 glass m-3 mb-0 rounded-2xl shrink-0">
+  <div class="flex items-center gap-4">
+    <div class="flex items-center gap-3">
+      <img src="fondoaccion.png" alt="Fondo Acción" class="h-8 object-contain">
+      <div class="w-px h-6 bg-slate-200"></div>
+      <img src="cunaguaro.png" alt="Cunaguaro" class="h-8 object-contain">
+    </div>
+    <div>
+      <h1 class="text-lg font-extrabold text-slate-800 tracking-tight syne leading-none">Monitor Bosques <span class="text-emerald-700">Chameza</span></h1>
+      <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-[.18em] mt-0.5">Plataforma de Monitoreo Territorial · CBC Cunaguaro</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-3">
+    <div class="hidden md:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-full">
+      <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 dot-pulse"></div>
+      <span class="text-[9px] font-bold uppercase tracking-widest text-emerald-700">NASA FIRMS · En vivo</span>
+    </div>
+    <!-- Stats mini en header -->
+    <div class="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-white/60 border border-slate-100 rounded-xl mono text-[10px] gap-4">
+      <div class="text-center"><div class="font-bold text-red-500" id="total-alertas">—</div><div class="text-slate-400" style="font-size:8px">INCEND.</div></div>
+      <div class="w-px h-5 bg-slate-200"></div>
+      <div class="text-center"><div class="font-bold text-amber-500" id="total-defor">—</div><div class="text-slate-400" style="font-size:8px">DEFOR.</div></div>
+      <div class="w-px h-5 bg-slate-200"></div>
+      <div class="text-center"><div class="font-bold text-slate-700" id="total-high">—</div><div class="text-slate-400" style="font-size:8px">ALTA</div></div>
+      <div class="w-px h-5 bg-slate-200"></div>
+      <div class="text-center"><div class="font-bold text-slate-700" id="total-frp">—</div><div class="text-slate-400" style="font-size:8px">FRP MW</div></div>
+    </div>
+    <!-- Cunagüito btn -->
+    <button onclick="cunaAbrir()" class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-lg shadow-emerald-200/60 float">
+      <img src="Cunaguito1.png" class="w-5 h-5 rounded-md bg-white/20 object-cover" alt="">
+      <span class="text-xs font-bold uppercase tracking-tight">Cunagüito</span>
+    </button>
+  </div>
+</header>
 
-  <aside>
+<!-- ═══════════════ MAIN ═══════════════ -->
+<main class="flex-1 flex gap-3 p-3 pt-3 overflow-hidden">
 
-    <!-- ── Cunagüito banner arriba ── -->
-    <div class="cuna-banner" onclick="cunaAbrir()">
-      <img class="cuna-banner-avatar" src="Cunaguito1.png" alt="Cunagüito">
-      <div class="cuna-banner-txt">
-        <div class="cuna-banner-name">Cunagüito · Asistente</div>
-        <div class="cuna-banner-sub">¿Necesitas ayuda? Tócame</div>
+  <!-- ══ SIDEBAR ══ -->
+  <aside class="w-80 flex flex-col gap-3 overflow-y-auto scroll pr-0.5 shrink-0">
+
+    <!-- 1. TEMPORALIDAD -->
+    <div class="glass p-4 rounded-2xl shrink-0">
+      <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-2.5">Período de Consulta</p>
+      <div class="grid grid-cols-3 gap-1.5">
+        <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 activo" data-dias="1" onclick="cambiarPeriodo(this)">24 h</button>
+        <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-dias="7" onclick="cambiarPeriodo(this)">7 días</button>
+        <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-dias="30" onclick="cambiarPeriodo(this)">30 días</button>
       </div>
-      <span class="cuna-banner-arr">›</span>
     </div>
 
-    <!-- ── 1. Temporalidad ── -->
-    <div class="panel-section">
-      <div class="panel-title">Período de consulta</div>
-      <div class="periodo-btns">
-        <button class="periodo-btn activo" data-dias="1"  onclick="cambiarPeriodo(this)">24 h</button>
-        <button class="periodo-btn"        data-dias="7"  onclick="cambiarPeriodo(this)">7 días</button>
-        <button class="periodo-btn"        data-dias="30" onclick="cambiarPeriodo(this)">30 días</button>
-      </div>
-    </div>
-
-    <!-- ── 2. Tipo de alerta ── -->
-    <div class="panel-section">
-      <div class="panel-title">Tipo de alerta</div>
-      <div class="tipo-btns">
-        <button class="tipo-btn fuego activo" id="btn-tipo-incendios" onclick="cambiarTipo('incendios')">
-          <span class="tipo-icon">🔥</span>
-          <span class="tipo-label">Incendios<br><span style="font-weight:400;font-size:10px">NASA FIRMS</span></span>
+    <!-- 2. TIPO DE ALERTA -->
+    <div class="glass p-4 rounded-2xl shrink-0">
+      <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-2.5">Tipo de Alerta</p>
+      <div class="flex flex-col gap-2">
+        <button class="btn-tipo fuego activo flex items-center gap-3 p-3 rounded-xl bg-white/60 hover:bg-white text-left" id="btn-tipo-incendios" onclick="cambiarTipo('incendios')">
+          <div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-lg shrink-0">🔥</div>
+          <div>
+            <div class="text-sm font-bold text-slate-700">Incendios</div>
+            <div class="text-[10px] text-slate-400">NASA FIRMS · puntos de calor</div>
+          </div>
         </button>
-        <button class="tipo-btn gfw" id="btn-tipo-gfw" onclick="cambiarTipo('gfw')">
-          <span class="tipo-icon">🌿</span>
-          <span class="tipo-label">Pérdida cobertura<br><span style="font-weight:400;font-size:10px">Global Forest Watch</span></span>
+        <button class="btn-tipo gfw flex items-center gap-3 p-3 rounded-xl bg-white/60 hover:bg-white text-left" id="btn-tipo-gfw" onclick="cambiarTipo('gfw')">
+          <div class="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center text-lg shrink-0">🌿</div>
+          <div>
+            <div class="text-sm font-bold text-slate-700">Global Forest Watch</div>
+            <div class="text-[10px] text-slate-400">Pérdida de coberturas · GFW API</div>
+          </div>
         </button>
       </div>
 
-      <!-- Panel incendios -->
-      <div class="tipo-panel visible" id="panel-incendios" style="margin-top:10px">
-        <div class="panel-title" style="margin-bottom:6px">Filtrar por confianza</div>
-        <div class="filtros">
-          <button class="filtro-btn activo" data-filtro="all"     onclick="filtrar(this)">Todas</button>
-          <button class="filtro-btn"        data-filtro="high"    onclick="filtrar(this)">Alta</button>
-          <button class="filtro-btn"        data-filtro="nominal" onclick="filtrar(this)">Nominal</button>
-          <button class="filtro-btn"        data-filtro="low"     onclick="filtrar(this)">Baja</button>
+      <!-- Sub-panel incendios -->
+      <div id="panel-incendios" class="mt-3 pt-3 border-t border-slate-100">
+        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-2">Filtrar por confianza</p>
+        <div class="flex gap-1.5 flex-wrap">
+          <button class="filtro-btn px-3 py-1.5 rounded-full text-[10px] font-bold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 activo" data-filtro="all"     onclick="filtrar(this)">Todas</button>
+          <button class="filtro-btn px-3 py-1.5 rounded-full text-[10px] font-bold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-filtro="high"    onclick="filtrar(this)">Alta</button>
+          <button class="filtro-btn px-3 py-1.5 rounded-full text-[10px] font-bold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-filtro="nominal" onclick="filtrar(this)">Nominal</button>
+          <button class="filtro-btn px-3 py-1.5 rounded-full text-[10px] font-bold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-filtro="low"     onclick="filtrar(this)">Baja</button>
         </div>
       </div>
 
-      <!-- Panel GFW -->
-      <div class="tipo-panel" id="panel-gfw" style="margin-top:10px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <!-- Sub-panel GFW -->
+      <div id="panel-gfw" class="mt-3 pt-3 border-t border-slate-100 hidden">
+        <div class="flex items-center gap-2 mb-3">
           <span class="gfw-badge">GFW API</span>
           <span class="gfw-status" id="gfw-status">—</span>
         </div>
-
         <!-- GLAD -->
-        <label class="capa-row-light">
-          <input type="checkbox" id="chk-glad" onchange="toggleGFW('glad', this.checked)" style="accent-color:var(--gfw)">
-          <span class="capa-label">🌲 Alertas GLAD <span style="font-size:10px;color:var(--texto-m)">(semanal)</span></span>
+        <label class="flex items-center gap-2 mb-2 cursor-pointer">
+          <input type="checkbox" id="chk-glad" onchange="toggleGFW('glad', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--gfw)">
+          <span class="text-xs font-semibold text-slate-700">🌲 Alertas GLAD <span class="text-slate-400 font-normal">(Landsat)</span></span>
         </label>
-        <div class="capa-sub-light" id="sub-glad">
-          <div class="gfw-sub-info">Detección Landsat · Univ. Maryland</div>
-          <select class="year-select" id="sel-glad-conf" onchange="recargarGFWTile('glad')" style="margin-bottom:6px">
+        <div class="hidden pl-5 mb-2" id="sub-glad">
+          <select id="sel-glad-conf" onchange="recargarGFWTile('glad')" class="w-full text-[10px] px-2 py-1.5 border border-slate-200 rounded-lg bg-white/70 mb-1.5">
             <option value="">Toda confianza</option>
             <option value="high">Alta confianza</option>
             <option value="highest">Máxima confianza</option>
           </select>
-          <div class="gfw-leyenda">
-            <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#dc2626"></div><span class="gfw-leyenda-txt">Alta confianza</span></div>
-            <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#f97316"></div><span class="gfw-leyenda-txt">Confianza media</span></div>
-          </div>
-          <div class="gfw-stats-box" id="stats-glad">Sin datos cargados</div>
+          <div class="gfw-box" id="stats-glad">Sin datos</div>
+          <button onclick="descargarGFW('glad')" class="mt-1.5 w-full text-[10px] font-bold py-1.5 rounded-lg border text-sky-600 border-sky-200 bg-sky-50 hover:bg-sky-100 transition-all">⬇ CSV GLAD</button>
         </div>
-
         <!-- RADD -->
-        <label class="capa-row-light" style="margin-top:6px">
-          <input type="checkbox" id="chk-radd" onchange="toggleGFW('radd', this.checked)" style="accent-color:var(--gfw)">
-          <span class="capa-label">📡 Alertas RADD <span style="font-size:10px;color:var(--texto-m)">(radar SAR)</span></span>
+        <label class="flex items-center gap-2 mb-2 cursor-pointer">
+          <input type="checkbox" id="chk-radd" onchange="toggleGFW('radd', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--gfw)">
+          <span class="text-xs font-semibold text-slate-700">📡 Alertas RADD <span class="text-slate-400 font-normal">(SAR)</span></span>
         </label>
-        <div class="capa-sub-light" id="sub-radd">
-          <div class="gfw-sub-info">Sentinel-1 · funciona bajo nubes</div>
-          <div class="gfw-leyenda">
-            <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#7c3aed"></div><span class="gfw-leyenda-txt">Confirmada</span></div>
-            <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#a78bfa"></div><span class="gfw-leyenda-txt">Provisional</span></div>
-          </div>
-          <div class="gfw-stats-box" id="stats-radd">Sin datos cargados</div>
+        <div class="hidden pl-5 mb-2" id="sub-radd">
+          <div class="gfw-box" id="stats-radd">Sin datos</div>
+          <button onclick="descargarGFW('radd')" class="mt-1.5 w-full text-[10px] font-bold py-1.5 rounded-lg border text-violet-600 border-violet-200 bg-violet-50 hover:bg-violet-100 transition-all">⬇ CSV RADD</button>
         </div>
-
         <!-- Hansen -->
-        <label class="capa-row-light" style="margin-top:6px">
-          <input type="checkbox" id="chk-hansen" onchange="toggleGFW('hansen', this.checked)" style="accent-color:var(--gfw)">
-          <span class="capa-label">🌳 Cobertura forestal <span style="font-size:10px;color:var(--texto-m)">(Hansen)</span></span>
+        <label class="flex items-center gap-2 mb-2 cursor-pointer">
+          <input type="checkbox" id="chk-hansen" onchange="toggleGFW('hansen', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--gfw)">
+          <span class="text-xs font-semibold text-slate-700">🌳 Cobertura Hansen <span class="text-slate-400 font-normal">(tiles)</span></span>
         </label>
-        <div class="capa-sub-light" id="sub-hansen">
-          <div class="gfw-sub-info">Pérdida 2001-2023 · tiles en tiempo real</div>
-          <div class="slider-row" style="margin-bottom:4px">
-            <span class="slider-label">Opacidad</span>
-            <input type="range" min="10" max="100" value="70" class="gfw-slider" id="slider-hansen" oninput="actualizarOpacidadHansen(this.value)">
-            <span class="slider-val" id="val-hansen">70%</span>
+        <div class="hidden pl-5" id="sub-hansen">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-[10px] text-slate-500">Opacidad</span>
+            <input type="range" min="10" max="100" value="70" id="slider-hansen" oninput="actualizarOpacidadHansen(this.value)" class="flex-1">
+            <span class="text-[10px] mono" id="val-hansen">70%</span>
           </div>
-          <div class="gfw-leyenda">
-            <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#22c55e;border-radius:2px"></div><span class="gfw-leyenda-txt">Cobertura 2000</span></div>
-            <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#dc2626;border-radius:2px"></div><span class="gfw-leyenda-txt">Pérdida 2001-2023</span></div>
-          </div>
-          <div class="gfw-stats-box" id="stats-hansen">Capa de teselas</div>
+          <div class="gfw-box" id="stats-hansen">Capa de teselas</div>
         </div>
-
-        <!-- hidden fires stub -->
         <div style="display:none" id="sub-fires"><div id="stats-fires"></div></div>
       </div>
     </div>
 
-    <!-- ── 3. Área de análisis ── -->
-    <div class="panel-section">
-      <div class="panel-title">Área de análisis
-        <span style="font-weight:400;text-transform:none;font-size:9px;color:var(--texto-m);margin-left:4px">· mayor seleccionado predomina</span>
-      </div>
-      <div class="area-opts">
-        <label class="area-opt activo" id="opt-estudio">
-          <input type="checkbox" id="chk-area-estudio" checked onchange="cambiarAreaAnalisis()">
-          <div class="area-opt-txt">
-            <span class="area-opt-label">Área de estudio</span>
-            <span class="area-opt-sub">Zona completa de monitoreo</span>
-          </div>
-          <span style="font-size:10px;color:var(--verde-m);font-weight:700">Mayor</span>
-        </label>
-        <label class="area-opt" id="opt-nucleos">
-          <input type="checkbox" id="chk-area-nucleos" onchange="cambiarAreaAnalisis()">
-          <div class="area-opt-txt">
-            <span class="area-opt-label">Núcleos boscosos</span>
-            <span class="area-opt-sub">Fragmentos de bosque</span>
-          </div>
-        </label>
-        <label class="area-opt" id="opt-predios">
-          <input type="checkbox" id="chk-area-predios" onchange="cambiarAreaAnalisis()">
-          <div class="area-opt-txt">
-            <span class="area-opt-label">Predios</span>
-            <span class="area-opt-sub">Unidades prediales</span>
-          </div>
-          <span style="font-size:10px;color:var(--texto-m);font-weight:700">Menor</span>
-        </label>
-      </div>
-      <div class="area-activa-badge visible" id="area-activa-badge">
-        <span>📍</span>
-        <span id="area-activa-txt">Área de estudio activa</span>
-      </div>
-    </div>
-
-    <!-- ── Stats mini ── -->
-    <div class="panel-section">
-      <div class="stats-mini">
-        <div class="stat-mini"><div class="stat-mini-num fuego" id="total-alertas">—</div><div class="stat-mini-label">Incendios</div></div>
-        <div class="stat-mini"><div class="stat-mini-num defor" id="total-defor">—</div><div class="stat-mini-label">Deforest.</div></div>
-        <div class="stat-mini"><div class="stat-mini-num" id="total-high">—</div><div class="stat-mini-label">Alta conf.</div></div>
-        <div class="stat-mini"><div class="stat-mini-num" id="total-frp">—</div><div class="stat-mini-label">FRP MW</div></div>
-      </div>
-    </div>
-
-    <!-- ── 4. Descarga ── -->
-    <div class="panel-section">
-      <div class="panel-title">Descargar — área seleccionada</div>
-      <div class="dl-row">
-        <button class="dl-btn csv" onclick="descargarActual('csv')">⬇ CSV</button>
-        <button class="dl-btn pdf" onclick="descargarActual('pdf')">⬇ PDF</button>
-      </div>
-      <div style="margin-top:8px">
-        <button class="dl-btn combo" onclick="descargarCSV('combinado')">⭐ CSV Combinado (incendios + deforest.)</button>
-      </div>
-      <!-- GFW download (visible solo cuando hay datos GFW activos) -->
-      <div id="gfw-dl-btns" style="display:none;margin-top:8px">
-        <button class="dl-btn" style="width:100%;border-color:var(--gfw);color:var(--gfw-l)" onclick="descargarGFWActivo()">⬇ CSV GFW (capas activas)</button>
-      </div>
-    </div>
-
-    <!-- ── Capas informativas extra (colapsadas, preservadas) ── -->
-    <div class="panel-section">
-      <div class="panel-title" style="cursor:pointer" onclick="toggleCapasExtra(this)">
-        Capas adicionales <span id="ico-capas-extra" style="float:right">▸</span>
-      </div>
-      <div id="capas-extra-body" style="display:none">
-        <div class="capas-extra">
-          <label class="capa-row-light"><input type="checkbox" onchange="toggleCapa('municipio', this.checked)"><span class="capa-label">Municipio (Chámeza)</span></label>
-          <label class="capa-row-light"><input type="checkbox" id="chk-estudio-capa" onchange="toggleCapa('estudio', this.checked)"><span class="capa-label">Área de estudio (contorno)</span></label>
-          <label class="capa-row-light"><input type="checkbox" id="chk-bosque-capa" onchange="toggleCapa('bosque', this.checked)"><span class="capa-label">Núcleos boscosos</span></label>
-          <label class="capa-row-light">
-            <input type="checkbox" id="chk-perdidas" onchange="toggleCapa('perdidas', this.checked)">
-            <span class="capa-label">Pérdidas 2020-2024</span>
-          </label>
-          <div class="capa-sub-light" id="sub-perdidas">
-            <select class="year-select" id="sel-year" onchange="actualizarPerdidas()">
-              <option value="all">Todos los años</option>
-              <option value="20">2020</option><option value="21">2021</option>
-              <option value="22">2022</option><option value="23">2023</option><option value="24">2024</option>
-            </select>
-          </div>
-          <label class="capa-row-light">
-            <input type="checkbox" id="chk-conectividad" onchange="toggleCapa('conectividad', this.checked)">
-            <span class="capa-label">Conectividad (Deciles)</span>
-          </label>
-          <div class="capa-sub-light" id="sub-conectividad">
-            <div class="slider-row" style="margin-bottom:4px">
-              <span class="slider-label">Desde cuantil:</span>
-              <span class="slider-val" id="val-cuantil">1</span>
+    <!-- 3. ÁREA DE ANÁLISIS -->
+    <div class="glass p-4 rounded-2xl shrink-0">
+      <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-1">Área de Análisis</p>
+      <p class="text-[9px] text-slate-400 italic mb-3">La capa mayor seleccionada predomina en la descarga</p>
+      <div class="flex flex-col gap-2">
+        <!-- Área de estudio -->
+        <label class="area-opt activo flex items-center justify-between p-3 rounded-xl bg-white/60 cursor-pointer hover:bg-white" id="opt-estudio">
+          <div class="flex items-center gap-2.5">
+            <input type="checkbox" id="chk-area-estudio" checked onchange="cambiarAreaAnalisis()" class="w-4 h-4 rounded" style="accent-color:var(--verde)">
+            <div>
+              <div class="text-sm font-bold text-slate-700">Área de Estudio</div>
+              <div class="text-[10px] text-slate-400">Zona completa de monitoreo</div>
             </div>
-            <input type="range" min="1" max="10" value="1" style="width:100%;accent-color:var(--verde-l)" id="sel-cuantil" oninput="actualizarConectividad(this.value)">
           </div>
-          <label class="capa-row-light">
-            <input type="checkbox" id="chk-deforestacion" onchange="toggleDeforestacion(this.checked)">
-            <span class="capa-label">Alertas deforestación (GEE/Supabase)</span>
-          </label>
-          <div class="capa-sub-light" id="sub-deforestacion">
-            <select class="year-select" id="sel-defor-periodo" onchange="cargarDeforestacion()">
-              <option value="1">Últimas 24 h</option>
-              <option value="7">Últimos 7 días</option>
-              <option value="30" selected>Últimos 30 días</option>
-              <option value="90">Últimos 90 días</option>
-              <option value="365">Último año</option>
-            </select>
-            <select class="year-select" id="sel-defor-severidad" style="margin-top:4px" onchange="filtrarDeforestacion()">
-              <option value="all">Todas las severidades</option>
-              <option value="leve">Leve</option>
-              <option value="moderada">Moderada</option>
-              <option value="severa">Severa</option>
-            </select>
-            <div id="defor-stats" style="font-size:11px;color:var(--texto-m);margin-top:6px;line-height:1.6"></div>
+          <span class="text-[9px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">Mayor</span>
+        </label>
+        <!-- Núcleos -->
+        <label class="area-opt flex items-center p-3 rounded-xl bg-white/60 cursor-pointer hover:bg-white" id="opt-nucleos">
+          <div class="flex items-center gap-2.5">
+            <input type="checkbox" id="chk-area-nucleos" onchange="cambiarAreaAnalisis()" class="w-4 h-4 rounded" style="accent-color:var(--verde)">
+            <div>
+              <div class="text-sm font-bold text-slate-700">Núcleos Boscosos</div>
+              <div class="text-[10px] text-slate-400">Fragmentos de bosque</div>
+            </div>
           </div>
+        </label>
+        <!-- Predios -->
+        <label class="area-opt flex items-center justify-between p-3 rounded-xl bg-white/60 cursor-pointer hover:bg-white" id="opt-predios">
+          <div class="flex items-center gap-2.5">
+            <input type="checkbox" id="chk-area-predios" onchange="cambiarAreaAnalisis()" class="w-4 h-4 rounded" style="accent-color:var(--verde)">
+            <div>
+              <div class="text-sm font-bold text-slate-700">Predios</div>
+              <div class="text-[10px] text-slate-400">Unidades prediales</div>
+            </div>
+          </div>
+          <span class="text-[9px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">Menor</span>
+        </label>
+      </div>
+      <!-- Badge área activa -->
+      <div class="mt-3 flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl" id="area-activa-badge">
+        <span class="text-emerald-600">📍</span>
+        <span class="text-[10px] font-bold text-emerald-700" id="area-activa-txt">Área de estudio activa</span>
+      </div>
+    </div>
+
+    <!-- 4. DESCARGA -->
+    <div class="glass p-4 rounded-2xl shrink-0">
+      <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-3">Descargar Datos</p>
+      <div class="grid grid-cols-2 gap-2">
+        <button onclick="descargarActual('csv')" class="flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-lg">
+          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          CSV
+        </button>
+        <button onclick="descargarActual('pdf')" class="py-3 border-2 border-slate-200 bg-white text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all">PDF Reporte</button>
+      </div>
+      <div class="mt-2">
+        <button onclick="descargarCSV('combinado')" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-200/50">
+          ⭐ CSV Combinado (incendios + deforest.)
+        </button>
+      </div>
+      <div id="gfw-dl-btns" class="mt-2 hidden">
+        <button onclick="descargarGFWActivo()" class="w-full py-2.5 border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-xl text-xs font-bold transition-all">⬇ CSV GFW (capas activas)</button>
+      </div>
+    </div>
+
+    <!-- 5. CAPAS ADICIONALES (colapsable) -->
+    <div class="glass rounded-2xl shrink-0 overflow-hidden">
+      <button onclick="toggleCapasExtra(this)" class="w-full flex items-center justify-between p-4 text-left hover:bg-white/30 transition-all">
+        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em]">Capas Adicionales</p>
+        <span id="ico-capas" class="text-slate-400 text-xs">▸</span>
+      </button>
+      <div id="capas-extra-body" class="hidden px-4 pb-4 flex flex-col gap-2">
+        <label class="flex items-center gap-2 cursor-pointer py-1.5"><input type="checkbox" onchange="toggleCapa('municipio', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)"><span class="text-xs text-slate-600 font-medium">Municipio (Chámeza)</span></label>
+        <label class="flex items-center gap-2 cursor-pointer py-1.5"><input type="checkbox" id="chk-estudio-capa" onchange="toggleCapa('estudio', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)"><span class="text-xs text-slate-600 font-medium">Área de estudio (contorno)</span></label>
+        <label class="flex items-center gap-2 cursor-pointer py-1.5"><input type="checkbox" id="chk-bosque-capa" onchange="toggleCapa('bosque', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)"><span class="text-xs text-slate-600 font-medium">Núcleos boscosos</span></label>
+        <label class="flex items-center gap-2 cursor-pointer py-1.5">
+          <input type="checkbox" id="chk-perdidas" onchange="toggleCapa('perdidas', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)">
+          <span class="text-xs text-slate-600 font-medium">Pérdidas 2020-2024</span>
+        </label>
+        <div class="hidden pl-5" id="sub-perdidas">
+          <select id="sel-year" onchange="actualizarPerdidas()" class="w-full text-[10px] px-2 py-1.5 border border-slate-200 rounded-lg bg-white/70">
+            <option value="all">Todos los años</option>
+            <option value="20">2020</option><option value="21">2021</option>
+            <option value="22">2022</option><option value="23">2023</option><option value="24">2024</option>
+          </select>
+        </div>
+        <label class="flex items-center gap-2 cursor-pointer py-1.5">
+          <input type="checkbox" id="chk-conectividad" onchange="toggleCapa('conectividad', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)">
+          <span class="text-xs text-slate-600 font-medium">Conectividad (Deciles)</span>
+        </label>
+        <div class="hidden pl-5" id="sub-conectividad">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-[10px] text-slate-500">Desde cuantil:</span>
+            <span class="text-[10px] mono" id="val-cuantil">1</span>
+          </div>
+          <input type="range" min="1" max="10" value="1" id="sel-cuantil" oninput="actualizarConectividad(this.value)" class="w-full" style="accent-color:var(--verde-l)">
+        </div>
+        <label class="flex items-center gap-2 cursor-pointer py-1.5">
+          <input type="checkbox" id="chk-deforestacion" onchange="toggleDeforestacion(this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)">
+          <span class="text-xs text-slate-600 font-medium">Alertas deforestación (GEE)</span>
+        </label>
+        <div class="hidden pl-5" id="sub-deforestacion">
+          <select id="sel-defor-periodo" onchange="cargarDeforestacion()" class="w-full text-[10px] px-2 py-1.5 border border-slate-200 rounded-lg bg-white/70 mb-1">
+            <option value="1">Últimas 24 h</option><option value="7">Últimos 7 días</option>
+            <option value="30" selected>Últimos 30 días</option><option value="90">Últimos 90 días</option><option value="365">Último año</option>
+          </select>
+          <select id="sel-defor-severidad" onchange="filtrarDeforestacion()" class="w-full text-[10px] px-2 py-1.5 border border-slate-200 rounded-lg bg-white/70">
+            <option value="all">Todas las severidades</option>
+            <option value="leve">Leve</option><option value="moderada">Moderada</option><option value="severa">Severa</option>
+          </select>
+          <div id="defor-stats" class="mt-2 text-[10px] text-slate-500 leading-relaxed"></div>
         </div>
       </div>
     </div>
 
-    <!-- ── 5. Lista alertas ── -->
-    <div class="panel-section" style="flex:1">
-      <div class="tabs">
-        <div class="tab activo" onclick="cambiarTab('incendios', this)">🔥 Incendios</div>
-        <div class="tab"        onclick="cambiarTab('deforestacion', this)">🌿 Pérdida cobertura</div>
+    <!-- 6. LISTA ALERTAS -->
+    <div class="glass flex-1 rounded-2xl flex flex-col overflow-hidden" style="min-height:280px">
+      <nav class="flex border-b border-slate-100 bg-white/30 shrink-0">
+        <button id="tab-incendios-btn" onclick="cambiarTab('incendios', this)" class="flex-1 py-3 text-[9px] font-bold uppercase tracking-widest tab-act transition-all">🔥 Incendios</button>
+        <button id="tab-defor-btn"     onclick="cambiarTab('deforestacion', this)" class="flex-1 py-3 text-[9px] font-bold uppercase tracking-widest tab-inact transition-all">🌿 Coberturas</button>
+      </nav>
+      <div class="flex-1 overflow-y-auto scroll" id="lista-alertas">
+        <div class="flex items-center justify-center gap-2 py-8 text-slate-400 text-xs">
+          <div class="w-3 h-3 border-2 border-slate-200 border-t-emerald-500 rounded-full animate-spin"></div>
+          Cargando...
+        </div>
       </div>
-      <div id="lista-alertas"><div class="loading"><div class="spin"></div> Cargando...</div></div>
     </div>
 
-    <div class="panel-footer">
-      Datos: <a href="https://firms.modaps.eosdis.nasa.gov" target="_blank">NASA FIRMS</a> ·
-      <a href="https://www.globalforestwatch.org" target="_blank">GFW</a> ·
-      <a href="https://earthengine.google.com" target="_blank">GEE</a> ·
-      <a href="https://www.openstreetmap.org" target="_blank">OSM</a>
-    </div>
   </aside>
 
-  <div id="map"></div>
-</div>
+  <!-- ══ MAPA ══ -->
+  <div class="flex-1 relative rounded-2xl overflow-hidden glass">
+    <div id="map"></div>
+    <div class="absolute bottom-3 left-3 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-lg text-[9px] mono text-slate-500 shadow border border-slate-200/60 z-10 pointer-events-none uppercase tracking-wider">
+      WGS 84 · Chámeza, Casanare
+    </div>
+  </div>
 
-<!-- Elementos ocultos preservados para compatibilidad con JS existente -->
+</main>
+
+<!-- Elementos hidden de compatibilidad JS -->
 <div style="display:none">
   <div id="section-area">
-    <select id="predio-select" onchange="seleccionarPredio(this.value)"><option value="">—</option></select>
-    <div id="predio-info-box">
-      <span id="info-id"></span><span id="info-area-ha"></span>
-      <span id="info-alertas"></span><span id="info-defor"></span>
-    </div>
-    <div id="predio-controles">
-      <input type="range" id="slider-opacidad" oninput="cambiarOpacidad(this.value)">
-      <span id="val-opacidad"></span>
-      <input type="range" id="slider-radio" oninput="cambiarRadio(this.value)">
-      <span id="val-radio"></span>
-      <div id="leyenda-colores"></div>
-    </div>
-    <button id="btn-poligono"></button>
-    <button id="btn-punto"></button>
+    <select id="predio-select"><option value="">—</option></select>
+    <div id="predio-info-box"><span id="info-id"></span><span id="info-area-ha"></span><span id="info-alertas"></span><span id="info-defor"></span></div>
+    <div id="predio-controles"><input type="range" id="slider-opacidad"><span id="val-opacidad"></span><input type="range" id="slider-radio"><span id="val-radio"></span><div id="leyenda-colores"></div></div>
+    <button id="btn-poligono"></button><button id="btn-punto"></button>
     <div id="hint-dibujo"></div>
     <div id="area-badge"><span id="area-badge-txt"></span></div>
   </div>
 </div>
 
-<!-- Cunagüito modal -->
-<div class="cuna-overlay" id="cuna-overlay" onclick="cunaOverlayClick(event)">
-  <div class="cuna-modal">
-    <div class="cuna-header">
-      <img id="cuna-avatar" class="cuna-avatar" src="Cunaguito1.png" alt="Cunagüito">
-      <div class="cuna-header-text">
-        <div class="cuna-header-name">Cunagüito · Asistente</div>
-        <p id="cuna-msg">¡Hola! Soy Cunagüito. Estoy aquí para guiarte en el manejo del aplicativo. ¿Qué quieres hacer?</p>
-      </div>
-      <button class="cuna-close" onclick="cunaCerrar()">✕</button>
-    </div>
-    <div class="cuna-body">
-      <div class="cuna-menu" id="cuna-menu">
-        <div class="cuna-opt" onclick="cunaIr('mapabase')"><span class="cuna-opt-icon">🗺️</span><span class="cuna-opt-label">Cambiar mapa base</span></div>
-        <div class="cuna-opt" onclick="cunaIr('incendios')"><span class="cuna-opt-icon">🔥</span><span class="cuna-opt-label">Descargar incendios</span></div>
-        <div class="cuna-opt" onclick="cunaIr('deforestacion')"><span class="cuna-opt-icon">🌿</span><span class="cuna-opt-label">Descargar deforestación</span></div>
-        <div class="cuna-opt" onclick="cunaIr('conectividad')"><span class="cuna-opt-icon">🔗</span><span class="cuna-opt-label">Conectividad</span></div>
-        <div class="cuna-opt gfw-opt" onclick="cunaIr('gfw')" style="grid-column:1/-1">
-          <span class="cuna-opt-icon">🛰️</span>
-          <span class="cuna-opt-label">Capas Global Forest Watch<small>GLAD · RADD · Hansen</small></span>
+<!-- ═══════════════ MODAL CUNAGÜITO ═══════════════ -->
+<div id="cuna-overlay" class="fixed inset-0 z-[100] hidden items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onclick="cunaOverlayClick(event)">
+  <div class="bg-white rounded-[2rem] w-full max-w-lg overflow-hidden shadow-2xl border border-slate-100" style="animation: cunaIn .28s cubic-bezier(.34,1.56,.64,1)">
+    <style>@keyframes cunaIn{from{opacity:0;transform:scale(.88) translateY(12px)}to{opacity:1;transform:none}}</style>
+    <!-- Header modal -->
+    <div class="bg-emerald-600 p-5 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <div class="w-14 h-14 rounded-2xl bg-white/20 overflow-hidden border-2 border-white/30 flex-shrink-0">
+          <img id="cuna-avatar" src="Cunaguito1.png" alt="Cunagüito" class="w-full h-full object-cover transition-opacity duration-300">
+        </div>
+        <div>
+          <h3 class="font-extrabold text-xl text-white syne leading-none">Cunagüito</h3>
+          <p class="text-[9px] font-bold text-emerald-200 uppercase tracking-widest mt-1">Asistente Experto en Bosques</p>
         </div>
       </div>
-      <div class="cuna-detail" id="cuna-detail">
-        <img id="cuna-detail-img" class="cuna-detail-img" src="" alt="">
-        <div class="cuna-detail-text" id="cuna-detail-text"></div>
-        <button class="cuna-back" onclick="cunaVolver()">← Volver al menú principal</button>
+      <button onclick="cunaCerrar()" class="hover:bg-white/10 p-2 rounded-full transition-colors text-white/80 hover:text-white text-xl leading-none">✕</button>
+    </div>
+    <!-- Body modal -->
+    <div class="p-6">
+      <p id="cuna-msg" class="text-slate-600 text-sm leading-relaxed font-medium mb-5">¡Hola! Soy Cunagüito. Estoy aquí para guiarte en el manejo del aplicativo. ¿Qué quieres hacer?</p>
+      <!-- Menú principal -->
+      <div id="cuna-menu" class="grid grid-cols-2 gap-3">
+        <div onclick="cunaIr('mapabase')" class="flex flex-col items-center gap-2 p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <span class="text-2xl">🗺️</span><span class="text-xs font-bold text-slate-700 text-center">Cambiar mapa base</span>
+        </div>
+        <div onclick="cunaIr('incendios')" class="flex flex-col items-center gap-2 p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <span class="text-2xl">🔥</span><span class="text-xs font-bold text-slate-700 text-center">Descargar incendios</span>
+        </div>
+        <div onclick="cunaIr('deforestacion')" class="flex flex-col items-center gap-2 p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <span class="text-2xl">🌿</span><span class="text-xs font-bold text-slate-700 text-center">Descargar deforestación</span>
+        </div>
+        <div onclick="cunaIr('conectividad')" class="flex flex-col items-center gap-2 p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <span class="text-2xl">🔗</span><span class="text-xs font-bold text-slate-700 text-center">Conectividad</span>
+        </div>
+        <div onclick="cunaIr('gfw')" class="col-span-2 flex items-center gap-3 p-4 rounded-2xl border border-sky-100 bg-sky-50 hover:bg-sky-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <span class="text-2xl">🛰️</span>
+          <div><div class="text-xs font-bold text-slate-700">Capas Global Forest Watch</div><div class="text-[10px] text-slate-400">GLAD · RADD · Hansen</div></div>
+        </div>
+      </div>
+      <!-- Detalle -->
+      <div id="cuna-detail" class="hidden flex-col gap-0">
+        <img id="cuna-detail-img" class="w-full h-44 object-cover rounded-xl mb-4 border border-slate-100" src="" alt="">
+        <div id="cuna-detail-text" class="text-sm text-slate-600 leading-relaxed cuna-detail-text"></div>
+        <button onclick="cunaVolver()" class="mt-5 w-full py-3 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all">← Volver al menú</button>
       </div>
     </div>
   </div>
 </div>
+
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://unpkg.com/georaster"></script>
 <script src="https://unpkg.com/georaster-layer-for-leaflet"></script>
 <script>
+
 // ── Configuración ─────────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://qryktfqnicnwiuwbijvd.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_tVzVULeeVvP-QRCXviO7cg_EOuOfX-0';
@@ -567,12 +455,13 @@ function obtenerColor(attr, val) {
 
 // ── Mapa ── CAPA BASE: Google Maps (blanco) por defecto ──────────────────────
 const baseMaps = {
+  'Claro (CartoDB)': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',subdomains:'abcd',maxZoom:19}),
   'Google Maps': L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{attribution:'© Google'}),
   'Satélite':    L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{attribution:'© Google'}),
   'Relieve':     L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}),
   'Oscuro':      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',subdomains:'abcd',maxZoom:19})
 };
-const map = L.map('map',{zoomControl:false,layers:[baseMaps['Google Maps']]}).setView([5.09,-72.47],11);
+const map = L.map('map',{zoomControl:false,layers:[baseMaps['Claro (CartoDB)']]}).setView([5.09,-72.47],11);
 L.control.zoom({position:'bottomright'}).addTo(map);
 L.control.layers(baseMaps,null,{position:'bottomright'}).addTo(map);
 
@@ -657,23 +546,28 @@ map.on('layeradd',()=>{
 // ── UI: Cambiar tipo de alerta ────────────────────────────────────────────────
 function cambiarTipo(tipo) {
   tipoActual = tipo;
-  document.getElementById('btn-tipo-incendios').classList.toggle('activo', tipo==='incendios');
-  document.getElementById('btn-tipo-gfw').classList.toggle('activo', tipo==='gfw');
-  document.getElementById('panel-incendios').classList.toggle('visible', tipo==='incendios');
-  document.getElementById('panel-gfw').classList.toggle('visible', tipo==='gfw');
-  // Mostrar tab correspondiente
-  if (tipo==='incendios') cambiarTab('incendios', document.querySelector('.tab'));
-  else cambiarTab('deforestacion', document.querySelectorAll('.tab')[1]);
-  // Botones GFW download
-  document.getElementById('gfw-dl-btns').style.display = tipo==='gfw' ? 'block' : 'none';
+  // Botones tipo
+  const bi=document.getElementById('btn-tipo-incendios'), bg=document.getElementById('btn-tipo-gfw');
+  bi.classList.toggle('activo', tipo==='incendios');
+  bg.classList.toggle('activo', tipo==='gfw');
+  // Paneles (hidden class)
+  const pi=document.getElementById('panel-incendios'), pg=document.getElementById('panel-gfw');
+  if(tipo==='incendios'){ pi.classList.remove('hidden'); pg.classList.add('hidden'); }
+  else { pg.classList.remove('hidden'); pi.classList.add('hidden'); }
+  // Tab
+  if(tipo==='incendios') cambiarTab('incendios', document.getElementById('tab-incendios-btn'));
+  else cambiarTab('deforestacion', document.getElementById('tab-defor-btn'));
+  // GFW dl btns
+  const gd=document.getElementById('gfw-dl-btns');
+  if(gd){ if(tipo==='gfw')gd.classList.remove('hidden'); else gd.classList.add('hidden'); }
 }
 
-function toggleCapasExtra(el) {
+function toggleCapasExtra(btn) {
   const body = document.getElementById('capas-extra-body');
-  const ico  = document.getElementById('ico-capas-extra');
-  const open = body.style.display === 'none';
-  body.style.display = open ? 'block' : 'none';
-  ico.textContent = open ? '▾' : '▸';
+  const ico  = document.getElementById('ico-capas');
+  const open = body.classList.contains('hidden');
+  if(open){ body.classList.remove('hidden'); ico.textContent='▾'; }
+  else { body.classList.add('hidden'); ico.textContent='▸'; }
 }
 
 // ── UI: Área de análisis ──────────────────────────────────────────────────────
@@ -696,16 +590,11 @@ function cambiarAreaAnalisis() {
   document.getElementById('opt-nucleos').classList.toggle('activo', chkN);
   document.getElementById('opt-predios').classList.toggle('activo', chkP);
 
-  // Badge
-  const badge = document.getElementById('area-activa-badge');
-  const txt   = document.getElementById('area-activa-txt');
-  if (!nueva) {
-    badge.classList.remove('visible');
-  } else {
-    badge.classList.add('visible');
-    txt.textContent = nueva==='estudio' ? 'Área de estudio activa' :
-                      nueva==='nucleos' ? 'Núcleos boscosos activos' : 'Predios activos';
-  }
+  // Badge (always visible, just update text)
+  const txt = document.getElementById('area-activa-txt');
+  if(txt) txt.textContent = !nueva ? 'Sin área seleccionada' :
+    nueva==='estudio' ? 'Área de estudio activa' :
+    nueva==='nucleos' ? 'Núcleos boscosos activos' : 'Predios activos';
 
   // También cargar la capa visual correspondiente en el mapa
   if (chkE) toggleCapa('estudio', true); else capasInfo.estudio.clearLayers();
@@ -830,24 +719,29 @@ function renderMarcadores(alertas) {
 
 function cambiarTab(tab,btn) {
   tabActual=tab;
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('activo'));
-  if(btn) btn.classList.add('activo');
+  ['tab-incendios-btn','tab-defor-btn'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){ el.classList.remove('tab-act'); el.classList.add('tab-inact'); }
+  });
+  if(btn){ btn.classList.remove('tab-inact'); btn.classList.add('tab-act'); }
   aplicarFiltros();
 }
 function renderLista(alertas,tipo) {
   const el=document.getElementById('lista-alertas');
-  if (!alertas.length){el.innerHTML='<div class="loading">Sin alertas en este período</div>';return;}
+  if (!alertas.length){el.innerHTML='<div class="flex items-center justify-center py-10 text-slate-400 text-xs italic">Sin alertas en este período</div>';return;}
   if (tipo==='incendios') {
-    el.innerHTML=alertas.map((a,i)=>{
+    el.innerHTML='<div class="divide-y divide-slate-50">'+alertas.map((a,i)=>{
       const conf=(a.firms_confidence||'low').toLowerCase();
       const fecha=new Date(a.fecha_deteccion).toLocaleString('es-CO',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'America/Bogota'});
-      return `<div class="alerta-item" onclick="centrarEn(${i})"><div class="alerta-dot ${conf}"></div><div class="alerta-info"><div class="alerta-coords">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div><div class="alerta-meta">${fecha} · ${a.firms_satellite||'VIIRS'}</div></div><div class="alerta-frp">${a.firms_frp?a.firms_frp.toFixed(0)+' MW':'—'}</div></div>`;
-    }).join('');
+      const dot=conf==='high'?'bg-red-500 shadow-red-200':conf==='nominal'?'bg-amber-400':'bg-emerald-400';
+      return `<div class="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50/50 cursor-pointer transition-colors" onclick="centrarEn(${i})"><div class="w-2 h-2 rounded-full ${dot} shadow-sm shrink-0"></div><div class="flex-1 min-w-0"><div class="mono text-[10px] text-slate-700 font-bold">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div><div class="text-[9px] text-slate-400 mt-0.5">${fecha} · ${a.firms_satellite||'VIIRS'}</div></div><div class="mono text-[10px] text-red-500 font-bold shrink-0">${a.firms_frp?a.firms_frp.toFixed(0)+' MW':'—'}</div></div>`;
+    }).join('')+'</div>';
   } else {
-    el.innerHTML=alertas.map((a,i)=>{
+    el.innerHTML='<div class="divide-y divide-slate-50">'+alertas.map((a,i)=>{
       const fecha=new Date(a.fecha_deteccion+'T12:00:00').toLocaleDateString('es-CO');
-      return `<div class="alerta-item" onclick="centrarEnDefor(${i})"><div class="alerta-dot defor-${a.severidad}"></div><div class="alerta-info"><div class="alerta-coords">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div><div class="alerta-meta">${fecha} · ${a.predio_id}</div></div><div class="alerta-frp" style="color:#ca8a04">${a.area_afectada_ha||'?'} ha</div></div>`;
-    }).join('');
+      const dot=a.severidad==='severa'?'bg-red-500':a.severidad==='moderada'?'bg-orange-400':'bg-yellow-400';
+      return `<div class="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50/50 cursor-pointer transition-colors" onclick="centrarEnDefor(${i})"><div class="w-2 h-2 rounded-sm ${dot} shrink-0"></div><div class="flex-1 min-w-0"><div class="mono text-[10px] text-slate-700 font-bold">${a.latitud.toFixed(4)}, ${a.longitud.toFixed(4)}</div><div class="text-[9px] text-slate-400 mt-0.5">${fecha} · ${a.predio_id}</div></div><div class="mono text-[10px] text-amber-500 font-bold shrink-0">${a.area_afectada_ha||'?'} ha</div></div>`;
+    }).join('')+'</div>';
   }
 }
 function centrarEn(i)      { if(marcadores[i]){map.setView(marcadores[i].getLatLng(),13);marcadores[i].openPopup();} }
@@ -857,15 +751,20 @@ function centrarEnDefor(i) {
   if(a){map.setView([a.latitud,a.longitud],13);}
 }
 function cambiarPeriodo(btn) {
-  document.querySelectorAll('.periodo-btn').forEach(b=>b.classList.remove('activo'));
+  document.querySelectorAll('.btn-per').forEach(b=>b.classList.remove('activo'));
   btn.classList.add('activo'); diasActual=parseInt(btn.dataset.dias);
   if(deforVisible)cargarDeforestacion();else aplicarFiltros();
   // Recargar GFW con nuevo período
   Object.keys(gfwCapas).forEach(k=>{ if(gfwCapas[k].visible && k!=='hansen') cargarGFWAlertas(k); });
 }
 function filtrar(btn) {
-  document.querySelectorAll('.filtro-btn').forEach(b=>b.classList.remove('activo'));
-  btn.classList.add('activo'); filtroActual=btn.dataset.filtro; aplicarFiltros();
+  document.querySelectorAll('.filtro-btn').forEach(b=>{
+    b.classList.remove('activo','bg-red-500','text-white','border-red-400');
+    b.classList.add('bg-white','text-slate-600','border-slate-200');
+  });
+  btn.classList.add('activo','bg-red-500','text-white','border-red-400');
+  btn.classList.remove('bg-white','text-slate-600','border-slate-200');
+  filtroActual=btn.dataset.filtro; aplicarFiltros();
 }
 
 // ── Descarga unificada ────────────────────────────────────────────────────────
@@ -1020,7 +919,7 @@ async function toggleCapa(key,visible) {
     if(key==='perdidas'){datosPerdidas=data;actualizarPerdidas();return;}
     let style={};
     if(key==='municipio') style={color:'#333',weight:2,fillOpacity:0};
-    if(key==='estudio')   style={color:'#e8480a',weight:2.5,fillOpacity:0,dashArray:'6 3'};
+    if(key==='estudio')   style={color:'#2563eb',weight:2.5,fillOpacity:0.04,dashArray:'6 4'};
     if(key==='bosque')    style={color:'#2d7a4f',weight:1,fillOpacity:0.5};
     const layer=L.geoJSON(data,{style,onEachFeature:(f,l)=>{if(key==='bosque')l.on('add',()=>{if(l._path)l._path.setAttribute('fill','url(#hatch)');});}});
     group.addLayer(layer);
@@ -1079,7 +978,7 @@ async function cargarAlertas() {
 // ── Deforestación GEE ─────────────────────────────────────────────────────────
 async function toggleDeforestacion(visible) {
   deforVisible=visible;
-  document.getElementById('sub-deforestacion').classList.toggle('visible',visible);
+  const _sd=document.getElementById('sub-deforestacion'); if(_sd){ if(visible)_sd.classList.remove('hidden'); else _sd.classList.add('hidden'); }
   if(!visible){marcadoresDefor.forEach(m=>map.removeLayer(m));marcadoresDefor=[];document.getElementById('defor-stats').innerHTML='';aplicarFiltros();return;}
   await cargarDeforestacion();
 }
@@ -1294,6 +1193,7 @@ setInterval(()=>{
     if(k!=='hansen')cargarGFWAlertas(k);
   });
 }, 15*60*1000);
+
 </script>
 </body>
 </html>
