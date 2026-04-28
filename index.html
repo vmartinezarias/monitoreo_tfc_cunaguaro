@@ -1280,8 +1280,7 @@ async function descargarGFW(key){
       const filt=area?d.filter(r=>puntoEnArea(parseFloat(r.latitude),parseFloat(r.longitude),area)):d;
       const cab='fuente,fecha,latitud,longitud,confianza,frp_MW';
       const rows=filt.map(r=>['GFW_VIIRS',r.acq_date||'',r.latitude||'',r.longitude||'',r.confidence__cat||'',r['frp__MW']||''].join(','));
-      _dl([cab,...rows].join('
-'),`gfw_incendios_chameza_${hoy}.csv`);
+      _dl([cab,...rows].join('\n'),`gfw_incendios_chameza_${hoy}.csv`);
       if(btn){btn.textContent='✓ Descargado';setTimeout(()=>{btn.textContent=origText;btn.disabled=false;},2000);}
       return;
     }
