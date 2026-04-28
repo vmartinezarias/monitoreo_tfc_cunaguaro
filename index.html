@@ -438,8 +438,8 @@
       </label>
       <div class="capa-sub" id="sub-glad">
         <div class="gfw-sub-info">Detección semanal Landsat · Universidad de Maryland</div>
-        <select class="year-select" id="sel-glad-conf" onchange="filtrarGFW('glad')" style="margin-bottom:6px">
-          <option value="all">Toda confianza</option>
+        <select class="year-select" id="sel-glad-conf" onchange="recargarGFWTile('glad')" style="margin-bottom:6px">
+          <option value="">Toda confianza</option>
           <option value="high">Alta confianza</option>
           <option value="highest">Máxima confianza</option>
         </select>
@@ -447,7 +447,10 @@
           <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#dc2626"></div><span class="gfw-leyenda-txt">Alta confianza</span></div>
           <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#f97316"></div><span class="gfw-leyenda-txt">Confianza media</span></div>
         </div>
-        <div class="gfw-stats-box" id="stats-glad">Sin datos cargados</div>
+        <div class="gfw-stats-box" id="stats-glad">Capa de teselas activa · zoom ≥ 6 para ver alertas</div>
+        <button class="dl-btn" style="width:100%;margin-top:6px;border-color:rgba(0,180,216,.4);color:var(--gfw-l)" onclick="descargarGFW('glad')">
+          ⬇ Descargar CSV GLAD (Chámeza)
+        </button>
       </div>
 
       <!-- RADD Alerts -->
@@ -461,7 +464,10 @@
           <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#7c3aed"></div><span class="gfw-leyenda-txt">Alerta confirmada</span></div>
           <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#a78bfa"></div><span class="gfw-leyenda-txt">Alerta provisional</span></div>
         </div>
-        <div class="gfw-stats-box" id="stats-radd">Sin datos cargados</div>
+        <div class="gfw-stats-box" id="stats-radd">Capa de teselas activa · zoom ≥ 6 para ver alertas</div>
+        <button class="dl-btn" style="width:100%;margin-top:6px;border-color:rgba(0,180,216,.4);color:var(--gfw-l)" onclick="descargarGFW('radd')">
+          ⬇ Descargar CSV RADD (Chámeza)
+        </button>
       </div>
 
       <!-- Hansen Tree Cover Loss -->
@@ -481,11 +487,14 @@
           <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#dc2626;border-radius:2px"></div><span class="gfw-leyenda-txt">Pérdida 2001-2023</span></div>
         </div>
         <div class="gfw-stats-box" id="stats-hansen">Capa de teselas · renderizado en tiempo real</div>
+        <button class="dl-btn" style="width:100%;margin-top:6px;border-color:rgba(0,180,216,.4);color:var(--gfw-l)" onclick="descargarGFW('hansen')">
+          ⬇ Descargar CSV pérdida forestal
+        </button>
       </div>
 
       <!-- VIIRS/MODIS GFW Fires -->
       <label class="capa-row gfw">
-        <input type="checkbox" id="chk-gfw-fires" onchange="toggleGFW('fires', this.checked)">
+        <input type="checkbox" id="chk-fires" onchange="toggleGFW('fires', this.checked)">
         <span class="capa-label">🔥 Incendios GFW <span style="font-size:10px;color:var(--texto-m)">(VIIRS/MODIS)</span></span>
       </label>
       <div class="capa-sub" id="sub-fires">
@@ -501,9 +510,12 @@
           <div class="gfw-leyenda-item"><div class="gfw-leyenda-dot" style="background:#ffcc00"></div><span class="gfw-leyenda-txt">Baja confianza</span></div>
         </div>
         <div class="gfw-stats-box" id="stats-fires">Sin datos cargados</div>
+        <button class="dl-btn" style="width:100%;margin-top:6px;border-color:rgba(232,72,10,.4);color:var(--fuego-l)" onclick="descargarGFW('fires')">
+          ⬇ Descargar CSV incendios GFW
+        </button>
       </div>
     </div>
-    <!-- FIN GFW -->
+<!-- FIN GFW -->
 
     <!-- Descarga combinada -->
     <div class="panel-section">
@@ -1133,258 +1145,168 @@ function filtrarDeforestacion() {
 
 // ══════════════════════════════════════════════════════════════
 // GFW — Global Forest Watch Integration
-// Estrategia:
-//   GLAD  → Tiles dinámicos GFW (dataset es raster, no vectorial)
-//   RADD  → Tiles dinámicos GFW (idem)
-//   Hansen→ Tiles dinámicos GFW (ya funcionaba)
-//   Fires → Data API REST con SQL (nasa_viirs_fire_alerts es vectorial)
+// GLAD/RADD/Hansen → Tiles dinámicos (raster)
+// Fires → query vectorial REST  |  Descarga → /download/csv API
 // ══════════════════════════════════════════════════════════════
 
 function setGFWStatus(msg, tipo='') {
-  const el = document.getElementById('gfw-status');
-  el.textContent = msg;
-  el.className = 'gfw-status' + (tipo ? ' ' + tipo : '');
+  const el=document.getElementById('gfw-status'); el.textContent=msg;
+  el.className='gfw-status'+(tipo?' '+tipo:'');
 }
-
-function gfwFechas(dias) {
-  const fin = new Date();
-  const ini = new Date(Date.now() - dias * 864e5);
-  return { startDate: ini.toISOString().slice(0,10), endDate: fin.toISOString().slice(0,10) };
-}
-
-function gfwBbox() {
-  const area = obtenerAreaFiltroActiva();
-  if (!area) return CHAMEZA_BBOX;
-  if (area.tipo === 'circulo') {
-    const dlat = area.radio / 111;
-    const dlng = area.radio / (111 * Math.cos(area.lat * Math.PI / 180));
-    return { xmin: area.lng - dlng, ymin: area.lat - dlat, xmax: area.lng + dlng, ymax: area.lat + dlat };
-  }
-  if (area.tipo === 'poligono') {
-    const lats = area.coords.map(c => c[1]);
-    const lngs = area.coords.map(c => c[0]);
-    return { xmin: Math.min(...lngs), ymin: Math.min(...lats), xmax: Math.max(...lngs), ymax: Math.max(...lats) };
-  }
+function gfwFechas(dias){const fin=new Date(),ini=new Date(Date.now()-dias*864e5);return{startDate:ini.toISOString().slice(0,10),endDate:fin.toISOString().slice(0,10)};}
+function gfwBbox(){
+  const area=obtenerAreaFiltroActiva();
+  if(!area)return CHAMEZA_BBOX;
+  if(area.tipo==='circulo'){const dlat=area.radio/111,dlng=area.radio/(111*Math.cos(area.lat*Math.PI/180));return{xmin:area.lng-dlng,ymin:area.lat-dlat,xmax:area.lng+dlng,ymax:area.lat+dlat};}
+  if(area.tipo==='poligono'){const lats=area.coords.map(c=>c[1]),lngs=area.coords.map(c=>c[0]);return{xmin:Math.min(...lngs),ymin:Math.min(...lats),xmax:Math.max(...lngs),ymax:Math.max(...lats)};}
   return CHAMEZA_BBOX;
 }
 
-/**
- * Toggle principal de cada subcapa GFW.
- */
-async function toggleGFW(key, visible) {
-  const capa = gfwCapas[key];
-  capa.visible = visible;
-  document.getElementById(`sub-${key}`).classList.toggle('visible', visible);
-
-  if (!visible) {
-    capa.marcadores.forEach(m => map.removeLayer(m));
-    capa.marcadores = [];
-    if (capa.tileLayer) { map.removeLayer(capa.tileLayer); capa.tileLayer = null; }
-    if (!Object.values(gfwCapas).some(c => c.visible)) setGFWStatus('—');
-    return;
+async function toggleGFW(key,visible){
+  const capa=gfwCapas[key]; capa.visible=visible;
+  document.getElementById(`sub-${key}`).classList.toggle('visible',visible);
+  if(!visible){
+    capa.marcadores.forEach(m=>map.removeLayer(m));capa.marcadores=[];
+    if(capa.tileLayer){map.removeLayer(capa.tileLayer);capa.tileLayer=null;}
+    if(!Object.values(gfwCapas).some(c=>c.visible))setGFWStatus('—');return;
   }
-
-  if (key === 'fires') {
-    await cargarGFWFires();
-  } else {
-    // GLAD, RADD, Hansen → tiles dinámicos
-    cargarGFWTiles(key);
-  }
+  if(key==='fires') await cargarGFWFires();
+  else cargarGFWTiles(key);
 }
 
-// ── GLAD & RADD: Tiles dinámicos ──────────────────────────────
-// GFW expone tiles en: https://tiles.globalforestwatch.org/{dataset}/{version}/dynamic/{z}/{x}/{y}.png
-// GLAD (integrado) → gfw_integrated_alerts
-// RADD             → wur_radd_alerts
-
-const GFW_TILE_DATASETS = {
-  glad:   'gfw_integrated_alerts',
-  radd:   'wur_radd_alerts',
-  hansen: { forest: 'umd_tree_cover_density_2000', loss: 'umd_tree_cover_loss' }
-};
-
-// Parámetros de fecha para tiles GLAD/RADD
-function gfwTileParams(key) {
-  // Los tiles aceptan start_date / end_date como query params para GLAD y RADD
-  const dias = diasActual;
-  const { startDate, endDate } = gfwFechas(dias);
-  if (key === 'glad') {
-    const conf = document.getElementById('sel-glad-conf').value;
-    const confParam = conf === 'all' ? '' : `&confidence=${conf}`;
-    return `?start_date=${startDate}&end_date=${endDate}${confParam}&x-api-key=${GFW_API_KEY}`;
+// ── Tiles dinámicos GFW ───────────────────────────────────────
+function cargarGFWTiles(key){
+  const capa=gfwCapas[key];
+  if(capa.tileLayer){map.removeLayer(capa.tileLayer);capa.tileLayer=null;}
+  const {startDate,endDate}=gfwFechas(diasActual);
+  const K=GFW_API_KEY;
+  if(key==='hansen'){
+    const p=`?x-api-key=${K}`;
+    capa.tileLayer=L.layerGroup([
+      L.tileLayer(`https://tiles.globalforestwatch.org/umd_tree_cover_density_2000/latest/dynamic/{z}/{x}/{y}.png${p}`,{opacity:hansenOpacity,maxZoom:13}),
+      L.tileLayer(`https://tiles.globalforestwatch.org/umd_tree_cover_loss/latest/dynamic/{z}/{x}/{y}.png${p}`,{opacity:hansenOpacity,maxZoom:13})
+    ]).addTo(map);
+    document.getElementById('stats-hansen').innerHTML=`Cobertura 2000 <span style="color:#22c55e">●</span> &nbsp; Pérdida 2001-2023 <span style="color:#dc2626">●</span><br>Opacidad: <span>${Math.round(hansenOpacity*100)}%</span>`;
+    setGFWStatus('✓ OK','ok');return;
   }
-  if (key === 'radd') {
-    return `?start_date=${startDate}&end_date=${endDate}&x-api-key=${GFW_API_KEY}`;
-  }
-  return `?x-api-key=${GFW_API_KEY}`;
+  const ds={glad:'gfw_integrated_alerts',radd:'wur_radd_alerts'}[key];
+  let params=`?start_date=${startDate}&end_date=${endDate}&x-api-key=${K}`;
+  if(key==='glad'){const c=document.getElementById('sel-glad-conf').value;if(c)params+=`&confidence=${c}`;}
+  capa.tileLayer=L.tileLayer(`https://tiles.globalforestwatch.org/${ds}/latest/dynamic/{z}/{x}/{y}.png${params}`,{opacity:0.85,maxZoom:13,minZoom:3}).addTo(map);
+  document.getElementById(`stats-${key}`).innerHTML=`Capa activa · <span>${startDate}</span> → <span>${endDate}</span><br><span style="color:var(--texto-m);font-size:10px">Acerca el mapa (zoom ≥ 8) para ver alertas</span>`;
+  setGFWStatus('✓ Tiles OK','ok');
+}
+function recargarGFWTile(key){if(gfwCapas[key].visible)cargarGFWTiles(key);}
+function actualizarOpacidadHansen(val){
+  hansenOpacity=val/100;document.getElementById('val-hansen').textContent=val+'%';
+  const capa=gfwCapas.hansen;
+  if(capa.tileLayer)capa.tileLayer.getLayers().forEach(l=>{if(l.setOpacity)l.setOpacity(hansenOpacity);});
+  document.getElementById('stats-hansen').innerHTML=`Cobertura 2000 <span style="color:#22c55e">●</span> &nbsp; Pérdida 2001-2023 <span style="color:#dc2626">●</span><br>Opacidad: <span>${val}%</span>`;
 }
 
-function cargarGFWTiles(key) {
-  const capa = gfwCapas[key];
-  // Limpiar tile layer previo
-  if (capa.tileLayer) { map.removeLayer(capa.tileLayer); capa.tileLayer = null; }
-
-  if (key === 'hansen') {
-    const params = `?x-api-key=${GFW_API_KEY}`;
-    const tileForest = L.tileLayer(
-      `https://tiles.globalforestwatch.org/umd_tree_cover_density_2000/latest/dynamic/{z}/{x}/{y}.png${params}`,
-      { opacity: hansenOpacity, attribution: '© Hansen/GFW', maxZoom: 13, minZoom: 3 }
-    );
-    const tileLoss = L.tileLayer(
-      `https://tiles.globalforestwatch.org/umd_tree_cover_loss/latest/dynamic/{z}/{x}/{y}.png${params}`,
-      { opacity: hansenOpacity, attribution: '© Hansen/GFW', maxZoom: 13, minZoom: 3 }
-    );
-    capa.tileLayer = L.layerGroup([tileForest, tileLoss]).addTo(map);
-    document.getElementById('stats-hansen').innerHTML =
-      `Cobertura 2000 <span style="color:#22c55e">●</span> &nbsp; Pérdida 2001-2023 <span style="color:#dc2626">●</span><br>Opacidad: <span>${Math.round(hansenOpacity*100)}%</span>`;
-    setGFWStatus('✓ Hansen', 'ok');
-    return;
-  }
-
-  // GLAD / RADD
-  const dataset = GFW_TILE_DATASETS[key];
-  const params  = gfwTileParams(key);
-  const tileUrl = `https://tiles.globalforestwatch.org/${dataset}/latest/dynamic/{z}/{x}/{y}.png${params}`;
-
-  const tile = L.tileLayer(tileUrl, {
-    opacity: 0.85,
-    attribution: key === 'glad' ? '© GLAD/GFW' : '© RADD/GFW',
-    maxZoom: 13, minZoom: 3,
-    crossOrigin: true
-  });
-
-  tile.on('tileerror', (e) => {
-    console.warn(`GFW ${key} tile error:`, e);
-  });
-
-  tile.addTo(map);
-  capa.tileLayer = tile;
-
-  const nombre = key === 'glad' ? 'GLAD integrado' : 'RADD Sentinel-1';
-  const periodo = diasActual === 1 ? '24 h' : diasActual === 7 ? '7 días' : '30 días';
-  document.getElementById(`stats-${key}`).innerHTML =
-    `Capa activa · <span>${nombre}</span><br>Período: <span>${periodo}</span> · zoom ≥ 3`;
-  setGFWStatus('✓ Tiles OK', 'ok');
-}
-
-function actualizarOpacidadHansen(val) {
-  hansenOpacity = val / 100;
-  document.getElementById('val-hansen').textContent = val + '%';
-  const capa = gfwCapas.hansen;
-  if (capa.tileLayer) {
-    capa.tileLayer.getLayers().forEach(l => { if(l.setOpacity) l.setOpacity(hansenOpacity); });
-  }
-  document.getElementById('stats-hansen').innerHTML =
-    `Cobertura 2000 <span style="color:#22c55e">●</span> &nbsp; Pérdida 2001-2023 <span style="color:#dc2626">●</span><br>Opacidad: <span>${val}%</span>`;
-}
-
-// ── Fires GFW: Data API REST (dataset vectorial) ──────────────
-// nasa_viirs_fire_alerts tiene campos vectoriales:
-//   latitude, longitude, acq_date, confidence__cat, frp__MW
-async function cargarGFWFires() {
-  setGFWStatus('Cargando…', 'loading');
-  const statsEl = document.getElementById('stats-fires');
-  statsEl.innerHTML = 'Consultando GFW VIIRS…';
-
-  const bbox = gfwBbox();
-  const dias = parseInt(document.getElementById('sel-fires-periodo').value || 7);
-  const { startDate, endDate } = gfwFechas(dias);
-
-  // nasa_viirs_fire_alerts es vectorial → SQL con latitude/longitude funciona
-  const sql = encodeURIComponent(
-    `SELECT latitude,longitude,acq_date,confidence__cat,frp__MW
-     FROM results
-     WHERE acq_date >= '${startDate}'
-       AND acq_date <= '${endDate}'
-       AND latitude  BETWEEN ${bbox.ymin} AND ${bbox.ymax}
-       AND longitude BETWEEN ${bbox.xmin} AND ${bbox.xmax}
-     LIMIT 500`
-  );
-
-  const url = `${GFW_BASE}/dataset/nasa_viirs_fire_alerts/latest/query/json?sql=${sql}`;
-
-  try {
-    const resp = await fetch(url, { headers: { 'x-api-key': GFW_API_KEY } });
-    if (!resp.ok) {
-      const txt = await resp.text();
-      throw new Error(`HTTP ${resp.status} — ${txt.slice(0,120)}`);
-    }
-    const data = await resp.json();
-    const rows = data.data || [];
-    gfwCapas.fires.datos = rows;
-    renderGFWFiresMarcadores(rows);
-  } catch(e) {
-    console.error('GFW Fires error:', e);
-    statsEl.innerHTML = `<span style="color:var(--fuego-l)">Error: ${e.message.slice(0,80)}</span>`;
-    setGFWStatus('Error API', 'err');
+// ── FIRES: query vectorial ────────────────────────────────────
+async function cargarGFWFires(){
+  setGFWStatus('Cargando…','loading');
+  document.getElementById('stats-fires').innerHTML='Consultando VIIRS…';
+  const bbox=gfwBbox();
+  const dias=parseInt(document.getElementById('sel-fires-periodo').value||7);
+  const {startDate,endDate}=gfwFechas(dias);
+  const sql=encodeURIComponent(`SELECT latitude,longitude,acq_date,confidence__cat,frp__MW FROM results WHERE acq_date >= '${startDate}' AND acq_date <= '${endDate}' AND latitude BETWEEN ${bbox.ymin} AND ${bbox.ymax} AND longitude BETWEEN ${bbox.xmin} AND ${bbox.xmax} LIMIT 2000`);
+  try{
+    const resp=await fetch(`${GFW_BASE}/dataset/nasa_viirs_fire_alerts/latest/query/json?sql=${sql}`,{headers:{'x-api-key':GFW_API_KEY}});
+    if(!resp.ok)throw new Error(`HTTP ${resp.status}: ${(await resp.text()).slice(0,100)}`);
+    const data=await resp.json();
+    gfwCapas.fires.datos=data.data||[];
+    renderGFWFiresMarcadores(gfwCapas.fires.datos);
+  }catch(e){
+    console.error('GFW Fires:',e);
+    document.getElementById('stats-fires').innerHTML=`<span style="color:var(--fuego-l)">Error: ${e.message.slice(0,70)}</span>`;
+    setGFWStatus('Error','err');
   }
 }
-
-function renderGFWFiresMarcadores(rows) {
-  const capa = gfwCapas.fires;
-  capa.marcadores.forEach(m => map.removeLayer(m));
-  capa.marcadores = [];
-
-  const area = obtenerAreaFiltroActiva();
-  const statsEl = document.getElementById('stats-fires');
-  let contHigh = 0, contMed = 0, contLow = 0;
-
-  rows.forEach(row => {
-    const lat = parseFloat(row.latitude);
-    const lng = parseFloat(row.longitude);
-    if (isNaN(lat) || isNaN(lng)) return;
-    if (area && !puntoEnArea(lat, lng, area)) return;
-
-    const conf = (row.confidence__cat || '').toLowerCase();
-    const frp  = parseFloat(row['frp__MW'] || row.frp__mw || 0);
-
-    let color, radius;
-    if (conf === 'high' || frp > 80)       { color='#ff2200'; radius=8; contHigh++; }
-    else if (conf === 'nominal' || frp > 30){ color='#ff8800'; radius=6; contMed++;  }
-    else                                    { color='#ffcc00'; radius=5; contLow++;  }
-
-    const fecha = row.acq_date || 'N/D';
-    const m = L.circleMarker([lat, lng], {
-      radius, fillColor: color, color: '#fff', weight: 1.2, fillOpacity: 0.88
-    }).addTo(map);
-
-    m.bindPopup(`
-      <div class="popup-title gfw">Incendio GFW · VIIRS</div>
-      <div class="popup-row">Coordenadas <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
-      <div class="popup-row">Fecha <span>${fecha}</span></div>
-      <div class="popup-row">Confianza <span>${conf || 'N/D'}</span></div>
-      <div class="popup-row">FRP <span>${frp ? frp.toFixed(1)+' MW' : 'N/D'}</span></div>
-    `);
+function renderGFWFiresMarcadores(rows){
+  const capa=gfwCapas.fires;
+  capa.marcadores.forEach(m=>map.removeLayer(m));capa.marcadores=[];
+  const area=obtenerAreaFiltroActiva();
+  let nH=0,nM=0,nL=0;
+  rows.forEach(r=>{
+    const lat=parseFloat(r.latitude),lng=parseFloat(r.longitude);
+    if(isNaN(lat)||isNaN(lng))return;
+    if(area&&!puntoEnArea(lat,lng,area))return;
+    const conf=(r.confidence__cat||'').toLowerCase(),frp=parseFloat(r['frp__MW']||r.frp__mw||0);
+    let color,radius;
+    if(conf==='high'||frp>80){color='#ff2200';radius=8;nH++;}
+    else if(conf==='nominal'||frp>30){color='#ff8800';radius=6;nM++;}
+    else{color='#ffcc00';radius=5;nL++;}
+    const m=L.circleMarker([lat,lng],{radius,fillColor:color,color:'#fff',weight:1.2,fillOpacity:.88}).addTo(map);
+    m.bindPopup(`<div class="popup-title gfw">Incendio GFW · VIIRS</div>
+      <div class="popup-row">Coords <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
+      <div class="popup-row">Fecha <span>${r.acq_date||'N/D'}</span></div>
+      <div class="popup-row">Confianza <span>${conf||'N/D'}</span></div>
+      <div class="popup-row">FRP <span>${frp?frp.toFixed(1)+' MW':'N/D'}</span></div>`);
     capa.marcadores.push(m);
   });
-
-  const total = contHigh + contMed + contLow;
-  if (total === 0) {
-    statsEl.innerHTML = '<span>Sin puntos de calor en el área/período</span>';
-    setGFWStatus('✓ 0 pts', 'ok');
-  } else {
-    statsEl.innerHTML = `Total: <span>${total}</span><br>
-      Alta conf.: <span style="color:#ff2200">${contHigh}</span> &nbsp;
-      Media: <span style="color:#ff8800">${contMed}</span> &nbsp;
-      Baja: <span style="color:#ffcc00">${contLow}</span>`;
-    setGFWStatus(`✓ ${total} pts`, 'ok');
-  }
+  const tot=nH+nM+nL;
+  document.getElementById('stats-fires').innerHTML=tot===0?'<span>Sin puntos en área/período</span>'
+    :`Total: <span>${tot}</span><br>Alta: <span style="color:#ff2200">${nH}</span> &nbsp; Media: <span style="color:#ff8800">${nM}</span> &nbsp; Baja: <span style="color:#ffcc00">${nL}</span>`;
+  setGFWStatus(tot?`✓ ${tot} pts`:'✓ 0','ok');
+}
+function filtrarGFW(key){
+  if(!gfwCapas[key].visible)return;
+  if(key==='fires'){if(gfwCapas.fires.datos.length)renderGFWFiresMarcadores(gfwCapas.fires.datos);else cargarGFWFires();}
+  else cargarGFWTiles(key);
 }
 
-/**
- * Refiltra / recarga según el tipo de capa.
- */
-function filtrarGFW(key) {
-  const capa = gfwCapas[key];
-  if (!capa.visible) return;
+// ── DESCARGA CSV GFW ──────────────────────────────────────────
+async function descargarGFW(key){
+  const hoy=new Date().toISOString().slice(0,10);
+  const bbox=gfwBbox();
+  const {startDate,endDate}=gfwFechas(diasActual);
+  const btn=event?.target,origText=btn?btn.textContent:'';
+  if(btn){btn.textContent='⏳ Generando…';btn.disabled=true;}
 
-  if (key === 'fires') {
-    // Fires: si ya hay datos en memoria, re-renderizar; sino recargar
-    if (capa.datos.length) renderGFWFiresMarcadores(capa.datos);
-    else cargarGFWFires();
-  } else {
-    // GLAD, RADD, Hansen: reconstruir tile con nuevos parámetros
-    cargarGFWTiles(key);
+  const portales={
+    glad:'https://data.globalforestwatch.org/datasets/gfw::integrated-deforestation-alerts/about',
+    radd:'https://data.globalforestwatch.org/datasets/gfw::radd-forest-disturbance-alerts/about',
+    hansen:'https://data.globalforestwatch.org/datasets/gfw::tree-cover-loss/about',
+    fires:'https://data.globalforestwatch.org/datasets/gfw::viirs-active-fires/about'
+  };
+
+  try{
+    if(key==='fires'){
+      const d=gfwCapas.fires.datos;
+      if(!d.length){alert('Primero activa la capa de Incendios GFW y espera que cargue.');if(btn){btn.textContent=origText;btn.disabled=false;}return;}
+      const area=obtenerAreaFiltroActiva();
+      const filt=area?d.filter(r=>puntoEnArea(parseFloat(r.latitude),parseFloat(r.longitude),area)):d;
+      const cab='fuente,fecha,latitud,longitud,confianza,frp_MW';
+      const rows=filt.map(r=>['GFW_VIIRS',r.acq_date||'',r.latitude||'',r.longitude||'',r.confidence__cat||'',r['frp__MW']||''].join(','));
+      _dl([cab,...rows].join('
+'),`gfw_incendios_chameza_${hoy}.csv`);
+      if(btn){btn.textContent='✓ Descargado';setTimeout(()=>{btn.textContent=origText;btn.disabled=false;},2000);}
+      return;
+    }
+    // GLAD, RADD, Hansen: /download/csv de GFW Data API
+    const sqls={
+      glad:`SELECT latitude,longitude,alert__date,gfw_integrated_alerts__confidence,area__ha FROM results WHERE alert__date>='${startDate}' AND alert__date<='${endDate}' AND latitude BETWEEN ${bbox.ymin} AND ${bbox.ymax} AND longitude BETWEEN ${bbox.xmin} AND ${bbox.xmax} LIMIT 5000`,
+      radd:`SELECT latitude,longitude,alert__date,wur_radd_alerts__confidence,area__ha FROM results WHERE alert__date>='${startDate}' AND alert__date<='${endDate}' AND latitude BETWEEN ${bbox.ymin} AND ${bbox.ymax} AND longitude BETWEEN ${bbox.xmin} AND ${bbox.xmax} LIMIT 5000`,
+      hansen:`SELECT latitude,longitude,umd_tree_cover_loss__year,area__ha FROM results WHERE umd_tree_cover_loss__year>=2018 AND latitude BETWEEN ${bbox.ymin} AND ${bbox.ymax} AND longitude BETWEEN ${bbox.xmin} AND ${bbox.xmax} LIMIT 5000`
+    };
+    const datasets={glad:'gfw_integrated_alerts',radd:'wur_radd_alerts',hansen:'umd_tree_cover_loss'};
+    const url=`${GFW_BASE}/dataset/${datasets[key]}/latest/download/csv?sql=${encodeURIComponent(sqls[key])}`;
+    const resp=await fetch(url,{headers:{'x-api-key':GFW_API_KEY}});
+    if(!resp.ok){const t=await resp.text();throw new Error(`HTTP ${resp.status}: ${t.slice(0,120)}`);}
+    const blob=await resp.blob();
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`gfw_${key}_chameza_${hoy}.csv`;
+    a.click();URL.revokeObjectURL(a.href);
+    if(btn){btn.textContent='✓ Descargado';setTimeout(()=>{btn.textContent=origText;btn.disabled=false;},2500);}
+  }catch(e){
+    console.error('GFW download:',e);
+    if(btn){btn.textContent=origText;btn.disabled=false;}
+    if(confirm(`Error API (${e.message.slice(0,70)})
+
+¿Abrir portal GFW para descarga manual?`))window.open(portales[key],'_blank');
   }
 }
 
