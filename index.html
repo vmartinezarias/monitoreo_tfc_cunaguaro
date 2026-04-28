@@ -1133,6 +1133,11 @@ function filtrarDeforestacion() {
 
 // ══════════════════════════════════════════════════════════════
 // GFW — Global Forest Watch Integration
+// Estrategia:
+//   GLAD  → Tiles dinámicos GFW (dataset es raster, no vectorial)
+//   RADD  → Tiles dinámicos GFW (idem)
+//   Hansen→ Tiles dinámicos GFW (ya funcionaba)
+//   Fires → Data API REST con SQL (nasa_viirs_fire_alerts es vectorial)
 // ══════════════════════════════════════════════════════════════
 
 function setGFWStatus(msg, tipo='') {
@@ -1141,22 +1146,12 @@ function setGFWStatus(msg, tipo='') {
   el.className = 'gfw-status' + (tipo ? ' ' + tipo : '');
 }
 
-/**
- * Construye las fechas de inicio/fin según los días de período activo.
- */
 function gfwFechas(dias) {
   const fin = new Date();
   const ini = new Date(Date.now() - dias * 864e5);
-  return {
-    startDate: ini.toISOString().slice(0,10),
-    endDate:   fin.toISOString().slice(0,10)
-  };
+  return { startDate: ini.toISOString().slice(0,10), endDate: fin.toISOString().slice(0,10) };
 }
 
-/**
- * Obtiene el bounding box vigente: si hay área de filtro activa la usa,
- * sino usa el bbox de Chámeza completo.
- */
 function gfwBbox() {
   const area = obtenerAreaFiltroActiva();
   if (!area) return CHAMEZA_BBOX;
@@ -1179,50 +1174,97 @@ function gfwBbox() {
 async function toggleGFW(key, visible) {
   const capa = gfwCapas[key];
   capa.visible = visible;
-  document.getElementById(`sub-${key==='fires'?'fires':key}`).classList.toggle('visible', visible);
+  document.getElementById(`sub-${key}`).classList.toggle('visible', visible);
 
   if (!visible) {
-    // Limpiar marcadores
     capa.marcadores.forEach(m => map.removeLayer(m));
     capa.marcadores = [];
-    // Limpiar tile layer si existe (Hansen)
     if (capa.tileLayer) { map.removeLayer(capa.tileLayer); capa.tileLayer = null; }
-    // Verificar si quedan capas GFW activas para el badge de status
-    const algunaActiva = Object.values(gfwCapas).some(c => c.visible);
-    if (!algunaActiva) setGFWStatus('—');
+    if (!Object.values(gfwCapas).some(c => c.visible)) setGFWStatus('—');
     return;
   }
 
-  if (key === 'hansen') {
-    cargarHansen();
+  if (key === 'fires') {
+    await cargarGFWFires();
   } else {
-    await cargarGFWAlertas(key);
+    // GLAD, RADD, Hansen → tiles dinámicos
+    cargarGFWTiles(key);
   }
 }
 
-/**
- * Hansen Tree Cover Loss — capa de teselas WMS/tile de GFW.
- */
-function cargarHansen() {
-  const capa = gfwCapas.hansen;
+// ── GLAD & RADD: Tiles dinámicos ──────────────────────────────
+// GFW expone tiles en: https://tiles.globalforestwatch.org/{dataset}/{version}/dynamic/{z}/{x}/{y}.png
+// GLAD (integrado) → gfw_integrated_alerts
+// RADD             → wur_radd_alerts
+
+const GFW_TILE_DATASETS = {
+  glad:   'gfw_integrated_alerts',
+  radd:   'wur_radd_alerts',
+  hansen: { forest: 'umd_tree_cover_density_2000', loss: 'umd_tree_cover_loss' }
+};
+
+// Parámetros de fecha para tiles GLAD/RADD
+function gfwTileParams(key) {
+  // Los tiles aceptan start_date / end_date como query params para GLAD y RADD
+  const dias = diasActual;
+  const { startDate, endDate } = gfwFechas(dias);
+  if (key === 'glad') {
+    const conf = document.getElementById('sel-glad-conf').value;
+    const confParam = conf === 'all' ? '' : `&confidence=${conf}`;
+    return `?start_date=${startDate}&end_date=${endDate}${confParam}&x-api-key=${GFW_API_KEY}`;
+  }
+  if (key === 'radd') {
+    return `?start_date=${startDate}&end_date=${endDate}&x-api-key=${GFW_API_KEY}`;
+  }
+  return `?x-api-key=${GFW_API_KEY}`;
+}
+
+function cargarGFWTiles(key) {
+  const capa = gfwCapas[key];
+  // Limpiar tile layer previo
   if (capa.tileLayer) { map.removeLayer(capa.tileLayer); capa.tileLayer = null; }
 
-  // Tile de cobertura forestal 2000 (verde)
-  const tileForest = L.tileLayer(
-    `https://tiles.globalforestwatch.org/umd_tree_cover_density_2000/latest/dynamic/{z}/{x}/{y}.png?x-api-key=${GFW_API_KEY}`,
-    { opacity: hansenOpacity, attribution: '© Hansen/GFW', maxZoom: 12 }
-  );
-  // Tile de pérdida forestal (rojo)
-  const tileLoss = L.tileLayer(
-    `https://tiles.globalforestwatch.org/umd_tree_cover_loss/latest/dynamic/{z}/{x}/{y}.png?x-api-key=${GFW_API_KEY}`,
-    { opacity: hansenOpacity, attribution: '© Hansen/GFW', maxZoom: 12 }
-  );
+  if (key === 'hansen') {
+    const params = `?x-api-key=${GFW_API_KEY}`;
+    const tileForest = L.tileLayer(
+      `https://tiles.globalforestwatch.org/umd_tree_cover_density_2000/latest/dynamic/{z}/{x}/{y}.png${params}`,
+      { opacity: hansenOpacity, attribution: '© Hansen/GFW', maxZoom: 13, minZoom: 3 }
+    );
+    const tileLoss = L.tileLayer(
+      `https://tiles.globalforestwatch.org/umd_tree_cover_loss/latest/dynamic/{z}/{x}/{y}.png${params}`,
+      { opacity: hansenOpacity, attribution: '© Hansen/GFW', maxZoom: 13, minZoom: 3 }
+    );
+    capa.tileLayer = L.layerGroup([tileForest, tileLoss]).addTo(map);
+    document.getElementById('stats-hansen').innerHTML =
+      `Cobertura 2000 <span style="color:#22c55e">●</span> &nbsp; Pérdida 2001-2023 <span style="color:#dc2626">●</span><br>Opacidad: <span>${Math.round(hansenOpacity*100)}%</span>`;
+    setGFWStatus('✓ Hansen', 'ok');
+    return;
+  }
 
-  const grupo = L.layerGroup([tileForest, tileLoss]).addTo(map);
-  capa.tileLayer = grupo;
-  document.getElementById('stats-hansen').innerHTML =
-    `Cobertura 2000 <span style="color:#22c55e">●</span> &nbsp; Pérdida 2001-2023 <span style="color:#dc2626">●</span><br>Opacidad: <span>${Math.round(hansenOpacity*100)}%</span>`;
-  setGFWStatus('✓ Hansen', 'ok');
+  // GLAD / RADD
+  const dataset = GFW_TILE_DATASETS[key];
+  const params  = gfwTileParams(key);
+  const tileUrl = `https://tiles.globalforestwatch.org/${dataset}/latest/dynamic/{z}/{x}/{y}.png${params}`;
+
+  const tile = L.tileLayer(tileUrl, {
+    opacity: 0.85,
+    attribution: key === 'glad' ? '© GLAD/GFW' : '© RADD/GFW',
+    maxZoom: 13, minZoom: 3,
+    crossOrigin: true
+  });
+
+  tile.on('tileerror', (e) => {
+    console.warn(`GFW ${key} tile error:`, e);
+  });
+
+  tile.addTo(map);
+  capa.tileLayer = tile;
+
+  const nombre = key === 'glad' ? 'GLAD integrado' : 'RADD Sentinel-1';
+  const periodo = diasActual === 1 ? '24 h' : diasActual === 7 ? '7 días' : '30 días';
+  document.getElementById(`stats-${key}`).innerHTML =
+    `Capa activa · <span>${nombre}</span><br>Período: <span>${periodo}</span> · zoom ≥ 3`;
+  setGFWStatus('✓ Tiles OK', 'ok');
 }
 
 function actualizarOpacidadHansen(val) {
@@ -1236,175 +1278,114 @@ function actualizarOpacidadHansen(val) {
     `Cobertura 2000 <span style="color:#22c55e">●</span> &nbsp; Pérdida 2001-2023 <span style="color:#dc2626">●</span><br>Opacidad: <span>${val}%</span>`;
 }
 
-/**
- * Carga alertas GFW (GLAD, RADD, Fires) vía Data API.
- */
-async function cargarGFWAlertas(key) {
+// ── Fires GFW: Data API REST (dataset vectorial) ──────────────
+// nasa_viirs_fire_alerts tiene campos vectoriales:
+//   latitude, longitude, acq_date, confidence__cat, frp__MW
+async function cargarGFWFires() {
   setGFWStatus('Cargando…', 'loading');
-  const statsEl = document.getElementById(`stats-${key}`);
-  statsEl.textContent = 'Consultando GFW…';
+  const statsEl = document.getElementById('stats-fires');
+  statsEl.innerHTML = 'Consultando GFW VIIRS…';
 
-  const bbox   = gfwBbox();
-  const dias   = key === 'fires'
-    ? parseInt(document.getElementById('sel-fires-periodo').value || 7)
-    : diasActual;
+  const bbox = gfwBbox();
+  const dias = parseInt(document.getElementById('sel-fires-periodo').value || 7);
   const { startDate, endDate } = gfwFechas(dias);
-  const dataset = GFW_DATASETS[key];
 
-  // Construir URL del endpoint de query
-  // GFW Data API: POST /dataset/{dataset}/latest/query
-  const url = `${GFW_BASE}/dataset/${dataset}/latest/query/json`;
-
-  // SQL para obtener puntos dentro del bbox
-  const sql = `SELECT latitude, longitude, alert__date, confidence__cat
-               FROM results
-               WHERE alert__date >= '${startDate}'
-                 AND alert__date <= '${endDate}'
-                 AND latitude  BETWEEN ${bbox.ymin} AND ${bbox.ymax}
-                 AND longitude BETWEEN ${bbox.xmin} AND ${bbox.xmax}
-               LIMIT 500`;
-
-  try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': GFW_API_KEY
-      },
-      body: JSON.stringify({ sql })
-    });
-
-    if (!resp.ok) {
-      // Fallback: intentar con GET
-      await cargarGFWAlertasGET(key, bbox, startDate, endDate, dataset, statsEl);
-      return;
-    }
-
-    const data = await resp.json();
-    const rows = data.data || data.rows || [];
-    gfwCapas[key].datos = rows;
-    renderGFWMarcadores(key, rows);
-    setGFWStatus(`✓ ${rows.length} pts`, 'ok');
-  } catch(e) {
-    console.warn('GFW POST falló, intentando GET…', e);
-    await cargarGFWAlertasGET(key, bbox, startDate, endDate, dataset, statsEl);
-  }
-}
-
-/**
- * Fallback GET — algunos endpoints GFW aceptan query params.
- */
-async function cargarGFWAlertasGET(key, bbox, startDate, endDate, dataset, statsEl) {
-  const url = new URL(`${GFW_BASE}/dataset/${dataset}/latest/query`);
-  url.searchParams.set('sql',
-    `SELECT latitude,longitude,alert__date,confidence__cat FROM results WHERE alert__date >= '${startDate}' AND alert__date <= '${endDate}' AND latitude BETWEEN ${bbox.ymin} AND ${bbox.ymax} AND longitude BETWEEN ${bbox.xmin} AND ${bbox.xmax} LIMIT 500`
+  // nasa_viirs_fire_alerts es vectorial → SQL con latitude/longitude funciona
+  const sql = encodeURIComponent(
+    `SELECT latitude,longitude,acq_date,confidence__cat,frp__MW
+     FROM results
+     WHERE acq_date >= '${startDate}'
+       AND acq_date <= '${endDate}'
+       AND latitude  BETWEEN ${bbox.ymin} AND ${bbox.ymax}
+       AND longitude BETWEEN ${bbox.xmin} AND ${bbox.xmax}
+     LIMIT 500`
   );
 
+  const url = `${GFW_BASE}/dataset/nasa_viirs_fire_alerts/latest/query/json?sql=${sql}`;
+
   try {
-    const resp = await fetch(url.toString(), {
-      headers: { 'x-api-key': GFW_API_KEY }
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status} — ${await resp.text()}`);
+    const resp = await fetch(url, { headers: { 'x-api-key': GFW_API_KEY } });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`HTTP ${resp.status} — ${txt.slice(0,120)}`);
+    }
     const data = await resp.json();
-    const rows = data.data || data.rows || [];
-    gfwCapas[key].datos = rows;
-    renderGFWMarcadores(key, rows);
-    setGFWStatus(`✓ ${rows.length} pts`, 'ok');
+    const rows = data.data || [];
+    gfwCapas.fires.datos = rows;
+    renderGFWFiresMarcadores(rows);
   } catch(e) {
-    console.error(`GFW ${key} error:`, e);
-    statsEl.textContent = `Error: ${e.message.slice(0,60)}`;
+    console.error('GFW Fires error:', e);
+    statsEl.innerHTML = `<span style="color:var(--fuego-l)">Error: ${e.message.slice(0,80)}</span>`;
     setGFWStatus('Error API', 'err');
   }
 }
 
-/**
- * Renderiza marcadores en el mapa para cada tipo de capa GFW.
- */
-function renderGFWMarcadores(key, rows) {
-  const capa = gfwCapas[key];
+function renderGFWFiresMarcadores(rows) {
+  const capa = gfwCapas.fires;
   capa.marcadores.forEach(m => map.removeLayer(m));
   capa.marcadores = [];
 
   const area = obtenerAreaFiltroActiva();
-  const statsEl = document.getElementById(`stats-${key}`);
-
-  // Filtro por confianza GLAD
-  let gladConf = 'all';
-  if (key === 'glad') gladConf = document.getElementById('sel-glad-conf').value;
-
-  let contHigh = 0, contMed = 0, contTotal = 0;
+  const statsEl = document.getElementById('stats-fires');
+  let contHigh = 0, contMed = 0, contLow = 0;
 
   rows.forEach(row => {
-    const lat = parseFloat(row.latitude  || row.lat);
-    const lng = parseFloat(row.longitude || row.lon || row.lng);
+    const lat = parseFloat(row.latitude);
+    const lng = parseFloat(row.longitude);
     if (isNaN(lat) || isNaN(lng)) return;
     if (area && !puntoEnArea(lat, lng, area)) return;
 
-    const conf = (row.confidence__cat || row.confidence || '').toLowerCase();
+    const conf = (row.confidence__cat || '').toLowerCase();
+    const frp  = parseFloat(row['frp__MW'] || row.frp__mw || 0);
 
-    // Filtro confianza GLAD
-    if (key === 'glad' && gladConf !== 'all') {
-      if (gladConf === 'highest' && conf !== 'highest') return;
-      if (gladConf === 'high'    && conf === 'low')     return;
-    }
+    let color, radius;
+    if (conf === 'high' || frp > 80)       { color='#ff2200'; radius=8; contHigh++; }
+    else if (conf === 'nominal' || frp > 30){ color='#ff8800'; radius=6; contMed++;  }
+    else                                    { color='#ffcc00'; radius=5; contLow++;  }
 
-    contTotal++;
-
-    let color, radius, shadow = '';
-    if (key === 'glad') {
-      color  = conf.includes('high') ? '#dc2626' : '#f97316';
-      radius = conf.includes('high') ? 7 : 5;
-      if (conf.includes('high')) contHigh++; else contMed++;
-    } else if (key === 'radd') {
-      color  = conf === 'confirmed' ? '#7c3aed' : '#a78bfa';
-      radius = conf === 'confirmed' ? 7 : 5;
-      if (conf === 'confirmed') contHigh++; else contMed++;
-    } else if (key === 'fires') {
-      const confNum = parseFloat(row.confidence || row.frp || 0);
-      if (confNum > 80 || conf === 'high') { color='#ff2200'; radius=8; shadow='box-shadow:0 0 6px #ff2200'; contHigh++; }
-      else if (confNum > 50)               { color='#ff8800'; radius=6; contMed++; }
-      else                                 { color='#ffcc00'; radius=5; }
-    }
-
-    const fecha = row.alert__date || row.acq_date || 'N/D';
+    const fecha = row.acq_date || 'N/D';
     const m = L.circleMarker([lat, lng], {
-      radius, fillColor: color, color: '#fff', weight: 1.2,
-      fillOpacity: 0.88, opacity: 0.9
+      radius, fillColor: color, color: '#fff', weight: 1.2, fillOpacity: 0.88
     }).addTo(map);
 
-    const titulo = { glad:'Alerta GLAD', radd:'Alerta RADD', fires:'Incendio GFW' }[key];
-    const fuente = { glad:'Landsat · Univ. Maryland', radd:'Sentinel-1 SAR', fires:'VIIRS/MODIS · NASA' }[key];
     m.bindPopup(`
-      <div class="popup-title gfw">${titulo}</div>
+      <div class="popup-title gfw">Incendio GFW · VIIRS</div>
       <div class="popup-row">Coordenadas <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
       <div class="popup-row">Fecha <span>${fecha}</span></div>
       <div class="popup-row">Confianza <span>${conf || 'N/D'}</span></div>
-      <div class="popup-row">Fuente <span>${fuente}</span></div>
+      <div class="popup-row">FRP <span>${frp ? frp.toFixed(1)+' MW' : 'N/D'}</span></div>
     `);
     capa.marcadores.push(m);
   });
 
-  // Stats box
-  if (contTotal === 0) {
-    statsEl.innerHTML = `<span>Sin alertas en el período/área seleccionada</span>`;
-  } else if (key === 'fires') {
-    statsEl.innerHTML = `Total: <span>${contTotal}</span><br>Alta conf.: <span style="color:#ff2200">${contHigh}</span> &nbsp; Media: <span style="color:#ff8800">${contMed}</span>`;
+  const total = contHigh + contMed + contLow;
+  if (total === 0) {
+    statsEl.innerHTML = '<span>Sin puntos de calor en el área/período</span>';
+    setGFWStatus('✓ 0 pts', 'ok');
   } else {
-    statsEl.innerHTML = `Total: <span>${contTotal}</span><br>Alta conf.: <span style="color:#dc2626">${contHigh}</span> &nbsp; Media: <span style="color:#f97316">${contMed}</span>`;
+    statsEl.innerHTML = `Total: <span>${total}</span><br>
+      Alta conf.: <span style="color:#ff2200">${contHigh}</span> &nbsp;
+      Media: <span style="color:#ff8800">${contMed}</span> &nbsp;
+      Baja: <span style="color:#ffcc00">${contLow}</span>`;
+    setGFWStatus(`✓ ${total} pts`, 'ok');
   }
 }
 
 /**
- * Refiltra una capa GFW ya cargada (sin volver a la API).
+ * Refiltra / recarga según el tipo de capa.
  */
 function filtrarGFW(key) {
   const capa = gfwCapas[key];
-  if (!capa.visible || !capa.datos.length) {
-    // Si no hay datos locales, recargar
-    if (capa.visible && key !== 'hansen') cargarGFWAlertas(key);
-    return;
+  if (!capa.visible) return;
+
+  if (key === 'fires') {
+    // Fires: si ya hay datos en memoria, re-renderizar; sino recargar
+    if (capa.datos.length) renderGFWFiresMarcadores(capa.datos);
+    else cargarGFWFires();
+  } else {
+    // GLAD, RADD, Hansen: reconstruir tile con nuevos parámetros
+    cargarGFWTiles(key);
   }
-  renderGFWMarcadores(key, capa.datos);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1513,7 +1494,9 @@ setInterval(()=>{ if(deforVisible)cargarDeforestacion(); }, 10*60*1000);
 // Refrescar capas GFW cada 15 min
 setInterval(()=>{
   Object.keys(gfwCapas).forEach(k=>{
-    if(gfwCapas[k].visible && k!=='hansen') cargarGFWAlertas(k);
+    if (!gfwCapas[k].visible) return;
+    if (k === 'fires') cargarGFWFires();
+    else if (k !== 'hansen') cargarGFWTiles(k);
   });
 }, 15*60*1000);
 </script>
