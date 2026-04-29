@@ -912,12 +912,61 @@ async function descargarCSV(modo) {
       _dl([cab,...rows].join('\n'),`deforestacion_${hoy}.csv`);
     }
   } else {
-    const fi=alertasActualesIncendios(),fd=alertasActualesDefor();
+    // ── COMBINADO: incendios + deforestación, con veredas si hay municipio activo
+    const fi=alertasActualesIncendios(), fd=alertasActualesDefor();
     if(!fi.length&&!fd.length){alert('No hay datos para exportar.');return;}
-    const cab='tipo,fecha_deteccion,latitud,longitud,detalle_1,detalle_2,detalle_3,detalle_4,estado';
-    const ri=fi.map(a=>['incendio',a.fecha_deteccion,a.latitud,a.longitud,a.firms_confidence||'',a.firms_frp||'',a.firms_satellite||'','',a.estado].join(','));
-    const rd=fd.map(a=>['deforestacion',a.fecha_deteccion,a.latitud,a.longitud,a.predio_id,a.cambio_ndvi||'',a.area_afectada_ha||'',a.severidad,a.estado].join(','));
-    _dl([cab,...ri,...rd].join('\n'),`reporte_combinado_chameza_${hoy}.csv`);
+
+    const conMun = municipioActual && veredasGJ;
+
+    if (conMun) {
+      // Agrupar ambos tipos por vereda
+      const gruposI = await agruparAlertasPorVereda(fi);
+      const gruposD = await agruparAlertasPorVereda(fd);
+
+      const cab = 'vereda,municipio,tipo,fecha,latitud,longitud,confianza_o_severidad,frp_o_area_ha,satelite_o_ndvi,estado';
+      const rows = [];
+
+      // Recopilar todas las veredas que tienen datos
+      const todasVeredas = new Set([
+        ...Object.keys(gruposI || {}),
+        ...Object.keys(gruposD || {})
+      ]);
+
+      for (const vereda of [...todasVeredas].sort()) {
+        const alsI = (gruposI || {})[vereda] || [];
+        const alsD = (gruposD || {})[vereda] || [];
+        alsI.forEach(a => rows.push([
+          vereda, municipioActual, 'incendio',
+          a.fecha_deteccion, a.latitud, a.longitud,
+          a.firms_confidence||'', a.firms_frp||'',
+          a.firms_satellite||'', a.estado
+        ].join(',')));
+        alsD.forEach(a => rows.push([
+          vereda, municipioActual, 'deforestacion',
+          a.fecha_deteccion, a.latitud, a.longitud,
+          a.severidad||'', a.area_afectada_ha||'',
+          a.cambio_ndvi!=null?Number(a.cambio_ndvi).toFixed(3):'', a.estado
+        ].join(',')));
+      }
+
+      if (!rows.length) { alert('No hay alertas en las veredas del municipio seleccionado.'); return; }
+      _dl([cab,...rows].join('\n'), `combinado_${municipioActual.replace(/ /g,'_')}_${hoy}.csv`);
+
+    } else {
+      // Sin municipio: reporte combinado estándar con columnas claras
+      const cab = 'tipo,fecha_deteccion,latitud,longitud,confianza_o_severidad,frp_o_area_ha,satelite_o_ndvi,estado';
+      const ri = fi.map(a=>[
+        'incendio', a.fecha_deteccion, a.latitud, a.longitud,
+        a.firms_confidence||'', a.firms_frp||'',
+        a.firms_satellite||'', a.estado
+      ].join(','));
+      const rd = fd.map(a=>[
+        'deforestacion', a.fecha_deteccion, a.latitud, a.longitud,
+        a.severidad||'', a.area_afectada_ha||'',
+        a.cambio_ndvi!=null?Number(a.cambio_ndvi).toFixed(3):'', a.estado
+      ].join(','));
+      _dl([cab,...ri,...rd].join('\n'), `combinado_${hoy}.csv`);
+    }
   }
 }
 function _dl(content,filename){const blob=new Blob([content],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);}
