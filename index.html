@@ -94,7 +94,7 @@
       <img src="cunaguaro.png" alt="Cunaguaro" class="h-8 object-contain">
     </div>
     <div>
-      <h1 class="text-lg font-extrabold text-slate-800 tracking-tight syne leading-none">Monitor Bosques <span class="text-emerald-700">Chameza</span></h1>
+      <h1 class="text-lg font-extrabold text-slate-800 tracking-tight syne leading-none">Monitor de Bosques <span class="text-emerald-700">Eje Orinoquía-Andes</span></h1>
       <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-[.18em] mt-0.5">Plataforma de Monitoreo Territorial · CBC Cunaguaro</p>
     </div>
   </div>
@@ -240,17 +240,27 @@
             </div>
           </div>
         </label>
-        <!-- Predios -->
-        <label class="area-opt flex items-center justify-between p-3 rounded-xl bg-white/60 cursor-pointer hover:bg-white" id="opt-predios">
-          <div class="flex items-center gap-2.5">
-            <input type="checkbox" id="chk-area-predios" onchange="cambiarAreaAnalisis()" class="w-4 h-4 rounded" style="accent-color:var(--verde)">
-            <div>
-              <div class="text-sm font-bold text-slate-700">Predios</div>
-              <div class="text-[10px] text-slate-400">Unidades prediales</div>
+        <!-- Municipio -->
+        <div class="area-opt flex flex-col gap-2 p-3 rounded-xl bg-white/60" id="opt-municipio">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <input type="checkbox" id="chk-area-municipio" onchange="cambiarAreaAnalisis()" class="w-4 h-4 rounded" style="accent-color:var(--verde)">
+              <div>
+                <div class="text-sm font-bold text-slate-700">Municipio</div>
+                <div class="text-[10px] text-slate-400">Por municipio y veredas</div>
+              </div>
             </div>
+            <span class="text-[9px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">Menor</span>
           </div>
-          <span class="text-[9px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">Menor</span>
-        </label>
+          <!-- Selector municipio: visible solo si checkbox activo -->
+          <div id="sel-municipio-wrap" class="hidden pl-6">
+            <select id="sel-municipio" onchange="seleccionarMunicipio(this.value)"
+              class="w-full text-[10px] px-2 py-1.5 border border-slate-200 rounded-lg bg-white/70 focus:outline-none focus:ring-1 focus:ring-emerald-400">
+              <option value="">— Todos los municipios —</option>
+            </select>
+            <div id="municipio-veredas-info" class="mt-1.5 text-[9px] text-slate-400 italic"></div>
+          </div>
+        </div>
       </div>
       <!-- Badge área activa -->
       <div class="mt-3 flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl" id="area-activa-badge">
@@ -286,7 +296,7 @@
         <span id="ico-capas" class="text-slate-400 text-xs">▸</span>
       </button>
       <div id="capas-extra-body" class="hidden px-4 pb-4 flex flex-col gap-2">
-        <label class="flex items-center gap-2 cursor-pointer py-1.5"><input type="checkbox" onchange="toggleCapa('municipio', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)"><span class="text-xs text-slate-600 font-medium">Municipio (Chámeza)</span></label>
+        <label class="flex items-center gap-2 cursor-pointer py-1.5"><input type="checkbox" onchange="toggleCapa('municipio', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)"><span class="text-xs text-slate-600 font-medium">Límites municipales</span></label>
         <label class="flex items-center gap-2 cursor-pointer py-1.5"><input type="checkbox" id="chk-estudio-capa" onchange="toggleCapa('estudio', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)"><span class="text-xs text-slate-600 font-medium">Área de estudio (contorno)</span></label>
         <label class="flex items-center gap-2 cursor-pointer py-1.5"><input type="checkbox" id="chk-bosque-capa" onchange="toggleCapa('bosque', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)"><span class="text-xs text-slate-600 font-medium">Núcleos boscosos</span></label>
         <label class="flex items-center gap-2 cursor-pointer py-1.5">
@@ -478,9 +488,15 @@ let tipoActual = 'incendios'; // 'incendios' | 'gfw'
 // Geometrías cargadas para áreas de análisis
 let geomAreaEstudio  = null;
 let geomNucleos      = null;
-let geomPrediosAll   = null; // GeoJSON completo de predios
 
-// Área de análisis activa: 'estudio' | 'nucleos' | 'predios'
+// Datos municipios y veredas
+let municipiosGJ     = null;   // GeoJSON completo de municipios
+let veredasGJ        = null;   // GeoJSON completo de veredas
+let municipioActual  = '';     // MPIO_CNMBR seleccionado ('' = todos)
+let capaMunicipioViz = null;   // Layer visual del municipio activo
+let capaVeredasViz   = null;   // Layer visual de veredas
+
+// Área de análisis activa: 'estudio' | 'nucleos' | 'municipio'
 let areaAnalisisActiva = 'estudio';
 
 const drawnItems   = new L.FeatureGroup().addTo(map);
@@ -575,26 +591,36 @@ function toggleCapasExtra(btn) {
 function cambiarAreaAnalisis() {
   const chkE = document.getElementById('chk-area-estudio').checked;
   const chkN = document.getElementById('chk-area-nucleos').checked;
-  const chkP = document.getElementById('chk-area-predios').checked;
+  const chkM = document.getElementById('chk-area-municipio').checked;
 
   // Determinar área predominante (mayor primero)
   let nueva = null;
   if (chkE)      nueva = 'estudio';
   else if (chkN) nueva = 'nucleos';
-  else if (chkP) nueva = 'predios';
+  else if (chkM) nueva = 'municipio';
 
   areaAnalisisActiva = nueva;
+
+  // Mostrar/ocultar selector de municipio
+  const wrap = document.getElementById('sel-municipio-wrap');
+  if (wrap) { if (chkM) wrap.classList.remove('hidden'); else wrap.classList.add('hidden'); }
+
+  // Si se desmarca municipio, limpiar capa visual
+  if (!chkM) { limpiarCapaMunicipio(); municipioActual = ''; }
+  // Si se marca municipio, cargar si no está cargado aún
+  if (chkM && !municipiosGJ) cargarMunicipios();
 
   // Actualizar estilos botones
   document.getElementById('opt-estudio').classList.toggle('activo', chkE);
   document.getElementById('opt-nucleos').classList.toggle('activo', chkN);
-  document.getElementById('opt-predios').classList.toggle('activo', chkP);
+  document.getElementById('opt-municipio').classList.toggle('activo', chkM);
 
   // Badge (always visible, just update text)
   const txt = document.getElementById('area-activa-txt');
+  const mLabel = municipioActual ? `Municipio: ${municipioActual}` : 'Todos los municipios';
   if(txt) txt.textContent = !nueva ? 'Sin área seleccionada' :
-    nueva==='estudio' ? 'Área de estudio activa' :
-    nueva==='nucleos' ? 'Núcleos boscosos activos' : 'Predios activos';
+    nueva==='estudio'   ? 'Área de estudio activa' :
+    nueva==='nucleos'   ? 'Núcleos boscosos activos' : mLabel;
 
   // También cargar la capa visual correspondiente en el mapa
   if (chkE) toggleCapa('estudio', true); else capasInfo.estudio.clearLayers();
@@ -627,9 +653,17 @@ async function obtenerGeomActiva() {
     }
     return geomNucleos;
   }
-  if (areaAnalisisActiva==='predios') {
-    // Para predios usamos el bbox de los predios cargados
-    return await obtenerGeomAreaEstudio(); // simplificación válida por ahora
+  if (areaAnalisisActiva==='municipio') {
+    // Usar geometría del municipio seleccionado, o área de estudio si es "todos"
+    if (!municipioActual) return await obtenerGeomAreaEstudio();
+    try {
+      if (!municipiosGJ) await cargarMunicipios();
+      const feat = municipiosGJ.features.find(
+        f => (f.properties.MPIO_CNMBR||'').toUpperCase() === municipioActual.toUpperCase()
+      );
+      if (feat) return feat.geometry;
+    } catch(e) { console.warn('geom municipio:', e); }
+    return await obtenerGeomAreaEstudio();
   }
   return await obtenerGeomAreaEstudio();
 }
@@ -768,7 +802,7 @@ function filtrar(btn) {
 }
 
 // ── Descarga unificada ────────────────────────────────────────────────────────
-function descargarActual(formato) {
+async function descargarActual(formato) {
   if (tipoActual==='incendios') {
     if (formato==='csv') descargarCSV('incendios');
     else descargarPDF('incendios');
@@ -798,20 +832,85 @@ function alertasActualesIncendios() {
 }
 function alertasActualesDefor() { return alertasEnPeriodo(alertasDefor); }
 
-function descargarCSV(modo) {
+// ── Helpers de agrupación por vereda ─────────────────────────────────────────
+function puntoEnPoligono(lat, lng, feature) {
+  // Ray-casting para Polygon o MultiPolygon
+  const geom = feature.geometry;
+  const polys = geom.type === 'Polygon'
+    ? [geom.coordinates]
+    : geom.coordinates; // MultiPolygon
+  for (const poly of polys) {
+    const ring = poly[0];
+    let dentro = false;
+    for (let i=0, j=ring.length-1; i<ring.length; j=i++) {
+      const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1];
+      if (((yi>lat)!==(yj>lat)) && (lng < (xj-xi)*(lat-yi)/(yj-yi)+xi)) dentro=!dentro;
+    }
+    if (dentro) return true;
+  }
+  return false;
+}
+
+async function agruparAlertasPorVereda(alertas) {
+  // Retorna { NOMBRE_VER: [alertas], ... } solo para veredas con alertas
+  if (!municipioActual) return null; // sin municipio seleccionado, no aplica
+  await cargarVeredas();
+  if (!veredasGJ) return null;
+
+  const veredasMunicipio = veredasGJ.features.filter(
+    f => (f.properties.NOMB_MPIO||'').toUpperCase() === municipioActual.toUpperCase()
+  );
+  if (!veredasMunicipio.length) return null;
+
+  const grupos = {};
+  for (const alerta of alertas) {
+    for (const vFeat of veredasMunicipio) {
+      if (puntoEnPoligono(alerta.latitud, alerta.longitud, vFeat)) {
+        const nom = vFeat.properties.NOMBRE_VER || 'Sin nombre';
+        if (!grupos[nom]) grupos[nom] = [];
+        grupos[nom].push(alerta);
+        break; // cada alerta va a una sola vereda
+      }
+    }
+  }
+  return Object.keys(grupos).length ? grupos : null;
+}
+
+async function descargarCSV(modo) {
   const hoy=new Date().toISOString().slice(0,10);
   if(modo==='incendios'){
     const d=alertasActualesIncendios();
     if(!d.length){alert('No hay alertas de incendio para exportar.');return;}
-    const cab='tipo,fecha_deteccion,latitud,longitud,confianza,frp_mw,satelite,estado';
-    const rows=d.map(a=>['incendio',a.fecha_deteccion,a.latitud,a.longitud,a.firms_confidence||'',a.firms_frp||'',a.firms_satellite||'',a.estado].join(','));
-    _dl([cab,...rows].join('\n'),`incendios_chameza_${hoy}.csv`);
+    // Si hay municipio activo → agrupar por vereda
+    const grupos = await agruparAlertasPorVereda(d);
+    if (grupos) {
+      const cab='vereda,municipio,tipo,fecha_deteccion,latitud,longitud,confianza,frp_mw,satelite,estado';
+      const rows=[];
+      for (const [vereda, als] of Object.entries(grupos)) {
+        als.forEach(a=>rows.push([vereda,municipioActual,'incendio',a.fecha_deteccion,a.latitud,a.longitud,a.firms_confidence||'',a.firms_frp||'',a.firms_satellite||'',a.estado].join(',')));
+      }
+      _dl([cab,...rows].join('\n'),`incendios_${municipioActual.replace(/ /g,'_')}_${hoy}.csv`);
+    } else {
+      const cab='tipo,fecha_deteccion,latitud,longitud,confianza,frp_mw,satelite,estado';
+      const rows=d.map(a=>['incendio',a.fecha_deteccion,a.latitud,a.longitud,a.firms_confidence||'',a.firms_frp||'',a.firms_satellite||'',a.estado].join(','));
+      _dl([cab,...rows].join('\n'),`incendios_${hoy}.csv`);
+    }
   } else if(modo==='deforestacion'){
     const d=alertasActualesDefor();
     if(!d.length){alert('No hay alertas de deforestación para exportar.');return;}
-    const cab='tipo,fecha_deteccion,predio_id,latitud,longitud,ndvi_antes,ndvi_despues,cambio_ndvi,area_ha,severidad,estado';
-    const rows=d.map(a=>['deforestacion',a.fecha_deteccion,a.predio_id,a.latitud,a.longitud,a.ndvi_antes||'',a.ndvi_despues||'',a.cambio_ndvi||'',a.area_afectada_ha||'',a.severidad,a.estado].join(','));
-    _dl([cab,...rows].join('\n'),`deforestacion_chameza_${hoy}.csv`);
+    const grupos = await agruparAlertasPorVereda(d);
+    if (grupos) {
+      const cab='vereda,municipio,tipo,fecha_deteccion,latitud,longitud,ndvi_antes,ndvi_despues,cambio_ndvi,area_ha,severidad,estado';
+      const rows=[];
+      for (const [vereda, als] of Object.entries(grupos)) {
+        als.forEach(a=>rows.push([vereda,municipioActual,'deforestacion',a.fecha_deteccion,a.latitud,a.longitud,a.ndvi_antes||'',a.ndvi_despues||'',a.cambio_ndvi||'',a.area_afectada_ha||'',a.severidad,a.estado].join(',')));
+      }
+      _dl([cab,...rows].join('\n'),`deforestacion_${municipioActual.replace(/ /g,'_')}_${hoy}.csv`);
+    } else {
+      const cab='tipo,fecha_deteccion,predio_id,latitud,longitud,ndvi_antes,ndvi_despues,cambio_ndvi,area_ha,severidad,estado';
+      const rows=d.map(a=>['deforestacion',a.fecha_deteccion,a.predio_id,a.latitud,a.longitud,a.ndvi_antes||'',a.ndvi_despues||'',a.cambio_ndvi||'',a.area_afectada_ha||'',a.severidad,a.estado].join(','));
+      _dl([cab,...rows].join('\n'),`deforestacion_${hoy}.csv`);
+    }
   } else {
     const fi=alertasActualesIncendios(),fd=alertasActualesDefor();
     if(!fi.length&&!fd.length){alert('No hay datos para exportar.');return;}
@@ -829,7 +928,7 @@ function descargarPDF(modo) {
   const doc=new jsPDF();
   const hoy=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota'});
   const periodo=diasActual===1?'Últimas 24 h':diasActual===7?'Últimos 7 días':'Últimos 30 días';
-  const areaLbl=areaAnalisisActiva==='estudio'?'Área de estudio':areaAnalisisActiva==='nucleos'?'Núcleos boscosos':areaAnalisisActiva==='predios'?'Predios':'Área completa';
+  const areaLbl=areaAnalisisActiva==='estudio'?'Área de estudio':areaAnalisisActiva==='nucleos'?'Núcleos boscosos':areaAnalisisActiva==='municipio'?(municipioActual?`Municipio: ${municipioActual}`:'Todos los municipios'):'Área completa';
   doc.setFillColor(26,74,46);doc.rect(0,0,210,36,'F');
   doc.setTextColor(76,175,125);doc.setFontSize(15);doc.setFont('helvetica','bold');
   const titulo=modo==='incendios'?'Reporte de Incendios':modo==='deforestacion'?'Reporte de Deforestación':'Reporte Combinado · Incendios & Deforestación';
@@ -846,19 +945,34 @@ function descargarPDF(modo) {
     doc.text(`INCENDIOS (${fi.length})`,14,y+6);y+=13;
     if(!fi.length){doc.setFont('helvetica','italic');doc.setTextColor(122,171,138);doc.setFontSize(9);doc.text('Sin alertas en este período.',14,y);y+=10;}
     else{
+      const conMunicipio = municipioActual && veredasGJ;
       doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setFillColor(220,240,228);
       doc.rect(14,y,182,7,'F');doc.setTextColor(40,40,40);
-      doc.text('Fecha',16,y+5);doc.text('Lat',68,y+5);doc.text('Lon',92,y+5);
-      doc.text('Confianza',116,y+5);doc.text('FRP (MW)',146,y+5);doc.text('Satélite',172,y+5);
+      if(conMunicipio){
+        doc.text('Vereda',16,y+5);doc.text('Fecha',56,y+5);doc.text('Lat',96,y+5);doc.text('Lon',114,y+5);doc.text('Conf.',134,y+5);doc.text('FRP',158,y+5);
+      } else {
+        doc.text('Fecha',16,y+5);doc.text('Lat',68,y+5);doc.text('Lon',92,y+5);
+        doc.text('Confianza',116,y+5);doc.text('FRP (MW)',146,y+5);doc.text('Satélite',172,y+5);
+      }
       y+=9;doc.setFont('helvetica','normal');
       fi.slice(0,40).forEach((a,i)=>{
         if(y>272){doc.addPage();y=20;}
         if(i%2===0){doc.setFillColor(248,252,249);doc.rect(14,y-4,182,7,'F');}
         const f=new Date(a.fecha_deteccion).toLocaleString('es-CO',{timeZone:'America/Bogota',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
         doc.setTextColor(40,40,40);
-        doc.text(f,16,y);doc.text(a.latitud.toFixed(4),68,y);doc.text(a.longitud.toFixed(4),92,y);
-        doc.text(a.firms_confidence||'—',116,y);doc.text(a.firms_frp?a.firms_frp.toFixed(1):'—',146,y);
-        doc.text(a.firms_satellite||'—',172,y);y+=7;
+        if(conMunicipio){
+          // Buscar vereda del punto
+          let verNom='—';
+          const vMun=veredasGJ.features.filter(v=>(v.properties.NOMB_MPIO||'').toUpperCase()===municipioActual.toUpperCase());
+          for(const vf of vMun){if(puntoEnPoligono(a.latitud,a.longitud,vf)){verNom=(vf.properties.NOMBRE_VER||'').slice(0,14);break;}}
+          doc.text(verNom,16,y);doc.text(f,56,y);doc.text(a.latitud.toFixed(3),96,y);doc.text(a.longitud.toFixed(3),114,y);
+          doc.text(a.firms_confidence||'—',134,y);doc.text(a.firms_frp?a.firms_frp.toFixed(1):'—',158,y);
+        } else {
+          doc.text(f,16,y);doc.text(a.latitud.toFixed(4),68,y);doc.text(a.longitud.toFixed(4),92,y);
+          doc.text(a.firms_confidence||'—',116,y);doc.text(a.firms_frp?a.firms_frp.toFixed(1):'—',146,y);
+          doc.text(a.firms_satellite||'—',172,y);
+        }
+        y+=7;
       });
     }
     y+=6;
@@ -942,28 +1056,104 @@ function renderRasterConectividad(){
   g.addLayer(new GeoRasterLayer({georaster:georasterConectividad,opacity:0.7,pixelValuesToColorFn:v=>{const n=Math.round(v[0]);if(n<cuantilMinimo||n>10||isNaN(n))return null;return turboColors[n];},resolution:256}));
 }
 
-// ── Predios ───────────────────────────────────────────────────────────────────
-async function cargarPredios() {
+// ── Municipios y Veredas ─────────────────────────────────────────────────────
+async function cargarMunicipios() {
+  if (municipiosGJ) return municipiosGJ; // ya cargado
   try {
-    const resp=await fetch(GEOJSON_URL);
-    const gj=await resp.json();
-    prediosAgrupados={};
-    (gj.features||[]).forEach(f=>{
-      const id=f.properties.id_predio||'Sin ID';
-      if(!prediosAgrupados[id])prediosAgrupados[id]={id,features:[],area_m:0,area_ha:0};
-      prediosAgrupados[id].features.push(f);
-      prediosAgrupados[id].area_m+=Number(f.properties.area_m||0);
-      prediosAgrupados[id].area_ha+=Number(f.properties.area_ha||0);
-    });
-    // Solo mostrar predios si están seleccionados
-    if (document.getElementById('chk-area-predios')?.checked) {
-      capaTodosGeo.clearLayers();
-      L.geoJSON(gj,{style:{color:'#2d7a4f',weight:1,fillColor:'#4caf7d',fillOpacity:0.06,dashArray:'4 3'}}).addTo(capaTodosGeo);
+    const resp = await fetch(BASE_URL + 'municipios.geojson');
+    municipiosGJ = await resp.json();
+    // Poblar selector
+    const sel = document.getElementById('sel-municipio');
+    if (sel) {
+      sel.innerHTML = '<option value="">— Todos los municipios —</option>';
+      const nombres = [...new Set(
+        (municipiosGJ.features||[])
+          .map(f => f.properties.MPIO_CNMBR)
+          .filter(Boolean)
+      )].sort();
+      nombres.forEach(nom => {
+        const o = document.createElement('option');
+        o.value = nom; o.textContent = nom;
+        sel.appendChild(o);
+      });
     }
-    // Guardar el select de predios (hidden) por compatibilidad
-    const sel=document.getElementById('predio-select');
-    if(sel){sel.innerHTML='<option value="">—</option>';Object.keys(prediosAgrupados).sort().forEach(id=>{const o=document.createElement('option');o.value=id;o.textContent=id;sel.appendChild(o);});}
-  } catch(e){console.error('Error predios:',e);}
+    console.log('Municipios cargados:', municipiosGJ.features?.length);
+    return municipiosGJ;
+  } catch(e) { console.error('Error cargando municipios:', e); return null; }
+}
+
+async function cargarVeredas() {
+  if (veredasGJ) return veredasGJ;
+  try {
+    const resp = await fetch(BASE_URL + 'veredas.geojson');
+    veredasGJ = await resp.json();
+    console.log('Veredas cargadas:', veredasGJ.features?.length);
+    return veredasGJ;
+  } catch(e) { console.error('Error cargando veredas:', e); return null; }
+}
+
+function limpiarCapaMunicipio() {
+  if (capaMunicipioViz) { map.removeLayer(capaMunicipioViz); capaMunicipioViz = null; }
+  if (capaVeredasViz)   { map.removeLayer(capaVeredasViz);   capaVeredasViz   = null; }
+}
+
+async function seleccionarMunicipio(nombre) {
+  municipioActual = nombre;
+  limpiarCapaMunicipio();
+
+  const info = document.getElementById('municipio-veredas-info');
+
+  if (!nombre) {
+    // Todos → mostrar todos los municipios sin resaltar
+    if (info) info.textContent = '';
+    cambiarAreaAnalisis(); aplicarFiltros();
+    return;
+  }
+
+  // Asegurar que veredas estén cargadas
+  await cargarVeredas();
+
+  // Mostrar polígono del municipio seleccionado
+  if (municipiosGJ) {
+    const feat = municipiosGJ.features.find(
+      f => (f.properties.MPIO_CNMBR||'').toUpperCase() === nombre.toUpperCase()
+    );
+    if (feat) {
+      capaMunicipioViz = L.geoJSON(feat, {
+        style: { color: '#2563eb', weight: 2.5, fillColor: '#2563eb', fillOpacity: 0.07, dashArray: '6 4' }
+      }).addTo(map);
+      map.fitBounds(capaMunicipioViz.getBounds(), { padding: [30, 30] });
+    }
+  }
+
+  // Mostrar veredas del municipio
+  if (veredasGJ) {
+    const vFeat = veredasGJ.features.filter(
+      f => (f.properties.NOMB_MPIO||'').toUpperCase() === nombre.toUpperCase()
+    );
+    if (vFeat.length > 0) {
+      capaVeredasViz = L.geoJSON(
+        { type: 'FeatureCollection', features: vFeat },
+        {
+          style: { color: '#7c3aed', weight: 1, fillColor: '#7c3aed', fillOpacity: 0.04, dashArray: '3 3' },
+          onEachFeature: (f, l) => l.bindTooltip(f.properties.NOMBRE_VER || '', { permanent: false, className: 'text-[9px]' })
+        }
+      ).addTo(map);
+      if (info) info.textContent = `${vFeat.length} vereda${vFeat.length!==1?'s':''} en ${nombre}`;
+    } else {
+      if (info) info.textContent = 'Sin veredas en este municipio';
+    }
+  }
+
+  cambiarAreaAnalisis();
+  aplicarFiltros();
+}
+
+// Compatibilidad — cargarPredios ya no hace nada, lo mantiene por si hay ref
+async function cargarPredios() {
+  // Reemplazado por cargarMunicipios — vacío intencionalmente
+  const sel = document.getElementById('predio-select');
+  if (sel) sel.innerHTML = '<option value="">—</option>';
 }
 
 // ── Alertas Supabase ──────────────────────────────────────────────────────────
@@ -1179,11 +1369,18 @@ function cunaVolver(){
 }
 
 // ── Inicio ────────────────────────────────────────────────────────────────────
-// Cargar área de estudio al inicio (para que GFW la tenga lista)
-obtenerGeomAreaEstudio();
+// Cargar área de estudio al inicio y centrar mapa
+obtenerGeomAreaEstudio().then(geom => {
+  if (geom) {
+    try {
+      const gjLayer = L.geoJSON({ type: 'Feature', geometry: geom });
+      map.fitBounds(gjLayer.getBounds(), { padding: [30, 30] });
+    } catch(e) { console.warn('fitBounds estudio:', e); }
+  }
+});
 // Mostrar contorno del área de estudio por defecto
 toggleCapa('estudio', true);
-cargarPredios();
+cargarMunicipios();
 cargarAlertas();
 setInterval(cargarAlertas, 5*60*1000);
 setInterval(()=>{ if(deforVisible)cargarDeforestacion(); }, 10*60*1000);
