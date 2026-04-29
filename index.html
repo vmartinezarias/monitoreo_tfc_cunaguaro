@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Bosques en movimiento -  monitoreo de deforestación</title>
+  <title>Bosques en movimiento - Monitor de Bosques</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -63,11 +63,11 @@
     .tab-act { color: var(--verde); border-bottom: 2px solid var(--verde); }
     .tab-inact { color: #94a3b8; border-bottom: 2px solid transparent; }
 
-    /* Bouncing Cunagüito */
+    /* Bouncing Kuna */
     @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
     .float { animation: float 3s ease-in-out infinite; }
 
-    /* Cunagüito modal detail */
+    /* Kuna modal detail */
     .cuna-detail-text b { color: var(--verde); font-weight: 600; }
     .cuna-detail-text b.gfw { color: var(--gfw-l); }
 
@@ -94,8 +94,8 @@
       <img src="cunaguaro.png" alt="Cunaguaro" class="h-8 object-contain">
     </div>
     <div>
-      <h1 class="text-lg font-extrabold text-slate-800 tracking-tight syne leading-none">Bosques en movimiento <span class="text-emerald-700">- Monitor de Bosques </span></h1>
-      <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-[.18em] mt-0.5">Plataforma de Monitoreo Territorial eje Orinoquía - Andes · Fundación Cunaguaro</p>
+      <h1 class="text-lg font-extrabold text-slate-800 tracking-tight syne leading-none">Bosques en movimiento <span class="text-emerald-700">- Monitor de Bosques</span></h1>
+      <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-[.18em] mt-0.5">Plataforma de Monitoreo Territorial · CBC Cunaguaro</p>
     </div>
   </div>
   <div class="flex items-center gap-3">
@@ -113,10 +113,10 @@
       <div class="w-px h-5 bg-slate-200"></div>
       <div class="text-center"><div class="font-bold text-slate-700" id="total-frp">—</div><div class="text-slate-400" style="font-size:8px">FRP MW</div></div>
     </div>
-    <!-- Cunagüito btn -->
+    <!-- Kuna btn -->
     <button onclick="cunaAbrir()" class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-lg shadow-emerald-200/60 float">
       <img src="Cunaguito1.png" class="w-5 h-5 rounded-md bg-white/20 object-cover" alt="">
-      <span class="text-xs font-bold uppercase tracking-tight">Cunagüito</span>
+      <span class="text-xs font-bold uppercase tracking-tight">Kuna</span>
     </button>
   </div>
 </header>
@@ -385,18 +385,18 @@
     <div class="bg-emerald-600 p-5 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <div class="w-14 h-14 rounded-2xl bg-white/20 overflow-hidden border-2 border-white/30 flex-shrink-0">
-          <img id="cuna-avatar" src="Cunaguito1.png" alt="Cunagüito" class="w-full h-full object-cover transition-opacity duration-300">
+          <img id="cuna-avatar" src="Cunaguito1.png" alt="Kuna" class="w-full h-full object-cover transition-opacity duration-300">
         </div>
         <div>
-          <h3 class="font-extrabold text-xl text-white syne leading-none">Cunagüito</h3>
-          <p class="text-[9px] font-bold text-emerald-200 uppercase tracking-widest mt-1">Asistente Experto en Bosques</p>
+          <h3 class="font-extrabold text-xl text-white syne leading-none">Kuna</h3>
+          <p class="text-[9px] font-bold text-emerald-200 uppercase tracking-widest mt-1">Asistente · CBC Cunaguaro</p>
         </div>
       </div>
       <button onclick="cunaCerrar()" class="hover:bg-white/10 p-2 rounded-full transition-colors text-white/80 hover:text-white text-xl leading-none">✕</button>
     </div>
     <!-- Body modal -->
     <div class="p-6">
-      <p id="cuna-msg" class="text-slate-600 text-sm leading-relaxed font-medium mb-5">¡Hola! Soy Cunagüito. Estoy aquí para guiarte en el manejo del aplicativo. ¿Qué quieres hacer?</p>
+      <p id="cuna-msg" class="text-slate-600 text-sm leading-relaxed font-medium mb-5">¡Hola! Soy Kuna. Estoy aquí para guiarte en el manejo del aplicativo. ¿Qué quieres hacer?</p>
       <!-- Menú principal -->
       <div id="cuna-menu" class="grid grid-cols-2 gap-3">
         <div onclick="cunaIr('mapabase')" class="flex flex-col items-center gap-2 p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md">
@@ -414,6 +414,14 @@
         <div onclick="cunaIr('gfw')" class="col-span-2 flex items-center gap-3 p-4 rounded-2xl border border-sky-100 bg-sky-50 hover:bg-sky-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md">
           <span class="text-2xl">🛰️</span>
           <div><div class="text-xs font-bold text-slate-700">Capas Global Forest Watch</div><div class="text-[10px] text-slate-400">GLAD · RADD · Hansen</div></div>
+        </div>
+        <div onclick="cunaIr('sobre')" class="col-span-2 flex items-center gap-3 p-4 rounded-2xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <span class="text-2xl">🌳</span>
+          <div><div class="text-xs font-bold text-slate-700">Sobre la plataforma</div><div class="text-[10px] text-slate-400">¿Qué hace? · ¿En qué estamos?</div></div>
+        </div>
+        <div onclick="cunaIr('funcionalidades')" class="col-span-2 flex items-center gap-3 p-4 rounded-2xl border border-violet-100 bg-violet-50 hover:bg-violet-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <span class="text-2xl">📖</span>
+          <div><div class="text-xs font-bold text-slate-700">Funcionalidades</div><div class="text-[10px] text-slate-400">Guía de uso · capas · datos</div></div>
         </div>
       </div>
       <!-- Detalle -->
@@ -625,12 +633,8 @@ function cambiarAreaAnalisis() {
   // También cargar la capa visual correspondiente en el mapa
   if (chkE) toggleCapa('estudio', true); else capasInfo.estudio.clearLayers();
   if (chkN) toggleCapa('bosque', true);  else capasInfo.bosque.clearLayers();
-  if (chkP) {
-    capaTodosGeo.addTo(map);
-    cargarPredios(); // refresca predios si hace falta
-  } else {
-    capaTodosGeo.clearLayers();
-  }
+  // Predios no activos — capaTodosGeo se limpia siempre
+  capaTodosGeo.clearLayers();
 
   aplicarFiltros();
   // Recargar GFW si hay capas activas con nueva geometría
@@ -1503,30 +1507,170 @@ const CUNA_DATOS={
   incendios:{img:'incendios.png',msg:`Selecciona <b>Incendios</b> en "Tipo de alerta", elige tu período (24h/7d/30d) y el área de análisis. Luego usa los botones <b>⬇ CSV</b> o <b>⬇ PDF</b> para descargar solo los datos de tu zona.`},
   deforestacion:{img:'deforestacion.png',msg:`Selecciona <b>Pérdida cobertura</b> en "Tipo de alerta" y activa <b>GLAD</b> o <b>RADD</b>. Una vez carguen las alertas en el mapa, descarga con <b>⬇ CSV GFW</b>. Para la deforestación GEE, actívala en "Capas adicionales".`},
   conectividad:{img:'conectividad.png',msg:`En <b>Capas adicionales</b> (al fondo del panel), marca <b>Conectividad (Deciles)</b>. Los deciles del 1 al 10 representan la importancia de conectividad del paisaje — cuantil más alto = mayor importancia.`},
-  gfw:{img:'gfw.png',msg:`Selecciona <b>Pérdida cobertura</b> en "Tipo de alerta". Allí encontrarás:<br><br>🌲 <b>GLAD</b> — Alertas Landsat semanales<br>📡 <b>RADD</b> — Radar Sentinel-1, funciona bajo nubes<br>🌳 <b>Hansen</b> — Cobertura y pérdida 2001-2023<br><br>Todas las alertas se filtran automáticamente al <b>área de análisis</b> que hayas seleccionado.`}
+  gfw:{img:'gfw.png',msg:`Selecciona <b>Pérdida cobertura</b> en "Tipo de alerta". Allí encontrarás:<br><br>🌲 <b>GLAD</b> — Alertas Landsat semanales<br>📡 <b>RADD</b> — Radar Sentinel-1, funciona bajo nubes<br>🌳 <b>Hansen</b> — Cobertura y pérdida 2001-2023<br><br>Todas las alertas se filtran automáticamente al <b>área de análisis</b> que hayas seleccionado.`},
+
+  // ── Sobre la plataforma ──
+  sobre: {
+    img: null, // no imagen única — se manejan dos banners
+    esMulti: true,
+    slides: [
+      { titulo: '¿Qué hace la plataforma?', img: 'kuna_workflow.png' },
+      { titulo: '¿En qué estamos ahora?',   img: 'kuna_workflow_estado.png' }
+    ]
+  },
+
+  // ── Funcionalidades ──
+  funcionalidades: {
+    img: null,
+    esMulti: true,
+    slides: [
+      {
+        titulo: 'Cambiar el mapa base',
+        img: 'mapabase.png',
+        kunaImg: 'kuna_senala.png',
+        texto: `Usa el control de capas en la <b>esquina inferior derecha</b> del mapa. Tienes 5 opciones: <b>CartoDB Claro</b> (predeterminado), <b>Google Maps</b>, <b>Satélite</b>, <b>Relieve</b> y <b>Oscuro</b>. Cambia según la mejor visualización para tu análisis.`
+      },
+      {
+        titulo: 'Global Forest Watch — GLAD & RADD',
+        img: 'gfw_incon.png',
+        kunaImg: 'kuna_saludando.png',
+        texto: `<b class="gfw">Global Forest Watch</b> (WRI) provee alertas satelitales de deforestación casi en tiempo real.<br><br>🌲 <b>GLAD</b> — Landsat · Universidad de Maryland · detección semanal<br>📡 <b>RADD</b> — Sentinel-1 SAR · Univ. Wageningen · funciona bajo nubes<br><br>Créditos: © Global Forest Watch / World Resources Institute. Datos bajo licencia CC BY 4.0.`
+      },
+      {
+        titulo: 'Alertas de Incendios — NASA FIRMS',
+        img: 'incendios.png',
+        kunaImg: 'kuna_senala.png',
+        texto: `Los puntos de calor provienen de <b>NASA FIRMS</b> (Fire Information for Resource Management System), usando sensores <b>VIIRS</b> (375 m) y <b>MODIS</b> (1 km) actualizados cada 3 horas.<br><br>Cada punto muestra: coordenadas, nivel de confianza (Alta / Nominal / Baja) y potencia radiativa del fuego (<b>FRP en MW</b>).`
+      },
+      {
+        titulo: 'Capas Adicionales',
+        img: 'capas_adicionales.png',
+        kunaImg: 'kuna_saludando.png',
+        texto: `En <b>Capas adicionales</b> (panel izquierdo) puedes activar:<br><br>📍 <b>Límites municipales</b> — contornos administrativos<br>📐 <b>Área de estudio</b> — polígono de monitoreo CBC Cunaguaro<br>🌲 <b>Núcleos boscosos</b> — fragmentos prioritarios<br>📉 <b>Pérdidas 2020-2024</b> — pérdida forestal por año<br>🔗 <b>Conectividad</b> — modelo de deciles de importancia ecológica<br>🌿 <b>Alertas deforestación GEE</b> — basado en cambio NDVI Sentinel-2`
+      }
+    ]
+  }
 };
-const CUNA_MSGS={mapabase:'Así cambias el mapa base:',incendios:'Así descargas las alertas de incendios:',deforestacion:'Así descargas las alertas de deforestación:',conectividad:'Así exploras el modelo de conectividad:',gfw:'🛰️ Así usas las capas de Global Forest Watch:'};
+const CUNA_MSGS={mapabase:'Así cambias el mapa base:',incendios:'Así descargas las alertas de incendios:',deforestacion:'Así descargas las alertas de deforestación:',conectividad:'Así exploras el modelo de conectividad:',gfw:'🛰️ Así usas las capas de Global Forest Watch:',sobre:'🌳 Conoce la plataforma:',funcionalidades:'📖 Guía de funcionalidades:'};
 
 function cunaAbrir(){document.getElementById('cuna-overlay').classList.add('open');}
 function cunaCerrar(){document.getElementById('cuna-overlay').classList.remove('open');setTimeout(cunaVolver,300);}
 function cunaOverlayClick(e){if(e.target===document.getElementById('cuna-overlay'))cunaCerrar();}
 function cunaIr(key){
   const d=CUNA_DATOS[key];
+  if(!d) return;
+
+  // Cambiar avatar a "pensando"
   const avatar=document.getElementById('cuna-avatar');
-  avatar.style.opacity='0';setTimeout(()=>{avatar.src='Cunaguito_pensando.png';avatar.style.opacity='1';},150);
-  const msg=document.getElementById('cuna-msg');
-  msg.style.opacity='0';setTimeout(()=>{msg.innerHTML=CUNA_MSGS[key];msg.style.opacity='1';},150);
-  document.getElementById('cuna-detail-img').src=d.img;
-  document.getElementById('cuna-detail-text').innerHTML=d.msg;
+  avatar.style.opacity='0';
+  setTimeout(()=>{ avatar.src='kuna_saludando.png'; avatar.style.opacity='1'; },150);
+
   const menu=document.getElementById('cuna-menu'),detail=document.getElementById('cuna-detail');
   menu.style.opacity='0';
-  setTimeout(()=>{menu.style.display='none';detail.classList.add('visible');detail.style.opacity='0';setTimeout(()=>{detail.style.opacity='1';},20);},180);
+
+  setTimeout(()=>{
+    menu.style.display='none';
+    detail.innerHTML=''; // limpiar contenido previo
+    detail.classList.add('visible');
+
+    if (d.esMulti) {
+      // ── Renderizado multi-slide ─────────────────────────────────
+      _cunaCurrentKey = key;
+      detail.innerHTML = cunaRenderMulti(d, key);
+      // Mostrar primer slide
+      cunaSlide(0, d);
+    } else {
+      // ── Renderizado simple (comportamiento original) ────────────
+      detail.innerHTML = `
+        <img id="cuna-detail-img" class="w-full h-44 object-cover rounded-xl mb-4 border border-slate-100" src="${d.img||''}" alt="">
+        <div id="cuna-detail-text" class="text-sm text-slate-600 leading-relaxed cuna-detail-text">${d.msg||''}</div>
+        <button onclick="cunaVolver()" class="mt-5 w-full py-3 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all">← Volver al menú</button>`;
+    }
+
+    detail.style.opacity='0';
+    setTimeout(()=>{ detail.style.opacity='1'; },20);
+  },180);
+}
+
+let _cunaSlideIdx = 0;
+
+function cunaRenderMulti(d, key) {
+  // Genera el contenedor de slides
+  return `
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest" id="kuna-slide-label">Cargando…</div>
+      <div class="flex gap-1" id="kuna-dots"></div>
+    </div>
+    <div id="kuna-slide-content" class="flex flex-col gap-3"></div>
+    <div class="flex gap-2 mt-4">
+      <button onclick="cunaSlideNav(-1)" id="btn-prev" class="flex-1 py-2.5 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all">← Anterior</button>
+      <button onclick="cunaSlideNav(1)"  id="btn-next" class="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all">Siguiente →</button>
+    </div>
+    <button onclick="cunaVolver()" class="mt-2 w-full py-2.5 border-2 border-slate-100 rounded-xl text-[10px] font-bold text-slate-400 hover:bg-slate-50 transition-all">← Volver al menú</button>`;
+}
+
+function cunaSlide(idx, d) {
+  if (!d) return;
+  const slides = d.slides || [];
+  _cunaSlideIdx = Math.max(0, Math.min(idx, slides.length-1));
+  const s = slides[_cunaSlideIdx];
+  if (!s) return;
+
+  // Label
+  const lbl = document.getElementById('kuna-slide-label');
+  if (lbl) lbl.textContent = s.titulo;
+
+  // Dots
+  const dots = document.getElementById('kuna-dots');
+  if (dots) {
+    dots.innerHTML = slides.map((_, i) =>
+      `<div class="w-1.5 h-1.5 rounded-full transition-all ${i===_cunaSlideIdx?'bg-emerald-600':'bg-slate-200'}"></div>`
+    ).join('');
+  }
+
+  // Content
+  const cont = document.getElementById('kuna-slide-content');
+  if (cont) {
+    // ── Sobre la plataforma: solo banner grande ──
+    if (!s.kunaImg && !s.texto) {
+      cont.innerHTML = `<img src="${s.img}" alt="${s.titulo}" class="w-full rounded-xl border border-slate-100 shadow-sm" style="max-height:340px;object-fit:contain;background:#f8faf9">`;
+    } else {
+      // ── Funcionalidades: kuna + imagen + texto ──
+      cont.innerHTML = `
+        <div class="flex items-start gap-3">
+          <img src="${s.kunaImg||'kuna_saludando.png'}" alt="Kuna" class="w-14 h-14 rounded-xl object-cover shrink-0 border border-emerald-100">
+          <div class="text-sm font-semibold text-slate-700 leading-relaxed">${s.texto||''}</div>
+        </div>
+        <img src="${s.img}" alt="${s.titulo}" class="w-full rounded-xl border border-slate-100 shadow-sm" style="max-height:200px;object-fit:contain;background:#f8faf9">`;
+    }
+  }
+
+  // Nav buttons
+  const prev = document.getElementById('btn-prev');
+  const next = document.getElementById('btn-next');
+  if (prev) prev.style.visibility = _cunaSlideIdx === 0 ? 'hidden' : 'visible';
+  if (next) next.textContent = _cunaSlideIdx === slides.length-1 ? '✓ Listo' : 'Siguiente →';
+  if (next) next.onclick = _cunaSlideIdx === slides.length-1
+    ? cunaVolver
+    : () => cunaSlideNav(1);
+}
+
+let _cunaCurrentKey = null;
+
+function cunaSlideNav(dir) {
+  if (!_cunaCurrentKey) return;
+  const d = CUNA_DATOS[_cunaCurrentKey];
+  if (!d || !d.slides) return;
+  const newIdx = _cunaSlideIdx + dir;
+  if (newIdx >= 0 && newIdx < d.slides.length) {
+    cunaSlide(newIdx, d);
+  }
 }
 function cunaVolver(){
   const avatar=document.getElementById('cuna-avatar');
   avatar.style.opacity='0';setTimeout(()=>{avatar.src='Cunaguito1.png';avatar.style.opacity='1';},150);
   const msg=document.getElementById('cuna-msg');
-  msg.style.opacity='0';setTimeout(()=>{msg.textContent='¡Hola! Soy Cunagüito. Estoy aquí para guiarte en el manejo del aplicativo. ¿Qué quieres hacer?';msg.style.opacity='1';},150);
+  msg.style.opacity='0';setTimeout(()=>{msg.textContent='¡Hola! Soy Kuna. Estoy aquí para guiarte en el manejo del aplicativo. ¿Qué quieres hacer?';msg.style.opacity='1';},150);
   const menu=document.getElementById('cuna-menu'),detail=document.getElementById('cuna-detail');
   detail.style.opacity='0';
   setTimeout(()=>{detail.classList.remove('visible');menu.style.display='grid';menu.style.opacity='0';setTimeout(()=>{menu.style.opacity='1';},20);},180);
