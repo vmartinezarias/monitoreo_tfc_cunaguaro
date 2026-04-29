@@ -489,10 +489,10 @@ let tipoActual = 'incendios'; // 'incendios' | 'gfw'
 let geomAreaEstudio  = null;
 let geomNucleos      = null;
 
-// Datos municipios y veredas
-let municipiosGJ     = null;   // GeoJSON completo de municipios
-let veredasGJ        = null;   // GeoJSON completo de veredas
-let municipioActual  = '';     // MPIO_CNMBR seleccionado ('' = todos)
+// Datos veredas (contiene NOMB_MPIO + NOMBRE_VER — fuente única)
+let municipiosGJ     = null;   // alias de veredasGJ para compatibilidad
+let veredasGJ        = null;   // GeoJSON completo — columnas: NOMB_MPIO, NOMBRE_VER
+let municipioActual  = '';     // NOMB_MPIO seleccionado ('' = todos)
 let capaMunicipioViz = null;   // Layer visual del municipio activo
 let capaVeredasViz   = null;   // Layer visual de veredas
 
@@ -654,15 +654,24 @@ async function obtenerGeomActiva() {
     return geomNucleos;
   }
   if (areaAnalisisActiva==='municipio') {
-    // Usar geometría del municipio seleccionado, o área de estudio si es "todos"
+    // Geometría = unión de veredas del municipio → usar la primera como referencia
+    // Para GFW POST enviamos el área de estudio como contenedor; el fitBounds
+    // lo hacemos con las veredas directamente
     if (!municipioActual) return await obtenerGeomAreaEstudio();
     try {
-      if (!municipiosGJ) await cargarMunicipios();
-      const feat = municipiosGJ.features.find(
-        f => (f.properties.MPIO_CNMBR||'').toUpperCase() === municipioActual.toUpperCase()
+      if (!veredasGJ) await cargarVeredas();
+      const vMun = veredasGJ.features.filter(
+        f => (f.properties.NOMB_MPIO||'').toUpperCase() === municipioActual.toUpperCase()
       );
-      if (feat) return feat.geometry;
-    } catch(e) { console.warn('geom municipio:', e); }
+      if (vMun.length === 1) return vMun[0].geometry;
+      if (vMun.length > 1) {
+        // MultiPolygon compuesto de todas las veredas
+        return {
+          type: 'GeometryCollection',
+          geometries: vMun.map(f => f.geometry)
+        };
+      }
+    } catch(e) { console.warn('geom municipio desde veredas:', e); }
     return await obtenerGeomAreaEstudio();
   }
   return await obtenerGeomAreaEstudio();
@@ -931,9 +940,9 @@ async function descargarCSV(modo) {
 
       // Asignar municipio a cada alerta
       function mpioDeAlerta(lat, lng) {
-        if (!municipiosGJ) return 'Sin datos';
-        const mf = municipiosGJ.features.find(f => puntoEnPoligono(lat, lng, f));
-        return mf ? (mf.properties.MPIO_CNMBR || 'Sin nombre') : 'Fuera de límites';
+        if (!veredasGJ) return 'Sin datos';
+        const vf = veredasGJ.features.find(f => puntoEnPoligono(lat, lng, f));
+        return vf ? (vf.properties.NOMB_MPIO || 'Sin nombre') : 'Fuera de límites';
       }
 
       // Sección 1: detalle con municipio asignado
@@ -949,7 +958,7 @@ async function descargarCSV(modo) {
       // Sección 2: resumen por municipio
       const conteos = {};
       fi.forEach(a => {
-        const m = mpioDeAlerta(a.latitud, a.longitud);
+        const m = mpioDeAlerta(a.latitud, a.longitud); // usa NOMB_MPIO de veredas
         conteos[m] = (conteos[m] || 0) + 1;
       });
       const cabRes = ['municipio','n_incendios'].join(',');
@@ -997,9 +1006,9 @@ async function descargarCSV(modo) {
       if (!municipiosGJ) await cargarMunicipios();
 
       function mpioDeAlertaDef(lat, lng) {
-        if (!municipiosGJ) return 'Sin datos';
-        const mf = municipiosGJ.features.find(f => puntoEnPoligono(lat, lng, f));
-        return mf ? (mf.properties.MPIO_CNMBR || 'Sin nombre') : 'Fuera de límites';
+        if (!veredasGJ) return 'Sin datos';
+        const vf = veredasGJ.features.find(f => puntoEnPoligono(lat, lng, f));
+        return vf ? (vf.properties.NOMB_MPIO || 'Sin nombre') : 'Fuera de límites';
       }
 
       // Sección 1: detalle
@@ -1187,28 +1196,27 @@ function renderRasterConectividad(){
 
 // ── Municipios y Veredas ─────────────────────────────────────────────────────
 async function cargarMunicipios() {
-  if (municipiosGJ) return municipiosGJ; // ya cargado
-  try {
-    const resp = await fetch(BASE_URL + 'municipios.geojson');
-    municipiosGJ = await resp.json();
-    // Poblar selector
-    const sel = document.getElementById('sel-municipio');
-    if (sel) {
-      sel.innerHTML = '<option value="">— Todos los municipios —</option>';
-      const nombres = [...new Set(
-        (municipiosGJ.features||[])
-          .map(f => f.properties.MPIO_CNMBR)
-          .filter(Boolean)
-      )].sort();
-      nombres.forEach(nom => {
-        const o = document.createElement('option');
-        o.value = nom; o.textContent = nom;
-        sel.appendChild(o);
-      });
-    }
-    console.log('Municipios cargados:', municipiosGJ.features?.length);
-    return municipiosGJ;
-  } catch(e) { console.error('Error cargando municipios:', e); return null; }
+  // Usa veredas.geojson como fuente única — extrae municipios únicos de NOMB_MPIO
+  if (veredasGJ) { municipiosGJ = veredasGJ; return veredasGJ; }
+  await cargarVeredas();
+  municipiosGJ = veredasGJ; // alias
+
+  const sel = document.getElementById('sel-municipio');
+  if (sel && veredasGJ) {
+    sel.innerHTML = '<option value="">— Todos los municipios —</option>';
+    const nombres = [...new Set(
+      (veredasGJ.features||[])
+        .map(f => (f.properties.NOMB_MPIO||'').trim())
+        .filter(Boolean)
+    )].sort();
+    nombres.forEach(nom => {
+      const o = document.createElement('option');
+      o.value = nom; o.textContent = nom;
+      sel.appendChild(o);
+    });
+    console.log('Municipios únicos desde veredas:', nombres.length);
+  }
+  return veredasGJ;
 }
 
 async function cargarVeredas() {
@@ -1242,18 +1250,8 @@ async function seleccionarMunicipio(nombre) {
   // Asegurar que veredas estén cargadas
   await cargarVeredas();
 
-  // Mostrar polígono del municipio seleccionado
-  if (municipiosGJ) {
-    const feat = municipiosGJ.features.find(
-      f => (f.properties.MPIO_CNMBR||'').toUpperCase() === nombre.toUpperCase()
-    );
-    if (feat) {
-      capaMunicipioViz = L.geoJSON(feat, {
-        style: { color: '#2563eb', weight: 2.5, fillColor: '#2563eb', fillOpacity: 0.07, dashArray: '6 4' }
-      }).addTo(map);
-      map.fitBounds(capaMunicipioViz.getBounds(), { padding: [30, 30] });
-    }
-  }
+  // Mostrar veredas del municipio como contorno (bbox desde veredas)
+  // No necesitamos municipios.geojson — las veredas definen el área
 
   // Mostrar veredas del municipio
   if (veredasGJ) {
@@ -1463,9 +1461,9 @@ async function descargarGFW(key){
     if (!municipiosGJ) await cargarMunicipios();
 
     function municipioDeAlerta(lat, lng) {
-      if (!municipiosGJ) return '';
-      const mf = municipiosGJ.features.find(f => puntoEnPoligono(lat, lng, f));
-      return mf ? (mf.properties.MPIO_CNMBR || '') : 'Fuera de límites';
+      if (!veredasGJ) return '';
+      const vf = veredasGJ.features.find(f => puntoEnPoligono(lat, lng, f));
+      return vf ? (vf.properties.NOMB_MPIO || '') : 'Fuera de límites';
     }
 
     let cab, rows;
