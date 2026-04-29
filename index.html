@@ -925,31 +925,46 @@ async function descargarCSV(modo) {
           `incendios_${municipioActual.replace(/ /g,'_')}_${hoy}.csv`);
 
     } else {
-      // ── SIN MUNICIPIO: resumen de conteos por municipio ────────────
+      // ── SIN MUNICIPIO: detalle de cada alerta + columna municipio ──
+      // + resumen por municipio al final del mismo archivo
       if (!municipiosGJ) await cargarMunicipios();
-      const conteos = {};
-      if (municipiosGJ) {
-        municipiosGJ.features.forEach(mf => {
-          const nom = mf.properties.MPIO_CNMBR || 'Sin municipio';
-          const cnt = fi.filter(a => puntoEnPoligono(a.latitud, a.longitud, mf)).length;
-          if (cnt > 0) conteos[nom] = (conteos[nom] || 0) + cnt;
-        });
-      }
-      // Alertas que no cayeron en ningún municipio → "Fuera de límites"
-      const sinMpio = fi.filter(a =>
-        !municipiosGJ || !municipiosGJ.features.some(
-          mf => puntoEnPoligono(a.latitud, a.longitud, mf)
-        )
-      ).length;
-      if (sinMpio > 0) conteos['Fuera de límites municipales'] = sinMpio;
 
-      const cab = ['municipio','n_incendios'].join(',');
-      const rows = Object.entries(conteos)
+      // Asignar municipio a cada alerta
+      function mpioDeAlerta(lat, lng) {
+        if (!municipiosGJ) return 'Sin datos';
+        const mf = municipiosGJ.features.find(f => puntoEnPoligono(lat, lng, f));
+        return mf ? (mf.properties.MPIO_CNMBR || 'Sin nombre') : 'Fuera de límites';
+      }
+
+      // Sección 1: detalle con municipio asignado
+      const cabDet = ['municipio','fecha_deteccion','latitud','longitud',
+                      'confianza','frp_mw','satelite','estado'].join(',');
+      const rowsDet = fi.map(a => [
+        esc(mpioDeAlerta(a.latitud, a.longitud)),
+        esc(a.fecha_deteccion), a.latitud, a.longitud,
+        esc(a.firms_confidence||''), a.firms_frp||'',
+        esc(a.firms_satellite||''), esc(a.estado)
+      ].join(','));
+
+      // Sección 2: resumen por municipio
+      const conteos = {};
+      fi.forEach(a => {
+        const m = mpioDeAlerta(a.latitud, a.longitud);
+        conteos[m] = (conteos[m] || 0) + 1;
+      });
+      const cabRes = ['municipio','n_incendios'].join(',');
+      const rowsRes = Object.entries(conteos)
         .sort((a,b) => b[1]-a[1])
         .map(([m,n]) => [esc(m), n].join(','));
 
-      if (!rows.length) { alert('No se encontraron alertas dentro de los límites municipales.'); return; }
-      _dl([cab, ...rows].join('\n'), `incendios_por_municipio_${hoy}.csv`);
+      const lines = [
+        '## DETALLE POR ALERTA',
+        cabDet, ...rowsDet,
+        '',
+        '## RESUMEN POR MUNICIPIO',
+        cabRes, ...rowsRes
+      ];
+      _dl(lines.join('\n'), `incendios_area_estudio_${hoy}.csv`);
     }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -978,30 +993,46 @@ async function descargarCSV(modo) {
           `deforestacion_${municipioActual.replace(/ /g,'_')}_${hoy}.csv`);
 
     } else {
-      // ── SIN MUNICIPIO: resumen de conteos por municipio ────────────
+      // ── SIN MUNICIPIO: detalle de cada alerta + columna municipio ──
       if (!municipiosGJ) await cargarMunicipios();
-      const conteos = {};
-      if (municipiosGJ) {
-        municipiosGJ.features.forEach(mf => {
-          const nom = mf.properties.MPIO_CNMBR || 'Sin municipio';
-          const cnt = fd.filter(a => puntoEnPoligono(a.latitud, a.longitud, mf)).length;
-          if (cnt > 0) conteos[nom] = (conteos[nom] || 0) + cnt;
-        });
-      }
-      const sinMpio = fd.filter(a =>
-        !municipiosGJ || !municipiosGJ.features.some(
-          mf => puntoEnPoligono(a.latitud, a.longitud, mf)
-        )
-      ).length;
-      if (sinMpio > 0) conteos['Fuera de límites municipales'] = sinMpio;
 
-      const cab = ['municipio','n_deforestacion'].join(',');
-      const rows = Object.entries(conteos)
+      function mpioDeAlertaDef(lat, lng) {
+        if (!municipiosGJ) return 'Sin datos';
+        const mf = municipiosGJ.features.find(f => puntoEnPoligono(lat, lng, f));
+        return mf ? (mf.properties.MPIO_CNMBR || 'Sin nombre') : 'Fuera de límites';
+      }
+
+      // Sección 1: detalle
+      const cabDet = ['municipio','fecha_deteccion','predio_id','latitud','longitud',
+                      'severidad','area_ha','cambio_ndvi','estado'].join(',');
+      const rowsDet = fd.map(a => [
+        esc(mpioDeAlertaDef(a.latitud, a.longitud)),
+        esc(a.fecha_deteccion), esc(a.predio_id||''),
+        a.latitud, a.longitud,
+        esc(a.severidad||''), a.area_afectada_ha||'',
+        a.cambio_ndvi!=null ? Number(a.cambio_ndvi).toFixed(3) : '',
+        esc(a.estado)
+      ].join(','));
+
+      // Sección 2: resumen
+      const conteosD = {};
+      fd.forEach(a => {
+        const m = mpioDeAlertaDef(a.latitud, a.longitud);
+        conteosD[m] = (conteosD[m] || 0) + 1;
+      });
+      const cabRes = ['municipio','n_deforestacion'].join(',');
+      const rowsRes = Object.entries(conteosD)
         .sort((a,b) => b[1]-a[1])
         .map(([m,n]) => [esc(m), n].join(','));
 
-      if (!rows.length) { alert('No se encontraron alertas dentro de los límites municipales.'); return; }
-      _dl([cab, ...rows].join('\n'), `deforestacion_por_municipio_${hoy}.csv`);
+      const lines = [
+        '## DETALLE POR ALERTA',
+        cabDet, ...rowsDet,
+        '',
+        '## RESUMEN POR MUNICIPIO',
+        cabRes, ...rowsRes
+      ];
+      _dl(lines.join('\n'), `deforestacion_area_estudio_${hoy}.csv`);
     }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -1421,9 +1452,46 @@ async function descargarGFW(key){
     if(key==='hansen'){window.open('https://data.globalforestwatch.org/datasets/gfw::tree-cover-loss/about','_blank');if(btn){btn.textContent=origText;btn.disabled=false;}return;}
     const datos=gfwCapas[key].datos;
     if(!datos.length){alert(`Activa la capa ${key.toUpperCase()} primero.`);if(btn){btn.textContent=origText;btn.disabled=false;}return;}
-    let cab,rows;
-    if(key==='glad'){cab='fuente,fecha,latitud,longitud,confianza,intensidad';rows=datos.map(r=>['GFW_GLAD',r.fecha||'',r.latitude||'',r.longitude||'',r.confianza||'',r.intensidad||''].join(','));}
-    else{cab='fuente,fecha,latitud,longitud,confianza';rows=datos.map(r=>['GFW_RADD',r.fecha||'',r.latitude||'',r.longitude||'',r.confianza||''].join(','));}
+    // Preparar veredas si hay municipio activo
+    let veredasMpioGFW = [];
+    if (municipioActual && veredasGJ) {
+      veredasMpioGFW = veredasGJ.features.filter(
+        f => (f.properties.NOMB_MPIO||'').toUpperCase() === municipioActual.toUpperCase()
+      );
+    }
+    // También cargar municipios para asignar municipio por punto
+    if (!municipiosGJ) await cargarMunicipios();
+
+    function municipioDeAlerta(lat, lng) {
+      if (!municipiosGJ) return '';
+      const mf = municipiosGJ.features.find(f => puntoEnPoligono(lat, lng, f));
+      return mf ? (mf.properties.MPIO_CNMBR || '') : 'Fuera de límites';
+    }
+
+    let cab, rows;
+    if (key==='glad') {
+      cab = 'fuente,fecha,municipio,vereda,latitud,longitud,confianza,intensidad';
+      rows = datos.map(r => {
+        const lat = parseFloat(r.latitude||0), lng = parseFloat(r.longitude||0);
+        const mpio = municipioActual || municipioDeAlerta(lat, lng);
+        const ver  = veredasMpioGFW.length
+          ? (veredasMpioGFW.find(vf => puntoEnPoligono(lat, lng, vf))?.properties?.NOMBRE_VER || 'Sin vereda')
+          : '';
+        return ['GFW_GLAD', r.fecha||'', mpio, ver, lat, lng,
+                r.confianza||'', r.intensidad||''].join(',');
+      });
+    } else {
+      cab = 'fuente,fecha,municipio,vereda,latitud,longitud,confianza';
+      rows = datos.map(r => {
+        const lat = parseFloat(r.latitude||0), lng = parseFloat(r.longitude||0);
+        const mpio = municipioActual || municipioDeAlerta(lat, lng);
+        const ver  = veredasMpioGFW.length
+          ? (veredasMpioGFW.find(vf => puntoEnPoligono(lat, lng, vf))?.properties?.NOMBRE_VER || 'Sin vereda')
+          : '';
+        return ['GFW_RADD', r.fecha||'', mpio, ver, lat, lng,
+                r.confianza||''].join(',');
+      });
+    }
     _dl([cab,...rows].join('\n'),`gfw_${key}_chameza_${hoy}.csv`);
     if(btn){btn.textContent='✓ Descargado';setTimeout(()=>{btn.textContent=origText;btn.disabled=false;},2000);}
   }catch(e){if(btn){btn.textContent=origText;btn.disabled=false;}console.error(e);}
