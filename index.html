@@ -1553,8 +1553,17 @@ const CUNA_DATOS={
 };
 const CUNA_MSGS={mapabase:'Así cambias el mapa base:',incendios:'Así descargas las alertas de incendios:',deforestacion:'Así descargas las alertas de deforestación:',conectividad:'Así exploras el modelo de conectividad:',gfw:'🛰️ Así usas las capas de Global Forest Watch:',sobre:'🌳 Conoce la plataforma:',funcionalidades:'📖 Guía de funcionalidades:'};
 
-function cunaAbrir(){document.getElementById('cuna-overlay').classList.add('open');}
-function cunaCerrar(){document.getElementById('cuna-overlay').classList.remove('open');setTimeout(cunaVolver,300);}
+function cunaAbrir(){
+  const el=document.getElementById('cuna-overlay');
+  el.classList.remove('hidden');
+  el.classList.add('flex');
+}
+function cunaCerrar(){
+  const el=document.getElementById('cuna-overlay');
+  el.classList.add('hidden');
+  el.classList.remove('flex');
+  setTimeout(cunaVolver,300);
+}
 function cunaOverlayClick(e){if(e.target===document.getElementById('cuna-overlay'))cunaCerrar();}
 function cunaIr(key){
   const d=CUNA_DATOS[key];
@@ -1571,7 +1580,8 @@ function cunaIr(key){
   setTimeout(()=>{
     menu.style.display='none';
     detail.innerHTML=''; // limpiar contenido previo
-    detail.classList.add('visible');
+    detail.classList.remove('hidden');
+    detail.classList.add('flex');
 
     if (d.esMulti) {
       // ── Renderizado multi-slide ─────────────────────────────────
