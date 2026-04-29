@@ -95,7 +95,7 @@
     </div>
     <div>
       <h1 class="text-lg font-extrabold text-slate-800 tracking-tight syne leading-none">Monitor de Bosques <span class="text-emerald-700">Eje Orinoquía-Andes</span></h1>
-      <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-[.18em] mt-0.5">Plataforma de Monitoreo Territorial · Fundación Cunaguaro</p>
+      <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-[.18em] mt-0.5">Plataforma de Monitoreo Territorial · CBC Cunaguaro</p>
     </div>
   </div>
   <div class="flex items-center gap-3">
@@ -877,120 +877,145 @@ async function agruparAlertasPorVereda(alertas) {
 }
 
 async function descargarCSV(modo) {
-  const hoy=new Date().toISOString().slice(0,10);
-  if(modo==='incendios'){
-    const d=alertasActualesIncendios();
-    if(!d.length){alert('No hay alertas de incendio para exportar.');return;}
-    // Si hay municipio activo → agrupar por vereda
-    const grupos = await agruparAlertasPorVereda(d);
-    if (grupos) {
-      const cab='vereda,municipio,tipo,fecha_deteccion,latitud,longitud,confianza,frp_mw,satelite,estado';
-      const rows=[];
-      for (const [vereda, als] of Object.entries(grupos)) {
-        als.forEach(a=>rows.push([vereda,municipioActual,'incendio',a.fecha_deteccion,a.latitud,a.longitud,a.firms_confidence||'',a.firms_frp||'',a.firms_satellite||'',a.estado].join(',')));
-      }
-      _dl([cab,...rows].join('\n'),`incendios_${municipioActual.replace(/ /g,'_')}_${hoy}.csv`);
-    } else {
-      const cab='tipo,fecha_deteccion,latitud,longitud,confianza,frp_mw,satelite,estado';
-      const rows=d.map(a=>['incendio',a.fecha_deteccion,a.latitud,a.longitud,a.firms_confidence||'',a.firms_frp||'',a.firms_satellite||'',a.estado].join(','));
-      _dl([cab,...rows].join('\n'),`incendios_${hoy}.csv`);
+  const hoy = new Date().toISOString().slice(0,10);
+
+  // ── Helpers locales ───────────────────────────────────────────────────────
+  // Escapar campos con comas o comillas
+  const esc = v => {
+    const s = String(v ?? '');
+    return s.includes(',') || s.includes('"') || s.includes('\n')
+      ? '"' + s.replace(/"/g, '""') + '"'
+      : s;
+  };
+
+  // Obtener vereda de una alerta (ray-casting ya está en puntoEnPoligono)
+  function veredaDeAlerta(lat, lng, veredasMpio) {
+    for (const vf of veredasMpio) {
+      if (puntoEnPoligono(lat, lng, vf))
+        return vf.properties.NOMBRE_VER || 'Sin nombre';
     }
-  } else if(modo==='deforestacion'){
-    const d=alertasActualesDefor();
-    if(!d.length){alert('No hay alertas de deforestación para exportar.');return;}
-    const grupos = await agruparAlertasPorVereda(d);
-    if (grupos) {
-      const cab='vereda,municipio,tipo,fecha_deteccion,latitud,longitud,ndvi_antes,ndvi_despues,cambio_ndvi,area_ha,severidad,estado';
-      const rows=[];
-      for (const [vereda, als] of Object.entries(grupos)) {
-        als.forEach(a=>rows.push([vereda,municipioActual,'deforestacion',a.fecha_deteccion,a.latitud,a.longitud,a.ndvi_antes||'',a.ndvi_despues||'',a.cambio_ndvi||'',a.area_afectada_ha||'',a.severidad,a.estado].join(',')));
-      }
-      _dl([cab,...rows].join('\n'),`deforestacion_${municipioActual.replace(/ /g,'_')}_${hoy}.csv`);
-    } else {
-      const cab='tipo,fecha_deteccion,predio_id,latitud,longitud,ndvi_antes,ndvi_despues,cambio_ndvi,area_ha,severidad,estado';
-      const rows=d.map(a=>['deforestacion',a.fecha_deteccion,a.predio_id,a.latitud,a.longitud,a.ndvi_antes||'',a.ndvi_despues||'',a.cambio_ndvi||'',a.area_afectada_ha||'',a.severidad,a.estado].join(','));
-      _dl([cab,...rows].join('\n'),`deforestacion_${hoy}.csv`);
-    }
-  } else {
-    // ── COMBINADO: dos secciones separadas con cabeceras propias
-    const fi=alertasActualesIncendios(), fd=alertasActualesDefor();
-    if(!fi.length&&!fd.length){alert('No hay datos para exportar.');return;}
+    return 'Sin vereda';
+  }
 
-    const conMun = municipioActual && veredasGJ;
-    const lines = [];
+  // Filtrar alertas por período
+  const fi = alertasActualesIncendios();
+  const fd = alertasActualesDefor();
 
-    if (conMun) {
-      // ── Con municipio: agrupado por vereda, dos secciones
-      const gruposI = await agruparAlertasPorVereda(fi);
-      const gruposD = await agruparAlertasPorVereda(fd);
+  // ═══════════════════════════════════════════════════════════════════
+  // MODO INCENDIOS
+  // ═══════════════════════════════════════════════════════════════════
+  if (modo === 'incendios') {
+    if (!fi.length) { alert('No hay alertas de incendio para exportar.'); return; }
 
-      const todasVeredas = new Set([
-        ...Object.keys(gruposI || {}),
-        ...Object.keys(gruposD || {})
-      ]);
-
-      if (!todasVeredas.size) {
-        alert('No hay alertas en las veredas del municipio seleccionado.');
-        return;
-      }
-
-      // Sección incendios
-      if (gruposI && Object.keys(gruposI).length) {
-        lines.push('## INCENDIOS');
-        lines.push('vereda,municipio,fecha_deteccion,latitud,longitud,confianza,frp_mw,satelite,estado');
-        for (const vereda of [...Object.keys(gruposI)].sort()) {
-          gruposI[vereda].forEach(a => lines.push([
-            vereda, municipioActual,
-            a.fecha_deteccion, a.latitud, a.longitud,
-            a.firms_confidence||'', a.firms_frp||'',
-            a.firms_satellite||'', a.estado
-          ].join(',')));
-        }
-        lines.push('');
-      }
-
-      // Sección deforestación
-      if (gruposD && Object.keys(gruposD).length) {
-        lines.push('## DEFORESTACION');
-        lines.push('vereda,municipio,fecha_deteccion,latitud,longitud,severidad,area_ha,cambio_ndvi,estado');
-        for (const vereda of [...Object.keys(gruposD)].sort()) {
-          gruposD[vereda].forEach(a => lines.push([
-            vereda, municipioActual,
-            a.fecha_deteccion, a.latitud, a.longitud,
-            a.severidad||'', a.area_afectada_ha||'',
-            a.cambio_ndvi!=null?Number(a.cambio_ndvi).toFixed(3):'', a.estado
-          ].join(',')));
-        }
-      }
-
-      _dl(lines.join('\n'), `combinado_${municipioActual.replace(/ /g,'_')}_${hoy}.csv`);
+    if (municipioActual && veredasGJ) {
+      // ── CON MUNICIPIO: una fila por alerta con columna vereda ──────
+      const veredasMpio = veredasGJ.features.filter(
+        f => (f.properties.NOMB_MPIO||'').toUpperCase() === municipioActual.toUpperCase()
+      );
+      const cab = ['vereda','municipio','fecha_deteccion','latitud','longitud',
+                   'confianza','frp_mw','satelite','estado'].join(',');
+      const rows = fi.map(a => [
+        esc(veredaDeAlerta(a.latitud, a.longitud, veredasMpio)),
+        esc(municipioActual),
+        esc(a.fecha_deteccion), a.latitud, a.longitud,
+        esc(a.firms_confidence||''), a.firms_frp||'',
+        esc(a.firms_satellite||''), esc(a.estado)
+      ].join(','));
+      _dl([cab, ...rows].join('\n'),
+          `incendios_${municipioActual.replace(/ /g,'_')}_${hoy}.csv`);
 
     } else {
-      // ── Sin municipio: dos secciones con cabeceras propias y claras
-      if (fi.length) {
-        lines.push('## INCENDIOS');
-        lines.push('fecha_deteccion,latitud,longitud,confianza,frp_mw,satelite,estado');
-        fi.forEach(a => lines.push([
-          a.fecha_deteccion, a.latitud, a.longitud,
-          a.firms_confidence||'', a.firms_frp||'',
-          a.firms_satellite||'', a.estado
-        ].join(',')));
-        lines.push('');
+      // ── SIN MUNICIPIO: resumen de conteos por municipio ────────────
+      if (!municipiosGJ) await cargarMunicipios();
+      const conteos = {};
+      if (municipiosGJ) {
+        municipiosGJ.features.forEach(mf => {
+          const nom = mf.properties.MPIO_CNMBR || 'Sin municipio';
+          const cnt = fi.filter(a => puntoEnPoligono(a.latitud, a.longitud, mf)).length;
+          if (cnt > 0) conteos[nom] = (conteos[nom] || 0) + cnt;
+        });
       }
+      // Alertas que no cayeron en ningún municipio → "Fuera de límites"
+      const sinMpio = fi.filter(a =>
+        !municipiosGJ || !municipiosGJ.features.some(
+          mf => puntoEnPoligono(a.latitud, a.longitud, mf)
+        )
+      ).length;
+      if (sinMpio > 0) conteos['Fuera de límites municipales'] = sinMpio;
 
-      if (fd.length) {
-        lines.push('## DEFORESTACION');
-        lines.push('fecha_deteccion,predio_id,latitud,longitud,severidad,area_ha,cambio_ndvi,estado');
-        fd.forEach(a => lines.push([
-          a.fecha_deteccion, a.predio_id||'',
-          a.latitud, a.longitud,
-          a.severidad||'', a.area_afectada_ha||'',
-          a.cambio_ndvi!=null?Number(a.cambio_ndvi).toFixed(3):'', a.estado
-        ].join(',')));
-      }
+      const cab = ['municipio','n_incendios'].join(',');
+      const rows = Object.entries(conteos)
+        .sort((a,b) => b[1]-a[1])
+        .map(([m,n]) => [esc(m), n].join(','));
 
-      _dl(lines.join('\n'), `combinado_${hoy}.csv`);
+      if (!rows.length) { alert('No se encontraron alertas dentro de los límites municipales.'); return; }
+      _dl([cab, ...rows].join('\n'), `incendios_por_municipio_${hoy}.csv`);
     }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // MODO DEFORESTACIÓN
+  // ═══════════════════════════════════════════════════════════════════
+  } else if (modo === 'deforestacion') {
+    if (!fd.length) { alert('No hay alertas de deforestación para exportar.'); return; }
+
+    if (municipioActual && veredasGJ) {
+      // ── CON MUNICIPIO: una fila por alerta con columna vereda ──────
+      const veredasMpio = veredasGJ.features.filter(
+        f => (f.properties.NOMB_MPIO||'').toUpperCase() === municipioActual.toUpperCase()
+      );
+      const cab = ['vereda','municipio','fecha_deteccion','predio_id',
+                   'latitud','longitud','severidad','area_ha','cambio_ndvi','estado'].join(',');
+      const rows = fd.map(a => [
+        esc(veredaDeAlerta(a.latitud, a.longitud, veredasMpio)),
+        esc(municipioActual),
+        esc(a.fecha_deteccion), esc(a.predio_id||''),
+        a.latitud, a.longitud,
+        esc(a.severidad||''), a.area_afectada_ha||'',
+        a.cambio_ndvi!=null ? Number(a.cambio_ndvi).toFixed(3) : '',
+        esc(a.estado)
+      ].join(','));
+      _dl([cab, ...rows].join('\n'),
+          `deforestacion_${municipioActual.replace(/ /g,'_')}_${hoy}.csv`);
+
+    } else {
+      // ── SIN MUNICIPIO: resumen de conteos por municipio ────────────
+      if (!municipiosGJ) await cargarMunicipios();
+      const conteos = {};
+      if (municipiosGJ) {
+        municipiosGJ.features.forEach(mf => {
+          const nom = mf.properties.MPIO_CNMBR || 'Sin municipio';
+          const cnt = fd.filter(a => puntoEnPoligono(a.latitud, a.longitud, mf)).length;
+          if (cnt > 0) conteos[nom] = (conteos[nom] || 0) + cnt;
+        });
+      }
+      const sinMpio = fd.filter(a =>
+        !municipiosGJ || !municipiosGJ.features.some(
+          mf => puntoEnPoligono(a.latitud, a.longitud, mf)
+        )
+      ).length;
+      if (sinMpio > 0) conteos['Fuera de límites municipales'] = sinMpio;
+
+      const cab = ['municipio','n_deforestacion'].join(',');
+      const rows = Object.entries(conteos)
+        .sort((a,b) => b[1]-a[1])
+        .map(([m,n]) => [esc(m), n].join(','));
+
+      if (!rows.length) { alert('No se encontraron alertas dentro de los límites municipales.'); return; }
+      _dl([cab, ...rows].join('\n'), `deforestacion_por_municipio_${hoy}.csv`);
+    }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // MODO COMBINADO → DOS ARCHIVOS SEPARADOS
+  // ═══════════════════════════════════════════════════════════════════
+  } else if (modo === 'combinado') {
+    if (!fi.length && !fd.length) { alert('No hay datos para exportar.'); return; }
+
+    // Disparar descarga de incendios si hay datos
+    if (fi.length) await descargarCSV('incendios');
+    // Pequeña pausa para que el navegador no bloquee la segunda descarga
+    await new Promise(r => setTimeout(r, 400));
+    // Disparar descarga de deforestación si hay datos
+    if (fd.length) await descargarCSV('deforestacion');
   }
 }
 function _dl(content,filename){const blob=new Blob([content],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);}
