@@ -186,7 +186,7 @@
             <option value="highest">Máxima confianza</option>
           </select>
           <div class="gfw-box" id="stats-glad">Sin datos</div>
-          <button onclick="descargarGFW('glad')" class="mt-1.5 w-full text-[10px] font-bold py-1.5 rounded-lg border text-sky-600 border-sky-200 bg-sky-50 hover:bg-sky-100 transition-all">⬇ CSV GLAD</button>
+          <button onclick="descargarGFW('glad')" class="mt-1.5 w-full text-[10px] font-bold py-1.5 rounded-lg border text-sky-600 border-sky-200 bg-sky-50 hover:bg-sky-100 transition-all">⬇ Descargar GLAD (3 archivos)</button>
         </div>
         <!-- RADD -->
         <label class="flex items-center gap-2 mb-2 cursor-pointer">
@@ -195,7 +195,7 @@
         </label>
         <div class="hidden pl-5 mb-2" id="sub-radd">
           <div class="gfw-box" id="stats-radd">Sin datos</div>
-          <button onclick="descargarGFW('radd')" class="mt-1.5 w-full text-[10px] font-bold py-1.5 rounded-lg border text-violet-600 border-violet-200 bg-violet-50 hover:bg-violet-100 transition-all">⬇ CSV RADD</button>
+          <button onclick="descargarGFW('radd')" class="mt-1.5 w-full text-[10px] font-bold py-1.5 rounded-lg border text-violet-600 border-violet-200 bg-violet-50 hover:bg-violet-100 transition-all">⬇ Descargar RADD (3 archivos)</button>
         </div>
         <!-- Hansen -->
         <label class="flex items-center gap-2 mb-2 cursor-pointer">
@@ -285,7 +285,7 @@
         </button>
       </div>
       <div id="gfw-dl-btns" class="mt-2 hidden">
-        <button onclick="descargarGFWActivo()" class="w-full py-2.5 border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-xl text-xs font-bold transition-all">⬇ CSV GFW (capas activas)</button>
+        <button onclick="descargarGFWActivo()" class="w-full py-2.5 border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-xl text-xs font-bold transition-all">⬇ GFW (capas activas · 3 archivos c/u)</button>
       </div>
     </div>
 
@@ -1437,23 +1437,38 @@ function renderGFWMarcadores(key,rows){
 function filtrarGFW(key){if(!gfwCapas[key].visible)return;if(key==='hansen')return;if(gfwCapas[key].datos.length)renderGFWMarcadores(key,gfwCapas[key].datos);else cargarGFWAlertas(key);}
 function recargarGFWTile(key){if(gfwCapas[key].visible){if(gfwCapas[key].datos.length)renderGFWMarcadores(key,gfwCapas[key].datos);else cargarGFWAlertas(key);}}
 
-// ── Descarga GFW ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// ── Descarga GFW (3 archivos: puntos+area_ha, parches GeoJSON, resumen) ──
+// ══════════════════════════════════════════════════════════════
 async function descargarGFW(key){
   const hoy=new Date().toISOString().slice(0,10);
   const btn=event?.target,origText=btn?.textContent||'';
   if(btn){btn.textContent='⏳ Generando…';btn.disabled=true;}
   try{
-    if(key==='hansen'){window.open('https://data.globalforestwatch.org/datasets/gfw::tree-cover-loss/about','_blank');if(btn){btn.textContent=origText;btn.disabled=false;}return;}
+    if(key==='hansen'){
+      window.open('https://data.globalforestwatch.org/datasets/gfw::tree-cover-loss/about','_blank');
+      if(btn){btn.textContent=origText;btn.disabled=false;}
+      return;
+    }
     const datos=gfwCapas[key].datos;
-    if(!datos.length){alert(`Activa la capa ${key.toUpperCase()} primero.`);if(btn){btn.textContent=origText;btn.disabled=false;}return;}
-    // Preparar veredas si hay municipio activo
+    if(!datos.length){
+      alert(`Activa la capa ${key.toUpperCase()} primero.`);
+      if(btn){btn.textContent=origText;btn.disabled=false;}
+      return;
+    }
+
+    // Área por píxel (resolución del dataset, en hectáreas)
+    // GLAD usa Landsat ~30m → 0.09 ha por píxel
+    // RADD usa Sentinel-1 a ~30m de entrega → 0.09 ha
+    const AREA_HA_POR_PIXEL = 0.09;
+
+    // ── Preparar contexto de veredas/municipios ──
     let veredasMpioGFW = [];
     if (municipioActual && veredasGJ) {
       veredasMpioGFW = veredasGJ.features.filter(
         f => (f.properties.NOMB_MPIO||'').toUpperCase() === municipioActual.toUpperCase()
       );
     }
-    // También cargar municipios para asignar municipio por punto
     if (!municipiosGJ) await cargarMunicipios();
 
     function municipioDeAlerta(lat, lng) {
@@ -1461,34 +1476,238 @@ async function descargarGFW(key){
       const vf = veredasGJ.features.find(f => puntoEnPoligono(lat, lng, f));
       return vf ? (vf.properties.NOMB_MPIO || '') : 'Fuera de límites';
     }
+    function veredaDeAlerta(lat, lng) {
+      if (veredasMpioGFW.length) {
+        const vf = veredasMpioGFW.find(vf => puntoEnPoligono(lat, lng, vf));
+        return vf ? (vf.properties.NOMBRE_VER || 'Sin vereda') : 'Sin vereda';
+      }
+      if (veredasGJ) {
+        const vf = veredasGJ.features.find(f => puntoEnPoligono(lat, lng, f));
+        return vf ? (vf.properties.NOMBRE_VER || '') : '';
+      }
+      return '';
+    }
 
+    // ── 1. CSV de puntos con columna area_ha ─────────────────────────────
     let cab, rows;
-    if (key==='glad') {
-      cab = 'fuente,fecha,municipio,vereda,latitud,longitud,confianza,intensidad';
+    if (key === 'glad') {
+      cab = 'fuente,fecha,municipio,vereda,latitud,longitud,confianza,intensidad,area_ha';
       rows = datos.map(r => {
         const lat = parseFloat(r.latitude||0), lng = parseFloat(r.longitude||0);
         const mpio = municipioActual || municipioDeAlerta(lat, lng);
-        const ver  = veredasMpioGFW.length
-          ? (veredasMpioGFW.find(vf => puntoEnPoligono(lat, lng, vf))?.properties?.NOMBRE_VER || 'Sin vereda')
-          : '';
+        const ver  = veredaDeAlerta(lat, lng);
         return ['GFW_GLAD', r.fecha||'', mpio, ver, lat, lng,
-                r.confianza||'', r.intensidad||''].join(',');
+                r.confianza||'', r.intensidad||'',
+                AREA_HA_POR_PIXEL.toFixed(2)].join(',');
       });
     } else {
-      cab = 'fuente,fecha,municipio,vereda,latitud,longitud,confianza';
+      cab = 'fuente,fecha,municipio,vereda,latitud,longitud,confianza,area_ha';
       rows = datos.map(r => {
         const lat = parseFloat(r.latitude||0), lng = parseFloat(r.longitude||0);
         const mpio = municipioActual || municipioDeAlerta(lat, lng);
-        const ver  = veredasMpioGFW.length
-          ? (veredasMpioGFW.find(vf => puntoEnPoligono(lat, lng, vf))?.properties?.NOMBRE_VER || 'Sin vereda')
-          : '';
+        const ver  = veredaDeAlerta(lat, lng);
         return ['GFW_RADD', r.fecha||'', mpio, ver, lat, lng,
-                r.confianza||''].join(',');
+                r.confianza||'',
+                AREA_HA_POR_PIXEL.toFixed(2)].join(',');
       });
     }
-    _dl([cab,...rows].join('\n'),`gfw_${key}_chameza_${hoy}.csv`);
-    if(btn){btn.textContent='✓ Descargado';setTimeout(()=>{btn.textContent=origText;btn.disabled=false;},2000);}
-  }catch(e){if(btn){btn.textContent=origText;btn.disabled=false;}console.error(e);}
+    _dl([cab,...rows].join('\n'), `gfw_${key}_puntos_chameza_${hoy}.csv`);
+
+    // ── 2. GeoJSON de parches (píxeles contiguos disueltos) ──────────────
+    const parches = dissolverPixelesEnParches(datos, AREA_HA_POR_PIXEL, key);
+    const geojson = {
+      type: 'FeatureCollection',
+      features: parches.map((p, i) => ({
+        type: 'Feature',
+        properties: {
+          parche_id: `${key.toUpperCase()}_${i+1}`,
+          fuente: key === 'glad' ? 'GFW_GLAD' : 'GFW_RADD',
+          n_pixeles: p.n_pixeles,
+          area_ha: parseFloat(p.area_ha.toFixed(3)),
+          fecha_min: p.fecha_min,
+          fecha_max: p.fecha_max,
+          municipio: municipioActual || municipioDeAlerta(p.centroide[1], p.centroide[0]),
+          vereda: veredaDeAlerta(p.centroide[1], p.centroide[0])
+        },
+        geometry: { type: 'Polygon', coordinates: [p.poligono] }
+      }))
+    };
+    const blobGJ = new Blob([JSON.stringify(geojson, null, 2)], {type:'application/geo+json'});
+    const urlGJ = URL.createObjectURL(blobGJ);
+    const aGJ = document.createElement('a');
+    aGJ.href = urlGJ; aGJ.download = `gfw_${key}_parches_chameza_${hoy}.geojson`;
+    aGJ.click(); URL.revokeObjectURL(urlGJ);
+
+    // ── 3. CSV de resumen por vereda/municipio ───────────────────────────
+    await descargarGFWResumen(key, datos, AREA_HA_POR_PIXEL, hoy);
+
+    if(btn){
+      btn.textContent='✓ 3 archivos descargados';
+      setTimeout(()=>{btn.textContent=origText;btn.disabled=false;}, 2500);
+    }
+  }catch(e){
+    console.error('Error descarga GFW:', e);
+    if(btn){btn.textContent=origText;btn.disabled=false;}
+    alert('Error generando descarga: '+e.message);
+  }
+}
+
+// ── Dissolver píxeles contiguos en parches (polígonos) ────────────────────
+// Algoritmo: agrupa píxeles cuya distancia entre centroides sea
+// menor a ~1.5x el tamaño de píxel (≈ 45m para resolución 30m).
+// Cada parche resultante incluye su polígono envolvente, conteo y área.
+function dissolverPixelesEnParches(datos, areaPorPixel, key) {
+  if (!datos.length) return [];
+
+  // Tamaño aprox del píxel en grados (30 m ≈ 0.00027°)
+  const PIXEL_DEG = 0.00028;
+  const TOLERANCIA = PIXEL_DEG * 1.5;
+
+  // Convertir a array de objetos con lat/lng numérico
+  const puntos = datos.map(d => ({
+    lat: parseFloat(d.latitude),
+    lng: parseFloat(d.longitude),
+    fecha: d.fecha || '',
+    raw: d,
+    cluster: -1
+  })).filter(p => !isNaN(p.lat) && !isNaN(p.lng));
+
+  // Clustering por vecindad espacial (BFS simple)
+  let clusterId = 0;
+  for (let i = 0; i < puntos.length; i++) {
+    if (puntos[i].cluster !== -1) continue;
+    puntos[i].cluster = clusterId;
+    const cola = [i];
+    while (cola.length) {
+      const idx = cola.shift();
+      const a = puntos[idx];
+      for (let j = 0; j < puntos.length; j++) {
+        if (puntos[j].cluster !== -1) continue;
+        const b = puntos[j];
+        const dLat = Math.abs(a.lat - b.lat);
+        const dLng = Math.abs(a.lng - b.lng);
+        if (dLat <= TOLERANCIA && dLng <= TOLERANCIA) {
+          b.cluster = clusterId;
+          cola.push(j);
+        }
+      }
+    }
+    clusterId++;
+  }
+
+  // Construir parches
+  const parches = [];
+  for (let c = 0; c < clusterId; c++) {
+    const miembros = puntos.filter(p => p.cluster === c);
+    if (!miembros.length) continue;
+
+    // Bounding box del cluster expandido medio píxel para que el polígono
+    // cubra el área real del píxel y no solo su centroide
+    const lats = miembros.map(m => m.lat);
+    const lngs = miembros.map(m => m.lng);
+    const half = PIXEL_DEG / 2;
+    const minLat = Math.min(...lats) - half;
+    const maxLat = Math.max(...lats) + half;
+    const minLng = Math.min(...lngs) - half;
+    const maxLng = Math.max(...lngs) + half;
+
+    // Polígono envolvente (rectángulo del bounding box)
+    const poligono = [
+      [minLng, minLat], [maxLng, minLat],
+      [maxLng, maxLat], [minLng, maxLat],
+      [minLng, minLat]
+    ];
+
+    // Centroide
+    const cLat = lats.reduce((s,v)=>s+v,0) / lats.length;
+    const cLng = lngs.reduce((s,v)=>s+v,0) / lngs.length;
+
+    // Fechas min/max
+    const fechas = miembros.map(m => m.fecha).filter(Boolean).sort();
+
+    parches.push({
+      n_pixeles: miembros.length,
+      area_ha: miembros.length * areaPorPixel,
+      centroide: [cLng, cLat],
+      poligono: poligono,
+      fecha_min: fechas[0] || '',
+      fecha_max: fechas[fechas.length-1] || ''
+    });
+  }
+
+  // Ordenar por área descendente
+  parches.sort((a,b) => b.area_ha - a.area_ha);
+  return parches;
+}
+
+// ── CSV de resumen por vereda/municipio ───────────────────────────────────
+async function descargarGFWResumen(key, datos, areaPorPixel, hoy) {
+  if (!municipiosGJ) await cargarMunicipios();
+  if (!veredasGJ) return;
+
+  // Agregación
+  const agg = {}; // clave: "municipio||vereda" → { n_pixeles, fechas[] }
+
+  datos.forEach(d => {
+    const lat = parseFloat(d.latitude), lng = parseFloat(d.longitude);
+    if (isNaN(lat) || isNaN(lng)) return;
+
+    let mpio = 'Fuera de límites', ver = 'Sin vereda';
+    const vf = veredasGJ.features.find(f => puntoEnPoligono(lat, lng, f));
+    if (vf) {
+      mpio = vf.properties.NOMB_MPIO || 'Sin nombre';
+      ver  = vf.properties.NOMBRE_VER || 'Sin nombre';
+    }
+    const k = `${mpio}||${ver}`;
+    if (!agg[k]) agg[k] = { mpio, ver, n_pixeles: 0, fechas: [] };
+    agg[k].n_pixeles++;
+    if (d.fecha) agg[k].fechas.push(d.fecha);
+  });
+
+  const esc = v => {
+    const s = String(v ?? '');
+    return s.includes(',') ? '"'+s.replace(/"/g,'""')+'"' : s;
+  };
+
+  // ── Sección 1: detalle por vereda ──
+  const cabVer = ['fuente','municipio','vereda','n_pixeles','area_ha','fecha_min','fecha_max'].join(',');
+  const rowsVer = Object.values(agg)
+    .sort((a,b) => b.n_pixeles - a.n_pixeles)
+    .map(r => {
+      const fs = r.fechas.sort();
+      return [
+        key === 'glad' ? 'GFW_GLAD' : 'GFW_RADD',
+        esc(r.mpio), esc(r.ver), r.n_pixeles,
+        (r.n_pixeles * areaPorPixel).toFixed(2),
+        fs[0]||'', fs[fs.length-1]||''
+      ].join(',');
+    });
+
+  // ── Sección 2: resumen por municipio ──
+  const aggM = {};
+  Object.values(agg).forEach(r => {
+    if (!aggM[r.mpio]) aggM[r.mpio] = { mpio: r.mpio, n_pixeles: 0, n_veredas: 0 };
+    aggM[r.mpio].n_pixeles += r.n_pixeles;
+    aggM[r.mpio].n_veredas++;
+  });
+  const cabMun = ['fuente','municipio','n_pixeles','area_ha','n_veredas_afectadas'].join(',');
+  const rowsMun = Object.values(aggM)
+    .sort((a,b) => b.n_pixeles - a.n_pixeles)
+    .map(r => [
+      key === 'glad' ? 'GFW_GLAD' : 'GFW_RADD',
+      esc(r.mpio), r.n_pixeles,
+      (r.n_pixeles * areaPorPixel).toFixed(2),
+      r.n_veredas
+    ].join(','));
+
+  const lines = [
+    '## RESUMEN POR VEREDA',
+    cabVer, ...rowsVer,
+    '',
+    '## RESUMEN POR MUNICIPIO',
+    cabMun, ...rowsMun
+  ];
+  _dl(lines.join('\n'), `gfw_${key}_resumen_chameza_${hoy}.csv`);
 }
 
 // ══════════════════════════════════════════════════════════════
