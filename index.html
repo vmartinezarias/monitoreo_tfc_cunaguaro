@@ -40,6 +40,12 @@
     .btn-per { transition: all .15s; }
     .btn-per.activo { background: var(--verde) !important; color: white !important; box-shadow: 0 4px 12px rgba(26,74,46,0.25); }
 
+    /* Modo rango/preset — resalte visual sutil del bloque activo */
+    #modo-rango { transition: opacity .2s; padding: 2px 0; }
+    #modo-rango.rango-inactivo { opacity: 0.55; }
+    #modo-rango.rango-activo { opacity: 1; }
+    #modo-rango.rango-activo label { color: var(--verde) !important; }
+
     /* Tipo alerta */
     .btn-tipo { transition: all .18s; border: 1.5px solid transparent; }
     .btn-tipo.activo { border-color: var(--verde-l); background: rgba(76,175,125,0.09) !important; }
@@ -130,10 +136,35 @@
     <!-- 1. TEMPORALIDAD -->
     <div class="glass p-4 rounded-2xl shrink-0">
       <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-2.5">Período de Consulta</p>
-      <div class="grid grid-cols-3 gap-1.5">
-        <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 activo" data-dias="1" onclick="cambiarPeriodo(this)">24 h</button>
-        <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-dias="7" onclick="cambiarPeriodo(this)">7 días</button>
-        <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-dias="30" onclick="cambiarPeriodo(this)">30 días</button>
+
+      <!-- ── Modo principal: Rango de fechas ── -->
+      <div id="modo-rango" class="rango-activo">
+        <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-[.18em] mb-2">Rango personalizado</p>
+        <div class="grid grid-cols-2 gap-2 mb-1.5">
+          <div>
+            <label class="text-[9px] text-slate-400 uppercase tracking-wider font-bold">Desde</label>
+            <input type="date" id="fecha-inicio" min="2026-01-01"
+                   onchange="cambiarRangoFechas()"
+                   class="w-full mt-0.5 text-[10px] mono px-2 py-1.5 border border-slate-200 rounded-lg bg-white/80 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+          </div>
+          <div>
+            <label class="text-[9px] text-slate-400 uppercase tracking-wider font-bold">Hasta</label>
+            <input type="date" id="fecha-fin" min="2026-01-01"
+                   onchange="cambiarRangoFechas()"
+                   class="w-full mt-0.5 text-[10px] mono px-2 py-1.5 border border-slate-200 rounded-lg bg-white/80 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+          </div>
+        </div>
+        <div id="rango-info" class="text-[9px] text-slate-500 italic mt-1.5">— días seleccionados</div>
+      </div>
+
+      <!-- ── Atajos rápidos (presets) ── -->
+      <div class="mt-3 pt-3 border-t border-slate-100">
+        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-2">Atajos rápidos</p>
+        <div class="grid grid-cols-3 gap-1.5">
+          <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-dias="1" onclick="cambiarPeriodo(this)">24 h</button>
+          <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-dias="7" onclick="cambiarPeriodo(this)">7 días</button>
+          <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-dias="30" onclick="cambiarPeriodo(this)">30 días</button>
+        </div>
       </div>
     </div>
 
@@ -477,7 +508,12 @@ L.control.layers(baseMaps,null,{position:'bottomright'}).addTo(map);
 
 // ── Estado ────────────────────────────────────────────────────────────────────
 let todasAlertas = [], marcadores = [];
-let filtroActual = 'all', diasActual = 1;
+let filtroActual = 'all', diasActual = 30;
+// Modo de período: 'rango' (input de fechas) | 'preset' (botones 24h/7d/30d)
+let modoPeriodo = 'rango';
+let fechaInicio = null;   // Date — inicio del rango personalizado
+let fechaFin    = null;   // Date — fin del rango personalizado
+const FECHA_MIN_DATA = '2026-01-01'; // fecha mínima permitida
 let areaFiltro = null, predioSelId = null;
 let prediosAgrupados = {}, atributoActual = 'cobertura';
 let opacidadActual = 0.4, radioKm = 10;
@@ -712,6 +748,14 @@ function puntoEnArea(lat,lng,area) {
 }
 
 function alertasEnPeriodo(arr) {
+  if (modoPeriodo === 'rango' && fechaInicio && fechaFin) {
+    // Filtrar entre fecha inicio y fecha fin
+    return arr.filter(a => {
+      const f = new Date(a.fecha_deteccion);
+      return f >= fechaInicio && f <= fechaFin;
+    });
+  }
+  // Modo preset: últimos N días hacia atrás desde hoy
   const ini=new Date(Date.now()-diasActual*864e5);
   return arr.filter(a=>new Date(a.fecha_deteccion)>=ini);
 }
@@ -792,9 +836,77 @@ function centrarEnDefor(i) {
 function cambiarPeriodo(btn) {
   document.querySelectorAll('.btn-per').forEach(b=>b.classList.remove('activo'));
   btn.classList.add('activo'); diasActual=parseInt(btn.dataset.dias);
+  // Cambiar al modo preset y atenuar visualmente el bloque de rango
+  modoPeriodo = 'preset';
+  const blq = document.getElementById('modo-rango');
+  if (blq) { blq.classList.add('rango-inactivo'); blq.classList.remove('rango-activo'); }
   if(deforVisible)cargarDeforestacion();else aplicarFiltros();
   // Recargar GFW con nuevo período
   Object.keys(gfwCapas).forEach(k=>{ if(gfwCapas[k].visible && k!=='hansen') cargarGFWAlertas(k); });
+}
+
+// ── Rango personalizado ───────────────────────────────────────────────────────
+// Calcula diasActual a partir de fechas (siempre se considera "días hacia atrás
+// desde hoy" para mantener compatibilidad con alertasEnPeriodo). El extremo
+// final se aplica posteriormente como filtro adicional.
+function cambiarRangoFechas() {
+  const inpI = document.getElementById('fecha-inicio');
+  const inpF = document.getElementById('fecha-fin');
+  if (!inpI || !inpF) return;
+
+  const sI = inpI.value, sF = inpF.value;
+  if (!sI || !sF) return;
+
+  // Validar fecha mínima
+  if (sI < FECHA_MIN_DATA) { inpI.value = FECHA_MIN_DATA; return cambiarRangoFechas(); }
+
+  // Validar orden
+  if (sI > sF) { inpF.value = sI; return cambiarRangoFechas(); }
+
+  fechaInicio = new Date(sI + 'T00:00:00');
+  fechaFin    = new Date(sF + 'T23:59:59');
+
+  // Calcular días desde HOY hasta fechaInicio (esto es lo que alertasEnPeriodo usa)
+  const ahora = new Date();
+  const diffMs = ahora - fechaInicio;
+  diasActual = Math.max(1, Math.ceil(diffMs / 864e5));
+
+  // Activar modo rango y desactivar presets visualmente
+  modoPeriodo = 'rango';
+  document.querySelectorAll('.btn-per').forEach(b=>b.classList.remove('activo'));
+  const blq = document.getElementById('modo-rango');
+  if (blq) { blq.classList.add('rango-activo'); blq.classList.remove('rango-inactivo'); }
+
+  // Texto informativo
+  const dias = Math.ceil((fechaFin - fechaInicio) / 864e5);
+  const info = document.getElementById('rango-info');
+  if (info) info.textContent = `${dias} día${dias!==1?'s':''} seleccionado${dias!==1?'s':''}`;
+
+  // Refrescar consultas
+  if(deforVisible) cargarDeforestacion(); else aplicarFiltros();
+  Object.keys(gfwCapas).forEach(k=>{ if(gfwCapas[k].visible && k!=='hansen') cargarGFWAlertas(k); });
+}
+
+// Inicializa los inputs de fecha con default: hoy y hoy-30
+function inicializarRangoFechas() {
+  const inpI = document.getElementById('fecha-inicio');
+  const inpF = document.getElementById('fecha-fin');
+  if (!inpI || !inpF) return;
+
+  const hoy = new Date();
+  const hoyStr = hoy.toISOString().slice(0,10);
+  // 30 días atrás, pero nunca antes del 1 ene 2026
+  let inicio = new Date(Date.now() - 30*864e5);
+  let inicioStr = inicio.toISOString().slice(0,10);
+  if (inicioStr < FECHA_MIN_DATA) inicioStr = FECHA_MIN_DATA;
+
+  // max = hoy (no permitir fechas futuras)
+  inpI.max = hoyStr;
+  inpF.max = hoyStr;
+  inpI.value = inicioStr;
+  inpF.value = hoyStr;
+
+  cambiarRangoFechas();
 }
 function filtrar(btn) {
   document.querySelectorAll('.filtro-btn').forEach(b=>{
@@ -1054,7 +1166,16 @@ async function descargarCSV(modo) {
     if (fd.length) await descargarCSV('deforestacion');
   }
 }
-function _dl(content,filename){const blob=new Blob([content],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);}
+function _dl(content,filename){
+  const blob=new Blob([content],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // ── Descarga PDF ──────────────────────────────────────────────────────────────
 function descargarPDF(modo) {
@@ -1328,7 +1449,16 @@ function filtrarDeforestacion() {
 // GFW — Global Forest Watch Integration
 // ══════════════════════════════════════════════════════════════
 function setGFWStatus(msg,tipo=''){const el=document.getElementById('gfw-status');el.textContent=msg;el.className='gfw-status'+(tipo?' '+tipo:'');}
-function gfwFechas(dias){const fin=new Date(),ini=new Date(Date.now()-dias*864e5);return{startDate:ini.toISOString().slice(0,10),endDate:fin.toISOString().slice(0,10)};}
+function gfwFechas(dias){
+  if (modoPeriodo === 'rango' && fechaInicio && fechaFin) {
+    return {
+      startDate: fechaInicio.toISOString().slice(0,10),
+      endDate:   fechaFin.toISOString().slice(0,10)
+    };
+  }
+  const fin=new Date(),ini=new Date(Date.now()-dias*864e5);
+  return{startDate:ini.toISOString().slice(0,10),endDate:fin.toISOString().slice(0,10)};
+}
 
 async function toggleGFW(key,visible){
   const capa=gfwCapas[key];capa.visible=visible;
@@ -1440,7 +1570,18 @@ function recargarGFWTile(key){if(gfwCapas[key].visible){if(gfwCapas[key].datos.l
 // ══════════════════════════════════════════════════════════════
 // ── Descarga GFW (3 archivos: puntos+area_ha, parches GeoJSON, resumen) ──
 // ══════════════════════════════════════════════════════════════
+// Lock global para prevenir descargas duplicadas (doble-clic accidental,
+// re-disparos del DOM, etc). Una descarga a la vez por capa.
+const _gfwLocks = { glad: false, radd: false, hansen: false };
+
 async function descargarGFW(key){
+  // ── Anti-rebote: si ya hay una descarga en curso para esta capa, ignorar ──
+  if (_gfwLocks[key]) {
+    console.warn(`Descarga GFW ${key} ya en curso, ignorando duplicado.`);
+    return;
+  }
+  _gfwLocks[key] = true;
+
   const hoy=new Date().toISOString().slice(0,10);
   const btn=event?.target,origText=btn?.textContent||'';
   if(btn){btn.textContent='⏳ Generando…';btn.disabled=true;}
@@ -1448,12 +1589,14 @@ async function descargarGFW(key){
     if(key==='hansen'){
       window.open('https://data.globalforestwatch.org/datasets/gfw::tree-cover-loss/about','_blank');
       if(btn){btn.textContent=origText;btn.disabled=false;}
+      _gfwLocks[key] = false;
       return;
     }
     const datos=gfwCapas[key].datos;
     if(!datos.length){
       alert(`Activa la capa ${key.toUpperCase()} primero.`);
       if(btn){btn.textContent=origText;btn.disabled=false;}
+      _gfwLocks[key] = false;
       return;
     }
 
@@ -1536,7 +1679,10 @@ async function descargarGFW(key){
     const urlGJ = URL.createObjectURL(blobGJ);
     const aGJ = document.createElement('a');
     aGJ.href = urlGJ; aGJ.download = `gfw_${key}_parches_chameza_${hoy}.geojson`;
-    aGJ.click(); URL.revokeObjectURL(urlGJ);
+    document.body.appendChild(aGJ);
+    aGJ.click();
+    document.body.removeChild(aGJ);
+    URL.revokeObjectURL(urlGJ);
 
     // ── 3. CSV de resumen por vereda/municipio ───────────────────────────
     await descargarGFWResumen(key, datos, AREA_HA_POR_PIXEL, hoy);
@@ -1549,6 +1695,9 @@ async function descargarGFW(key){
     console.error('Error descarga GFW:', e);
     if(btn){btn.textContent=origText;btn.disabled=false;}
     alert('Error generando descarga: '+e.message);
+  } finally {
+    // Liberar lock con pequeño retraso para evitar rebotes de doble-clic
+    setTimeout(()=>{ _gfwLocks[key] = false; }, 1500);
   }
 }
 
@@ -1898,6 +2047,9 @@ function cunaVolver(){
 }
 
 // ── Inicio ────────────────────────────────────────────────────────────────────
+// Inicializar el rango de fechas (default: últimos 30 días, mínimo 1-ene-2026)
+inicializarRangoFechas();
+
 // Cargar área de estudio al inicio y centrar mapa
 obtenerGeomAreaEstudio().then(geom => {
   if (geom) {
