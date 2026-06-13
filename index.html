@@ -87,6 +87,17 @@
     /* Hidden compatibility elements */
     #section-area, #btn-poligono, #btn-punto,
     #hint-dibujo, .area-badge { display: none !important; }
+
+    /* Indicador modo dibujo activo */
+    .dibujo-hint {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(124,58,237,0.95); color: white;
+      padding: 8px 16px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; letter-spacing: .03em;
+      box-shadow: 0 6px 20px rgba(124,58,237,0.4);
+      z-index: 1000; display: flex; align-items: center; gap: 8px;
+      animation: pulse 2s infinite;
+    }
   </style>
 </head>
 <body class="h-full flex flex-col overflow-hidden">
@@ -248,7 +259,7 @@
     <!-- 3. ÁREA DE ANÁLISIS -->
     <div class="glass p-4 rounded-2xl shrink-0">
       <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-1">Área de Análisis</p>
-      <p class="text-[9px] text-slate-400 italic mb-3">La capa mayor seleccionada predomina en la descarga</p>
+      <p class="text-[9px] text-slate-400 italic mb-3">Solo una opción a la vez · la mayor predomina</p>
       <div class="flex flex-col gap-2">
         <!-- Área de estudio -->
         <label class="area-opt activo flex items-center justify-between p-3 rounded-xl bg-white/60 cursor-pointer hover:bg-white" id="opt-estudio">
@@ -290,6 +301,31 @@
               <option value="">— Todos los municipios —</option>
             </select>
             <div id="municipio-veredas-info" class="mt-1.5 text-[9px] text-slate-400 italic"></div>
+          </div>
+        </div>
+        <!-- Dibujar área personalizada -->
+        <div class="area-opt flex flex-col gap-2 p-3 rounded-xl bg-white/60" id="opt-dibujo">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <input type="checkbox" id="chk-area-dibujo" onchange="cambiarAreaAnalisis()" class="w-4 h-4 rounded" style="accent-color:var(--verde)">
+              <div>
+                <div class="text-sm font-bold text-slate-700">✏️ Dibujar área</div>
+                <div class="text-[10px] text-slate-400">Polígono personalizado</div>
+              </div>
+            </div>
+            <span class="text-[9px] font-bold px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full">Custom</span>
+          </div>
+          <!-- Sub-controles dibujo -->
+          <div id="sub-dibujo" class="hidden pl-6 flex flex-col gap-1.5">
+            <button id="btn-iniciar-dibujo" onclick="iniciarDibujoPoligono()"
+              class="w-full py-1.5 px-2 text-[10px] font-bold rounded-lg border border-violet-200 bg-violet-50 hover:bg-violet-100 text-violet-700 transition-all">
+              ✏️ Empezar a dibujar
+            </button>
+            <button id="btn-limpiar-dibujo" onclick="limpiarDibujoPoligono()" style="display:none"
+              class="w-full py-1.5 px-2 text-[10px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all">
+              🗑️ Borrar y dibujar de nuevo
+            </button>
+            <div id="dibujo-info" class="text-[9px] text-slate-400 italic">Sin polígono dibujado</div>
           </div>
         </div>
       </div>
@@ -391,6 +427,11 @@
     <div id="map"></div>
     <div class="absolute bottom-3 left-3 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-lg text-[9px] mono text-slate-500 shadow border border-slate-200/60 z-10 pointer-events-none uppercase tracking-wider">
       WGS 84 · Chámeza, Casanare
+    </div>
+    <!-- Hint flotante mientras se dibuja -->
+    <div id="dibujo-hint" class="dibujo-hint" style="display:none">
+      <span>✏️</span>
+      <span>Haz clic para añadir vértices · doble-clic para cerrar el polígono</span>
     </div>
   </div>
 
@@ -532,8 +573,14 @@ let municipioActual  = '';     // NOMB_MPIO seleccionado ('' = todos)
 let capaMunicipioViz = null;   // Layer visual del municipio activo
 let capaVeredasViz   = null;   // Layer visual de veredas
 
-// Área de análisis activa: 'estudio' | 'nucleos' | 'municipio'
+// Área de análisis activa: 'estudio' | 'nucleos' | 'municipio' | 'dibujo'
 let areaAnalisisActiva = 'estudio';
+
+// ── DIBUJO POLÍGONO PERSONALIZADO ─────────────────────────────────────────────
+let dibujoPoligonoLayer  = null;   // L.Polygon dibujado por el usuario
+let dibujoPoligonoCoords = null;   // Array [[lat,lng], ...] del polígono (cerrado)
+let dibujoHandler        = null;   // L.Draw.Polygon instance activo
+let dibujoArea_ha        = 0;      // Área del polígono dibujado en ha
 
 const drawnItems   = new L.FeatureGroup().addTo(map);
 const capaTodosGeo = new L.FeatureGroup().addTo(map);
@@ -623,49 +670,105 @@ function toggleCapasExtra(btn) {
 }
 
 // ── UI: Área de análisis ──────────────────────────────────────────────────────
-// Jerarquía: estudio > nucleos > predios
-function cambiarAreaAnalisis() {
-  const chkE = document.getElementById('chk-area-estudio').checked;
-  const chkN = document.getElementById('chk-area-nucleos').checked;
-  const chkM = document.getElementById('chk-area-municipio').checked;
+// Jerarquía exclusiva: solo una opción activa a la vez
+// Marcar una desmarca las otras. Al desmarcar todas → "estudio" por defecto.
+let _cambiandoArea = false; // flag para evitar reentradas
 
-  // Determinar área predominante (mayor primero)
+function cambiarAreaAnalisis(origenId) {
+  if (_cambiandoArea) return;
+  _cambiandoArea = true;
+
+  const chkE = document.getElementById('chk-area-estudio');
+  const chkN = document.getElementById('chk-area-nucleos');
+  const chkM = document.getElementById('chk-area-municipio');
+  const chkD = document.getElementById('chk-area-dibujo');
+
+  // Si se activó uno nuevo, apagar los otros (exclusividad)
+  // Detectamos cuál acaba de marcarse contando cuántos están en true
+  const activos = [chkE, chkN, chkM, chkD].filter(c => c.checked);
+
+  if (activos.length > 1) {
+    // El usuario marcó uno nuevo. El que acaba de cambiar es el último que el evento dispara.
+    // Pero como onchange viene del propio checkbox, basta con desactivar los demás conservando el último marcado.
+    // Estrategia: el último marcado es el que NO estaba antes; nos guiamos por areaAnalisisActiva previa.
+    const previo = areaAnalisisActiva;
+    [chkE, chkN, chkM, chkD].forEach(c => {
+      if (c.checked && (
+        (c.id === 'chk-area-estudio'   && previo === 'estudio') ||
+        (c.id === 'chk-area-nucleos'   && previo === 'nucleos') ||
+        (c.id === 'chk-area-municipio' && previo === 'municipio') ||
+        (c.id === 'chk-area-dibujo'    && previo === 'dibujo')
+      )) {
+        c.checked = false;
+      }
+    });
+  }
+
+  // Recalcular cuál está activo ahora
+  const eE = chkE.checked, eN = chkN.checked, eM = chkM.checked, eD = chkD.checked;
+
   let nueva = null;
-  if (chkE)      nueva = 'estudio';
-  else if (chkN) nueva = 'nucleos';
-  else if (chkM) nueva = 'municipio';
+  if (eE)      nueva = 'estudio';
+  else if (eN) nueva = 'nucleos';
+  else if (eM) nueva = 'municipio';
+  else if (eD) nueva = 'dibujo';
+
+  // Si nadie quedó marcado → forzar estudio
+  if (!nueva) {
+    chkE.checked = true;
+    nueva = 'estudio';
+  }
 
   areaAnalisisActiva = nueva;
 
-  // Mostrar/ocultar selector de municipio
-  const wrap = document.getElementById('sel-municipio-wrap');
-  if (wrap) { if (chkM) wrap.classList.remove('hidden'); else wrap.classList.add('hidden'); }
+  // ── Visibilidad de sub-paneles ──
+  const wrapM = document.getElementById('sel-municipio-wrap');
+  if (wrapM) { if (eM) wrapM.classList.remove('hidden'); else wrapM.classList.add('hidden'); }
 
-  // Si se desmarca municipio, limpiar capa visual
-  if (!chkM) { limpiarCapaMunicipio(); municipioActual = ''; }
-  // Si se marca municipio, cargar si no está cargado aún
-  if (chkM && !municipiosGJ) cargarMunicipios();
+  const subD = document.getElementById('sub-dibujo');
+  if (subD)  { if (eD) subD.classList.remove('hidden'); else subD.classList.add('hidden'); }
 
-  // Actualizar estilos botones
-  document.getElementById('opt-estudio').classList.toggle('activo', chkE);
-  document.getElementById('opt-nucleos').classList.toggle('activo', chkN);
-  document.getElementById('opt-municipio').classList.toggle('activo', chkM);
+  // ── Limpieza al desactivar ──
+  if (!eM) { limpiarCapaMunicipio(); municipioActual = ''; }
+  // OJO: si se desactiva dibujo, NO borramos el polígono (lo mantenemos para reactivar fácil).
+  // Pero ocultamos su capa visual:
+  if (!eD && dibujoPoligonoLayer) {
+    if (map.hasLayer(dibujoPoligonoLayer)) map.removeLayer(dibujoPoligonoLayer);
+    // Si hay handler de dibujo activo, cancelarlo
+    if (dibujoHandler) { dibujoHandler.disable(); dibujoHandler = null; }
+    document.getElementById('dibujo-hint').style.display = 'none';
+  }
+  if (eD && dibujoPoligonoLayer && !map.hasLayer(dibujoPoligonoLayer)) {
+    map.addLayer(dibujoPoligonoLayer);
+  }
 
-  // Badge (always visible, just update text)
+  if (eM && !municipiosGJ) cargarMunicipios();
+
+  // ── Estilos visuales de las tarjetas ──
+  document.getElementById('opt-estudio').classList.toggle('activo', eE);
+  document.getElementById('opt-nucleos').classList.toggle('activo', eN);
+  document.getElementById('opt-municipio').classList.toggle('activo', eM);
+  document.getElementById('opt-dibujo').classList.toggle('activo', eD);
+
+  // ── Badge texto ──
   const txt = document.getElementById('area-activa-txt');
   const mLabel = municipioActual ? `Municipio: ${municipioActual}` : 'Todos los municipios';
-  if(txt) txt.textContent = !nueva ? 'Sin área seleccionada' :
-    nueva==='estudio'   ? 'Área de estudio activa' :
-    nueva==='nucleos'   ? 'Núcleos boscosos activos' : mLabel;
+  let badge = '';
+  if (nueva === 'estudio')   badge = 'Área de estudio activa';
+  else if (nueva === 'nucleos')   badge = 'Núcleos boscosos activos';
+  else if (nueva === 'municipio') badge = mLabel;
+  else if (nueva === 'dibujo')    badge = dibujoPoligonoLayer ? `Polígono dibujado · ${dibujoArea_ha.toFixed(1)} ha` : 'Polígono pendiente';
+  if (txt) txt.textContent = badge;
 
-  // También cargar la capa visual correspondiente en el mapa
-  if (chkE) toggleCapa('estudio', true); else capasInfo.estudio.clearLayers();
-  if (chkN) toggleCapa('bosque', true);  else capasInfo.bosque.clearLayers();
-  // Predios no activos — capaTodosGeo se limpia siempre
+  // ── Sincronizar capas visuales de fondo ──
+  if (eE) toggleCapa('estudio', true); else capasInfo.estudio.clearLayers();
+  if (eN) toggleCapa('bosque', true);  else capasInfo.bosque.clearLayers();
   capaTodosGeo.clearLayers();
 
+  _cambiandoArea = false;
+
   aplicarFiltros();
-  // Recargar GFW si hay capas activas con nueva geometría
+  // Recargar GFW con nueva geometría si hay capas activas
   Object.keys(gfwCapas).forEach(k => {
     if (gfwCapas[k].visible && k!=='hansen') cargarGFWAlertas(k);
   });
@@ -673,22 +776,18 @@ function cambiarAreaAnalisis() {
 
 // Obtener geometría según el área activa (para filtro y GFW)
 async function obtenerGeomActiva() {
-  if (!areaAnalisisActiva) return await obtenerGeomAreaEstudio(); // fallback
+  if (!areaAnalisisActiva) return await obtenerGeomAreaEstudio();
   if (areaAnalisisActiva==='estudio') return await obtenerGeomAreaEstudio();
   if (areaAnalisisActiva==='nucleos') {
     if (!geomNucleos) {
       try {
         const gj = await (await fetch(URLS.bosque)).json();
-        // Unir todos los features en un MultiPolygon o tomar el primero
         geomNucleos = gj.features[0].geometry;
       } catch(e) { return await obtenerGeomAreaEstudio(); }
     }
     return geomNucleos;
   }
   if (areaAnalisisActiva==='municipio') {
-    // Geometría = unión de veredas del municipio → usar la primera como referencia
-    // Para GFW POST enviamos el área de estudio como contenedor; el fitBounds
-    // lo hacemos con las veredas directamente
     if (!municipioActual) return await obtenerGeomAreaEstudio();
     try {
       if (!veredasGJ) await cargarVeredas();
@@ -697,7 +796,6 @@ async function obtenerGeomActiva() {
       );
       if (vMun.length === 1) return vMun[0].geometry;
       if (vMun.length > 1) {
-        // MultiPolygon compuesto de todas las veredas
         return {
           type: 'GeometryCollection',
           geometries: vMun.map(f => f.geometry)
@@ -706,20 +804,43 @@ async function obtenerGeomActiva() {
     } catch(e) { console.warn('geom municipio desde veredas:', e); }
     return await obtenerGeomAreaEstudio();
   }
+  if (areaAnalisisActiva==='dibujo') {
+    // Si hay polígono dibujado, devolverlo como geometría
+    // (la API GFW lo aceptará; el filtrado local se hace contra Área de Estudio para
+    // la intersección — eso se aplica en puntoEnArea/puntoEnPoligono)
+    if (dibujoPoligonoCoords && dibujoPoligonoCoords.length >= 3) {
+      // Construir GeoJSON: [lng,lat]
+      const ring = dibujoPoligonoCoords.map(([lat,lng]) => [lng, lat]);
+      // Cerrar el anillo si no está cerrado
+      const first = ring[0], last = ring[ring.length-1];
+      if (first[0] !== last[0] || first[1] !== last[1]) ring.push([first[0], first[1]]);
+      return { type: 'Polygon', coordinates: [ring] };
+    }
+    return await obtenerGeomAreaEstudio();
+  }
   return await obtenerGeomAreaEstudio();
 }
 
 // bbox según área activa (para filtro puntual en incendios/defor)
 function bboxAreaActiva() {
-  // Por ahora retorna el bbox de Chameza; los datos ya llegan filtrados
   return CHAMEZA_BBOX;
 }
 
-// ── Stub de compatibilidad: obtenerAreaFiltroActiva ───────────────────────────
-// El JS original llama a esta función para filtrar marcadores por polígono/círculo
-// La mantenemos devolviendo null (sin filtro extra puntual)
-// ya que el filtro real es el geojson enviado al POST de GFW y a Supabase
-function obtenerAreaFiltroActiva() { return areaFiltro; }
+// ── Filtro puntual por área activa ────────────────────────────────────────────
+// Devuelve un area-filter en formato {tipo:'poligono', coords:[[lng,lat],...]}
+// solo cuando areaAnalisisActiva === 'dibujo' Y hay polígono dibujado.
+// En los otros modos, la consulta GFW/Supabase ya viene restringida por geometría,
+// así que devolvemos null (no filtramos puntualmente otra vez).
+function obtenerAreaFiltroActiva() {
+  if (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords && dibujoPoligonoCoords.length >= 3) {
+    return {
+      tipo: 'poligono',
+      // coords espera [lng,lat] (formato de puntoEnArea: [c[i][0]=lng, c[i][1]=lat])
+      coords: dibujoPoligonoCoords.map(([lat,lng]) => [lng, lat])
+    };
+  }
+  return areaFiltro; // fallback (suele ser null)
+}
 function actualizarBadgeArea() {}
 function limpiarTodoFiltroArea() {}
 
@@ -735,6 +856,134 @@ function cambiarOpacidad(val) {}
 function cambiarRadio(val) {}
 function renderLeyenda() {}
 
+// ══════════════════════════════════════════════════════════════════════════════
+// DIBUJO DE POLÍGONO PERSONALIZADO
+// ══════════════════════════════════════════════════════════════════════════════
+function iniciarDibujoPoligono() {
+  // Si hay un polígono previo, eliminarlo (el usuario va a hacer uno nuevo)
+  if (dibujoPoligonoLayer) {
+    if (map.hasLayer(dibujoPoligonoLayer)) map.removeLayer(dibujoPoligonoLayer);
+    dibujoPoligonoLayer = null;
+    dibujoPoligonoCoords = null;
+    dibujoArea_ha = 0;
+  }
+  // Si hay un handler activo, cancelarlo
+  if (dibujoHandler) { dibujoHandler.disable(); dibujoHandler = null; }
+
+  // Iniciar nuevo Draw.Polygon
+  dibujoHandler = new L.Draw.Polygon(map, {
+    shapeOptions: { color:'#7c3aed', weight:2.5, fillColor:'#7c3aed', fillOpacity:0.15, dashArray:'4 4' },
+    allowIntersection: false,
+    showArea: false
+  });
+  dibujoHandler.enable();
+
+  // Mostrar hint flotante en el mapa
+  document.getElementById('dibujo-hint').style.display = 'flex';
+
+  // UI: cambiar texto botón
+  const btn = document.getElementById('btn-iniciar-dibujo');
+  if (btn) btn.textContent = '⏸ Dibujando… (doble-clic para cerrar)';
+  document.getElementById('dibujo-info').textContent = 'Haz clic en el mapa para añadir vértices';
+}
+
+function limpiarDibujoPoligono() {
+  if (dibujoPoligonoLayer && map.hasLayer(dibujoPoligonoLayer)) {
+    map.removeLayer(dibujoPoligonoLayer);
+  }
+  dibujoPoligonoLayer = null;
+  dibujoPoligonoCoords = null;
+  dibujoArea_ha = 0;
+  document.getElementById('dibujo-info').textContent = 'Sin polígono dibujado';
+  document.getElementById('btn-limpiar-dibujo').style.display = 'none';
+  document.getElementById('btn-iniciar-dibujo').textContent = '✏️ Empezar a dibujar';
+  // Refrescar
+  aplicarFiltros();
+  Object.keys(gfwCapas).forEach(k => {
+    if (gfwCapas[k].visible && k!=='hansen') cargarGFWAlertas(k);
+  });
+  // Actualizar badge
+  const txt = document.getElementById('area-activa-txt');
+  if (txt && areaAnalisisActiva === 'dibujo') txt.textContent = 'Polígono pendiente';
+}
+
+// Calcular área (en hectáreas) de un polígono en lat/lng usando fórmula esférica
+function calcularAreaPoligonoHa(coords) {
+  // coords: [[lat,lng],...]
+  if (!coords || coords.length < 3) return 0;
+  const R = 6378137; // radio Tierra en metros
+  let area = 0;
+  const n = coords.length;
+  for (let i = 0; i < n; i++) {
+    const [lat1, lng1] = coords[i];
+    const [lat2, lng2] = coords[(i+1) % n];
+    area += (lng2 - lng1) * Math.PI/180 * (2 + Math.sin(lat1*Math.PI/180) + Math.sin(lat2*Math.PI/180));
+  }
+  area = Math.abs(area * R * R / 2);
+  return area / 10000; // m² → ha
+}
+
+// Listener Leaflet.draw: cuando el usuario cierra el polígono
+map.on(L.Draw.Event.CREATED, function(e) {
+  if (!e || e.layerType !== 'polygon') return;
+  // Solo procesamos si el dibujo fue solicitado por nosotros (areaAnalisisActiva==='dibujo')
+  if (areaAnalisisActiva !== 'dibujo') {
+    // No estábamos esperando un dibujo, descartar
+    return;
+  }
+  const layer = e.layer;
+  const latlngs = layer.getLatLngs()[0]; // primer anillo
+  if (!latlngs || latlngs.length < 3) {
+    alert('El polígono debe tener al menos 3 vértices.');
+    return;
+  }
+  // Guardar como [[lat,lng],...]
+  dibujoPoligonoCoords = latlngs.map(p => [p.lat, p.lng]);
+  // Cerrar anillo si no lo está
+  const first = dibujoPoligonoCoords[0], last = dibujoPoligonoCoords[dibujoPoligonoCoords.length-1];
+  if (first[0] !== last[0] || first[1] !== last[1]) dibujoPoligonoCoords.push([first[0], first[1]]);
+  // Calcular área
+  dibujoArea_ha = calcularAreaPoligonoHa(dibujoPoligonoCoords);
+
+  // Añadir el layer al mapa (con estilo violeta)
+  dibujoPoligonoLayer = L.polygon(latlngs, {
+    color: '#7c3aed', weight: 2.5,
+    fillColor: '#7c3aed', fillOpacity: 0.12,
+    dashArray: '4 4'
+  }).bindTooltip(`Área personalizada · ${dibujoArea_ha.toFixed(1)} ha`, { sticky: true });
+  map.addLayer(dibujoPoligonoLayer);
+
+  // Limpiar handler y hint
+  if (dibujoHandler) { dibujoHandler.disable(); dibujoHandler = null; }
+  document.getElementById('dibujo-hint').style.display = 'none';
+
+  // Actualizar UI sidebar
+  document.getElementById('btn-iniciar-dibujo').textContent = '✏️ Empezar a dibujar';
+  document.getElementById('btn-limpiar-dibujo').style.display = 'block';
+
+  // Validar intersección con área de estudio
+  obtenerGeomAreaEstudio().then(geomEst => {
+    let advertencia = '';
+    if (geomEst) {
+      // Comprobar si TODOS los vértices están dentro
+      const fakeFeature = { geometry: geomEst };
+      const dentro = dibujoPoligonoCoords.every(([lat,lng]) => puntoEnPoligono(lat, lng, fakeFeature));
+      if (!dentro) advertencia = ' (parte fuera del Área de Estudio · resultados se filtrarán a la intersección)';
+    }
+    document.getElementById('dibujo-info').innerHTML =
+      `✓ Polígono · <span class="mono text-violet-600">${dibujoArea_ha.toFixed(1)} ha</span>${advertencia}`;
+    // Actualizar badge
+    const txt = document.getElementById('area-activa-txt');
+    if (txt) txt.textContent = `Polígono dibujado · ${dibujoArea_ha.toFixed(1)} ha`;
+  });
+
+  // Disparar refresco de consultas
+  aplicarFiltros();
+  Object.keys(gfwCapas).forEach(k => {
+    if (gfwCapas[k].visible && k!=='hansen') cargarGFWAlertas(k);
+  });
+});
+
 // ── Filtros incendios/defor ───────────────────────────────────────────────────
 function puntoEnArea(lat,lng,area) {
   if (!area) return true;
@@ -742,6 +991,7 @@ function puntoEnArea(lat,lng,area) {
     const d=Math.sqrt(Math.pow((lat-area.lat)*111,2)+Math.pow((lng-area.lng)*111*Math.cos(area.lat*Math.PI/180),2));
     return d<=area.radio;
   }
+  // tipo 'poligono' — coords son [[lng,lat],...]
   let dentro=false; const c=area.coords;
   for(let i=0,j=c.length-1;i<c.length;j=i++){const xi=c[i][0],yi=c[i][1],xj=c[j][0],yj=c[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))dentro=!dentro;}
   return dentro;
@@ -749,24 +999,43 @@ function puntoEnArea(lat,lng,area) {
 
 function alertasEnPeriodo(arr) {
   if (modoPeriodo === 'rango' && fechaInicio && fechaFin) {
-    // Filtrar entre fecha inicio y fecha fin
     return arr.filter(a => {
       const f = new Date(a.fecha_deteccion);
       return f >= fechaInicio && f <= fechaFin;
     });
   }
-  // Modo preset: últimos N días hacia atrás desde hoy
   const ini=new Date(Date.now()-diasActual*864e5);
   return arr.filter(a=>new Date(a.fecha_deteccion)>=ini);
+}
+
+// Filtro adicional para modo dibujo: además del polígono dibujado, intersecar
+// con el Área de Estudio (los puntos solo cuentan si están en AMBOS).
+function pasaFiltroAreaDibujo(lat, lng) {
+  if (areaAnalisisActiva !== 'dibujo') return true;
+  if (!dibujoPoligonoCoords || dibujoPoligonoCoords.length < 3) return true;
+  // 1. Dentro del polígono dibujado
+  const areaDib = obtenerAreaFiltroActiva();
+  if (areaDib && !puntoEnArea(lat, lng, areaDib)) return false;
+  // 2. Dentro del Área de Estudio (intersección)
+  if (areaEstudioGeom) {
+    const fakeFeature = { geometry: areaEstudioGeom };
+    if (!puntoEnPoligono(lat, lng, fakeFeature)) return false;
+  }
+  return true;
 }
 
 function aplicarFiltros() {
   let firms=alertasEnPeriodo(todasAlertas);
   if (filtroActual!=='all') firms=firms.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
-  const area=obtenerAreaFiltroActiva();
-  const firmsArea=area?firms.filter(a=>puntoEnArea(a.latitud,a.longitud,area)):firms;
+  // En modo dibujo, filtramos puntualmente por intersección polígono ∩ área estudio
+  const aplicaFiltroDibujo = (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords);
+  const firmsArea = aplicaFiltroDibujo
+    ? firms.filter(a => pasaFiltroAreaDibujo(a.latitud, a.longitud))
+    : firms;
   const deforPeriodo=alertasEnPeriodo(alertasDefor);
-  const deforArea=area?deforPeriodo.filter(a=>puntoEnArea(a.latitud,a.longitud,area)):deforPeriodo;
+  const deforArea = aplicaFiltroDibujo
+    ? deforPeriodo.filter(a => pasaFiltroAreaDibujo(a.latitud, a.longitud))
+    : deforPeriodo;
   actualizarStats(firms,firmsArea,deforArea);
   renderMarcadores(firmsArea);
   if (tabActual==='incendios') renderLista(firmsArea,'incendios');
@@ -777,8 +1046,8 @@ function aplicarFiltros() {
 }
 
 function actualizarStats(firms,firmsArea,deforArea) {
-  const area=obtenerAreaFiltroActiva();
-  document.getElementById('total-alertas').textContent = area?firmsArea.length:firms.length;
+  const aplicaFiltroDibujo = (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords);
+  document.getElementById('total-alertas').textContent = aplicaFiltroDibujo ? firmsArea.length : firms.length;
   document.getElementById('total-defor').textContent   = deforArea.length;
   document.getElementById('total-high').textContent    = firms.filter(a=>(a.firms_confidence||'').toLowerCase()==='high').length;
   const frps=firms.map(a=>a.firms_frp||0).filter(Boolean);
@@ -846,9 +1115,6 @@ function cambiarPeriodo(btn) {
 }
 
 // ── Rango personalizado ───────────────────────────────────────────────────────
-// Calcula diasActual a partir de fechas (siempre se considera "días hacia atrás
-// desde hoy" para mantener compatibilidad con alertasEnPeriodo). El extremo
-// final se aplica posteriormente como filtro adicional.
 function cambiarRangoFechas() {
   const inpI = document.getElementById('fecha-inicio');
   const inpF = document.getElementById('fecha-fin');
@@ -857,37 +1123,29 @@ function cambiarRangoFechas() {
   const sI = inpI.value, sF = inpF.value;
   if (!sI || !sF) return;
 
-  // Validar fecha mínima
   if (sI < FECHA_MIN_DATA) { inpI.value = FECHA_MIN_DATA; return cambiarRangoFechas(); }
-
-  // Validar orden
   if (sI > sF) { inpF.value = sI; return cambiarRangoFechas(); }
 
   fechaInicio = new Date(sI + 'T00:00:00');
   fechaFin    = new Date(sF + 'T23:59:59');
 
-  // Calcular días desde HOY hasta fechaInicio (esto es lo que alertasEnPeriodo usa)
   const ahora = new Date();
   const diffMs = ahora - fechaInicio;
   diasActual = Math.max(1, Math.ceil(diffMs / 864e5));
 
-  // Activar modo rango y desactivar presets visualmente
   modoPeriodo = 'rango';
   document.querySelectorAll('.btn-per').forEach(b=>b.classList.remove('activo'));
   const blq = document.getElementById('modo-rango');
   if (blq) { blq.classList.add('rango-activo'); blq.classList.remove('rango-inactivo'); }
 
-  // Texto informativo
   const dias = Math.ceil((fechaFin - fechaInicio) / 864e5);
   const info = document.getElementById('rango-info');
   if (info) info.textContent = `${dias} día${dias!==1?'s':''} seleccionado${dias!==1?'s':''}`;
 
-  // Refrescar consultas
   if(deforVisible) cargarDeforestacion(); else aplicarFiltros();
   Object.keys(gfwCapas).forEach(k=>{ if(gfwCapas[k].visible && k!=='hansen') cargarGFWAlertas(k); });
 }
 
-// Inicializa los inputs de fecha con default: hoy y hoy-30
 function inicializarRangoFechas() {
   const inpI = document.getElementById('fecha-inicio');
   const inpF = document.getElementById('fecha-fin');
@@ -895,12 +1153,10 @@ function inicializarRangoFechas() {
 
   const hoy = new Date();
   const hoyStr = hoy.toISOString().slice(0,10);
-  // 30 días atrás, pero nunca antes del 1 ene 2026
   let inicio = new Date(Date.now() - 30*864e5);
   let inicioStr = inicio.toISOString().slice(0,10);
   if (inicioStr < FECHA_MIN_DATA) inicioStr = FECHA_MIN_DATA;
 
-  // max = hoy (no permitir fechas futuras)
   inpI.max = hoyStr;
   inpF.max = hoyStr;
   inpI.value = inicioStr;
@@ -924,7 +1180,6 @@ async function descargarActual(formato) {
     if (formato==='csv') descargarCSV('incendios');
     else descargarPDF('incendios');
   } else {
-    // GFW activo
     const activasGFW = Object.keys(gfwCapas).filter(k=>gfwCapas[k].visible && k!=='hansen' && gfwCapas[k].datos.length);
     if (activasGFW.length) {
       activasGFW.forEach(k => descargarGFW(k));
@@ -945,17 +1200,25 @@ function descargarGFWActivo() {
 function alertasActualesIncendios() {
   let r=alertasEnPeriodo(todasAlertas);
   if(filtroActual!=='all')r=r.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
+  // Si modo dibujo activo, filtrar puntualmente por intersección polígono ∩ área estudio
+  if (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords) {
+    r = r.filter(a => pasaFiltroAreaDibujo(a.latitud, a.longitud));
+  }
   return r;
 }
-function alertasActualesDefor() { return alertasEnPeriodo(alertasDefor); }
+function alertasActualesDefor() {
+  let r = alertasEnPeriodo(alertasDefor);
+  if (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords) {
+    r = r.filter(a => pasaFiltroAreaDibujo(a.latitud, a.longitud));
+  }
+  return r;
+}
 
-// ── Helpers de agrupación por vereda ─────────────────────────────────────────
 function puntoEnPoligono(lat, lng, feature) {
-  // Ray-casting para Polygon o MultiPolygon
   const geom = feature.geometry;
   const polys = geom.type === 'Polygon'
     ? [geom.coordinates]
-    : geom.coordinates; // MultiPolygon
+    : geom.coordinates;
   for (const poly of polys) {
     const ring = poly[0];
     let dentro = false;
@@ -969,8 +1232,7 @@ function puntoEnPoligono(lat, lng, feature) {
 }
 
 async function agruparAlertasPorVereda(alertas) {
-  // Retorna { NOMBRE_VER: [alertas], ... } solo para veredas con alertas
-  if (!municipioActual) return null; // sin municipio seleccionado, no aplica
+  if (!municipioActual) return null;
   await cargarVeredas();
   if (!veredasGJ) return null;
 
@@ -986,7 +1248,7 @@ async function agruparAlertasPorVereda(alertas) {
         const nom = vFeat.properties.NOMBRE_VER || 'Sin nombre';
         if (!grupos[nom]) grupos[nom] = [];
         grupos[nom].push(alerta);
-        break; // cada alerta va a una sola vereda
+        break;
       }
     }
   }
@@ -996,8 +1258,6 @@ async function agruparAlertasPorVereda(alertas) {
 async function descargarCSV(modo) {
   const hoy = new Date().toISOString().slice(0,10);
 
-  // ── Helpers locales ───────────────────────────────────────────────────────
-  // Escapar campos con comas o comillas
   const esc = v => {
     const s = String(v ?? '');
     return s.includes(',') || s.includes('"') || s.includes('\n')
@@ -1005,7 +1265,6 @@ async function descargarCSV(modo) {
       : s;
   };
 
-  // Obtener vereda de una alerta (ray-casting ya está en puntoEnPoligono)
   function veredaDeAlerta(lat, lng, veredasMpio) {
     for (const vf of veredasMpio) {
       if (puntoEnPoligono(lat, lng, vf))
@@ -1014,18 +1273,13 @@ async function descargarCSV(modo) {
     return 'Sin vereda';
   }
 
-  // Filtrar alertas por período
   const fi = alertasActualesIncendios();
   const fd = alertasActualesDefor();
 
-  // ═══════════════════════════════════════════════════════════════════
-  // MODO INCENDIOS
-  // ═══════════════════════════════════════════════════════════════════
   if (modo === 'incendios') {
     if (!fi.length) { alert('No hay alertas de incendio para exportar.'); return; }
 
     if (municipioActual && veredasGJ) {
-      // ── CON MUNICIPIO: una fila por alerta con columna vereda ──────
       const veredasMpio = veredasGJ.features.filter(
         f => (f.properties.NOMB_MPIO||'').toUpperCase() === municipioActual.toUpperCase()
       );
@@ -1042,18 +1296,14 @@ async function descargarCSV(modo) {
           `incendios_${municipioActual.replace(/ /g,'_')}_${hoy}.csv`);
 
     } else {
-      // ── SIN MUNICIPIO: detalle de cada alerta + columna municipio ──
-      // + resumen por municipio al final del mismo archivo
       if (!municipiosGJ) await cargarMunicipios();
 
-      // Asignar municipio a cada alerta
       function mpioDeAlerta(lat, lng) {
         if (!veredasGJ) return 'Sin datos';
         const vf = veredasGJ.features.find(f => puntoEnPoligono(lat, lng, f));
         return vf ? (vf.properties.NOMB_MPIO || 'Sin nombre') : 'Fuera de límites';
       }
 
-      // Sección 1: detalle con municipio asignado
       const cabDet = ['municipio','fecha_deteccion','latitud','longitud',
                       'confianza','frp_mw','satelite','estado'].join(',');
       const rowsDet = fi.map(a => [
@@ -1063,10 +1313,9 @@ async function descargarCSV(modo) {
         esc(a.firms_satellite||''), esc(a.estado)
       ].join(','));
 
-      // Sección 2: resumen por municipio
       const conteos = {};
       fi.forEach(a => {
-        const m = mpioDeAlerta(a.latitud, a.longitud); // usa NOMB_MPIO de veredas
+        const m = mpioDeAlerta(a.latitud, a.longitud);
         conteos[m] = (conteos[m] || 0) + 1;
       });
       const cabRes = ['municipio','n_incendios'].join(',');
@@ -1084,14 +1333,10 @@ async function descargarCSV(modo) {
       _dl(lines.join('\n'), `incendios_area_estudio_${hoy}.csv`);
     }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // MODO DEFORESTACIÓN
-  // ═══════════════════════════════════════════════════════════════════
   } else if (modo === 'deforestacion') {
     if (!fd.length) { alert('No hay alertas de deforestación para exportar.'); return; }
 
     if (municipioActual && veredasGJ) {
-      // ── CON MUNICIPIO: una fila por alerta con columna vereda ──────
       const veredasMpio = veredasGJ.features.filter(
         f => (f.properties.NOMB_MPIO||'').toUpperCase() === municipioActual.toUpperCase()
       );
@@ -1110,7 +1355,6 @@ async function descargarCSV(modo) {
           `deforestacion_${municipioActual.replace(/ /g,'_')}_${hoy}.csv`);
 
     } else {
-      // ── SIN MUNICIPIO: detalle de cada alerta + columna municipio ──
       if (!municipiosGJ) await cargarMunicipios();
 
       function mpioDeAlertaDef(lat, lng) {
@@ -1119,7 +1363,6 @@ async function descargarCSV(modo) {
         return vf ? (vf.properties.NOMB_MPIO || 'Sin nombre') : 'Fuera de límites';
       }
 
-      // Sección 1: detalle
       const cabDet = ['municipio','fecha_deteccion','predio_id','latitud','longitud',
                       'severidad','area_ha','cambio_ndvi','estado'].join(',');
       const rowsDet = fd.map(a => [
@@ -1131,7 +1374,6 @@ async function descargarCSV(modo) {
         esc(a.estado)
       ].join(','));
 
-      // Sección 2: resumen
       const conteosD = {};
       fd.forEach(a => {
         const m = mpioDeAlertaDef(a.latitud, a.longitud);
@@ -1152,17 +1394,11 @@ async function descargarCSV(modo) {
       _dl(lines.join('\n'), `deforestacion_area_estudio_${hoy}.csv`);
     }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // MODO COMBINADO → DOS ARCHIVOS SEPARADOS
-  // ═══════════════════════════════════════════════════════════════════
   } else if (modo === 'combinado') {
     if (!fi.length && !fd.length) { alert('No hay datos para exportar.'); return; }
 
-    // Disparar descarga de incendios si hay datos
     if (fi.length) await descargarCSV('incendios');
-    // Pequeña pausa para que el navegador no bloquee la segunda descarga
     await new Promise(r => setTimeout(r, 400));
-    // Disparar descarga de deforestación si hay datos
     if (fd.length) await descargarCSV('deforestacion');
   }
 }
@@ -1183,7 +1419,7 @@ function descargarPDF(modo) {
   const doc=new jsPDF();
   const hoy=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota'});
   const periodo=diasActual===1?'Últimas 24 h':diasActual===7?'Últimos 7 días':'Últimos 30 días';
-  const areaLbl=areaAnalisisActiva==='estudio'?'Área de estudio':areaAnalisisActiva==='nucleos'?'Núcleos boscosos':areaAnalisisActiva==='municipio'?(municipioActual?`Municipio: ${municipioActual}`:'Todos los municipios'):'Área completa';
+  const areaLbl=areaAnalisisActiva==='estudio'?'Área de estudio':areaAnalisisActiva==='nucleos'?'Núcleos boscosos':areaAnalisisActiva==='municipio'?(municipioActual?`Municipio: ${municipioActual}`:'Todos los municipios'):areaAnalisisActiva==='dibujo'?`Polígono personalizado (${dibujoArea_ha.toFixed(1)} ha)`:'Área completa';
   doc.setFillColor(26,74,46);doc.rect(0,0,210,36,'F');
   doc.setTextColor(76,175,125);doc.setFontSize(15);doc.setFont('helvetica','bold');
   const titulo=modo==='incendios'?'Reporte de Incendios':modo==='deforestacion'?'Reporte de Deforestación':'Reporte Combinado · Incendios & Deforestación';
@@ -1216,7 +1452,6 @@ function descargarPDF(modo) {
         const f=new Date(a.fecha_deteccion).toLocaleString('es-CO',{timeZone:'America/Bogota',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
         doc.setTextColor(40,40,40);
         if(conMunicipio){
-          // Buscar vereda del punto
           let verNom='—';
           const vMun=veredasGJ.features.filter(v=>(v.properties.NOMB_MPIO||'').toUpperCase()===municipioActual.toUpperCase());
           for(const vf of vMun){if(puntoEnPoligono(a.latitud,a.longitud,vf)){verNom=(vf.properties.NOMBRE_VER||'').slice(0,14);break;}}
@@ -1313,10 +1548,9 @@ function renderRasterConectividad(){
 
 // ── Municipios y Veredas ─────────────────────────────────────────────────────
 async function cargarMunicipios() {
-  // Usa veredas.geojson como fuente única — extrae municipios únicos de NOMB_MPIO
   if (veredasGJ) { municipiosGJ = veredasGJ; return veredasGJ; }
   await cargarVeredas();
-  municipiosGJ = veredasGJ; // alias
+  municipiosGJ = veredasGJ;
 
   const sel = document.getElementById('sel-municipio');
   if (sel && veredasGJ) {
@@ -1358,19 +1592,13 @@ async function seleccionarMunicipio(nombre) {
   const info = document.getElementById('municipio-veredas-info');
 
   if (!nombre) {
-    // Todos → mostrar todos los municipios sin resaltar
     if (info) info.textContent = '';
     cambiarAreaAnalisis(); aplicarFiltros();
     return;
   }
 
-  // Asegurar que veredas estén cargadas
   await cargarVeredas();
 
-  // Mostrar veredas del municipio como contorno (bbox desde veredas)
-  // No necesitamos municipios.geojson — las veredas definen el área
-
-  // Mostrar veredas del municipio
   if (veredasGJ) {
     const vFeat = veredasGJ.features.filter(
       f => (f.properties.NOMB_MPIO||'').toUpperCase() === nombre.toUpperCase()
@@ -1393,9 +1621,7 @@ async function seleccionarMunicipio(nombre) {
   aplicarFiltros();
 }
 
-// Compatibilidad — cargarPredios ya no hace nada, lo mantiene por si hay ref
 async function cargarPredios() {
-  // Reemplazado por cargarMunicipios — vacío intencionalmente
   const sel = document.getElementById('predio-select');
   if (sel) sel.innerHTML = '<option value="">—</option>';
 }
@@ -1430,6 +1656,10 @@ function filtrarDeforestacion() {
   if(!deforVisible)return;
   const sev=document.getElementById('sel-defor-severidad').value;
   let f=sev==='all'?alertasDefor:alertasDefor.filter(a=>a.severidad===sev);
+  // En modo dibujo, filtrar adicionalmente por intersección
+  if (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords) {
+    f = f.filter(a => pasaFiltroAreaDibujo(a.latitud, a.longitud));
+  }
   marcadoresDefor.forEach(m=>map.removeLayer(m));marcadoresDefor=[];
   f.forEach(a=>{
     const color=COLORES_SEV[a.severidad]||'#f97316';
@@ -1525,8 +1755,19 @@ async function cargarGFWAlertas(key){
     const resp=await fetch(`${GFW_BASE}/dataset/${cfg.dataset}/latest/query/json`,{method:'POST',headers:{'Content-Type':'application/json','x-api-key':GFW_API_KEY},body:JSON.stringify({sql,geometry:geom})});
     if(!resp.ok)throw new Error(`HTTP ${resp.status}: ${(await resp.text()).slice(0,150)}`);
     const data=await resp.json();
-    gfwCapas[key].datos=data.data||[];
-    renderGFWMarcadores(key,gfwCapas[key].datos);
+    // En modo dibujo: la API ya filtró por el polígono dibujado, pero queremos
+    // intersección con Área de Estudio → filtrar puntualmente aquí
+    let datos = data.data||[];
+    if (areaAnalisisActiva === 'dibujo' && areaEstudioGeom) {
+      const fakeFeature = { geometry: areaEstudioGeom };
+      datos = datos.filter(r => {
+        const lat = parseFloat(r.latitude), lng = parseFloat(r.longitude);
+        if (isNaN(lat) || isNaN(lng)) return false;
+        return puntoEnPoligono(lat, lng, fakeFeature);
+      });
+    }
+    gfwCapas[key].datos = datos;
+    renderGFWMarcadores(key, gfwCapas[key].datos);
   }catch(e){
     console.error(`GFW ${key}:`,e);
     statsEl.innerHTML=`<span style="color:var(--fuego)">❌ ${e.message.slice(0,80)}</span>`;
@@ -1553,7 +1794,11 @@ function renderGFWMarcadores(key,rows){
   });
   const tot=capa.marcadores.length;
   const {startDate,endDate}=gfwFechas(diasActual);
-  const area=areaAnalisisActiva==='estudio'?'área de estudio':areaAnalisisActiva==='nucleos'?'núcleos boscosos':'predios';
+  const area = areaAnalisisActiva==='estudio'?'área de estudio'
+             : areaAnalisisActiva==='nucleos'?'núcleos boscosos'
+             : areaAnalisisActiva==='municipio'?(municipioActual?`municipio ${municipioActual}`:'todos los municipios')
+             : areaAnalisisActiva==='dibujo'?`polígono personalizado (${dibujoArea_ha.toFixed(1)} ha)`
+             : 'área activa';
   if(tot===0){
     document.getElementById(`stats-${key}`).innerHTML=`<span>Sin alertas en ${area}</span>`;
     setGFWStatus('✓ 0','ok');
@@ -1568,14 +1813,11 @@ function filtrarGFW(key){if(!gfwCapas[key].visible)return;if(key==='hansen')retu
 function recargarGFWTile(key){if(gfwCapas[key].visible){if(gfwCapas[key].datos.length)renderGFWMarcadores(key,gfwCapas[key].datos);else cargarGFWAlertas(key);}}
 
 // ══════════════════════════════════════════════════════════════
-// ── Descarga GFW (3 archivos: puntos+area_ha, parches GeoJSON, resumen) ──
+// Descarga GFW (3 archivos)
 // ══════════════════════════════════════════════════════════════
-// Lock global para prevenir descargas duplicadas (doble-clic accidental,
-// re-disparos del DOM, etc). Una descarga a la vez por capa.
 const _gfwLocks = { glad: false, radd: false, hansen: false };
 
 async function descargarGFW(key){
-  // ── Anti-rebote: si ya hay una descarga en curso para esta capa, ignorar ──
   if (_gfwLocks[key]) {
     console.warn(`Descarga GFW ${key} ya en curso, ignorando duplicado.`);
     return;
@@ -1600,12 +1842,8 @@ async function descargarGFW(key){
       return;
     }
 
-    // Área por píxel (resolución del dataset, en hectáreas)
-    // GLAD usa Landsat ~30m → 0.09 ha por píxel
-    // RADD usa Sentinel-1 a ~30m de entrega → 0.09 ha
     const AREA_HA_POR_PIXEL = 0.09;
 
-    // ── Preparar contexto de veredas/municipios ──
     let veredasMpioGFW = [];
     if (municipioActual && veredasGJ) {
       veredasMpioGFW = veredasGJ.features.filter(
@@ -1631,7 +1869,7 @@ async function descargarGFW(key){
       return '';
     }
 
-    // ── 1. CSV de puntos con columna area_ha ─────────────────────────────
+    // 1. CSV puntos
     let cab, rows;
     if (key === 'glad') {
       cab = 'fuente,fecha,municipio,vereda,latitud,longitud,confianza,intensidad,area_ha';
@@ -1656,7 +1894,7 @@ async function descargarGFW(key){
     }
     _dl([cab,...rows].join('\n'), `gfw_${key}_puntos_chameza_${hoy}.csv`);
 
-    // ── 2. GeoJSON de parches (píxeles contiguos disueltos) ──────────────
+    // 2. GeoJSON parches
     const parches = dissolverPixelesEnParches(datos, AREA_HA_POR_PIXEL, key);
     const geojson = {
       type: 'FeatureCollection',
@@ -1684,7 +1922,7 @@ async function descargarGFW(key){
     document.body.removeChild(aGJ);
     URL.revokeObjectURL(urlGJ);
 
-    // ── 3. CSV de resumen por vereda/municipio ───────────────────────────
+    // 3. CSV resumen
     await descargarGFWResumen(key, datos, AREA_HA_POR_PIXEL, hoy);
 
     if(btn){
@@ -1696,23 +1934,16 @@ async function descargarGFW(key){
     if(btn){btn.textContent=origText;btn.disabled=false;}
     alert('Error generando descarga: '+e.message);
   } finally {
-    // Liberar lock con pequeño retraso para evitar rebotes de doble-clic
     setTimeout(()=>{ _gfwLocks[key] = false; }, 1500);
   }
 }
 
-// ── Dissolver píxeles contiguos en parches (polígonos) ────────────────────
-// Algoritmo: agrupa píxeles cuya distancia entre centroides sea
-// menor a ~1.5x el tamaño de píxel (≈ 45m para resolución 30m).
-// Cada parche resultante incluye su polígono envolvente, conteo y área.
 function dissolverPixelesEnParches(datos, areaPorPixel, key) {
   if (!datos.length) return [];
 
-  // Tamaño aprox del píxel en grados (30 m ≈ 0.00027°)
   const PIXEL_DEG = 0.00028;
   const TOLERANCIA = PIXEL_DEG * 1.5;
 
-  // Convertir a array de objetos con lat/lng numérico
   const puntos = datos.map(d => ({
     lat: parseFloat(d.latitude),
     lng: parseFloat(d.longitude),
@@ -1721,7 +1952,6 @@ function dissolverPixelesEnParches(datos, areaPorPixel, key) {
     cluster: -1
   })).filter(p => !isNaN(p.lat) && !isNaN(p.lng));
 
-  // Clustering por vecindad espacial (BFS simple)
   let clusterId = 0;
   for (let i = 0; i < puntos.length; i++) {
     if (puntos[i].cluster !== -1) continue;
@@ -1744,14 +1974,11 @@ function dissolverPixelesEnParches(datos, areaPorPixel, key) {
     clusterId++;
   }
 
-  // Construir parches
   const parches = [];
   for (let c = 0; c < clusterId; c++) {
     const miembros = puntos.filter(p => p.cluster === c);
     if (!miembros.length) continue;
 
-    // Bounding box del cluster expandido medio píxel para que el polígono
-    // cubra el área real del píxel y no solo su centroide
     const lats = miembros.map(m => m.lat);
     const lngs = miembros.map(m => m.lng);
     const half = PIXEL_DEG / 2;
@@ -1760,18 +1987,15 @@ function dissolverPixelesEnParches(datos, areaPorPixel, key) {
     const minLng = Math.min(...lngs) - half;
     const maxLng = Math.max(...lngs) + half;
 
-    // Polígono envolvente (rectángulo del bounding box)
     const poligono = [
       [minLng, minLat], [maxLng, minLat],
       [maxLng, maxLat], [minLng, maxLat],
       [minLng, minLat]
     ];
 
-    // Centroide
     const cLat = lats.reduce((s,v)=>s+v,0) / lats.length;
     const cLng = lngs.reduce((s,v)=>s+v,0) / lngs.length;
 
-    // Fechas min/max
     const fechas = miembros.map(m => m.fecha).filter(Boolean).sort();
 
     parches.push({
@@ -1784,18 +2008,15 @@ function dissolverPixelesEnParches(datos, areaPorPixel, key) {
     });
   }
 
-  // Ordenar por área descendente
   parches.sort((a,b) => b.area_ha - a.area_ha);
   return parches;
 }
 
-// ── CSV de resumen por vereda/municipio ───────────────────────────────────
 async function descargarGFWResumen(key, datos, areaPorPixel, hoy) {
   if (!municipiosGJ) await cargarMunicipios();
   if (!veredasGJ) return;
 
-  // Agregación
-  const agg = {}; // clave: "municipio||vereda" → { n_pixeles, fechas[] }
+  const agg = {};
 
   datos.forEach(d => {
     const lat = parseFloat(d.latitude), lng = parseFloat(d.longitude);
@@ -1818,7 +2039,6 @@ async function descargarGFWResumen(key, datos, areaPorPixel, hoy) {
     return s.includes(',') ? '"'+s.replace(/"/g,'""')+'"' : s;
   };
 
-  // ── Sección 1: detalle por vereda ──
   const cabVer = ['fuente','municipio','vereda','n_pixeles','area_ha','fecha_min','fecha_max'].join(',');
   const rowsVer = Object.values(agg)
     .sort((a,b) => b.n_pixeles - a.n_pixeles)
@@ -1832,7 +2052,6 @@ async function descargarGFWResumen(key, datos, areaPorPixel, hoy) {
       ].join(',');
     });
 
-  // ── Sección 2: resumen por municipio ──
   const aggM = {};
   Object.values(agg).forEach(r => {
     if (!aggM[r.mpio]) aggM[r.mpio] = { mpio: r.mpio, n_pixeles: 0, n_veredas: 0 };
@@ -1869,9 +2088,8 @@ const CUNA_DATOS={
   conectividad:{img:'conectividad.png',msg:`En <b>Capas adicionales</b> (al fondo del panel), marca <b>Conectividad (Deciles)</b>. Los deciles del 1 al 10 representan la importancia de conectividad del paisaje — cuantil más alto = mayor importancia.`},
   gfw:{img:'gfw.png',msg:`Selecciona <b>Pérdida cobertura</b> en "Tipo de alerta". Allí encontrarás:<br><br>🌲 <b>GLAD</b> — Alertas Landsat semanales<br>📡 <b>RADD</b> — Radar Sentinel-1, funciona bajo nubes<br>🌳 <b>Hansen</b> — Cobertura y pérdida 2001-2023<br><br>Todas las alertas se filtran automáticamente al <b>área de análisis</b> que hayas seleccionado.`},
 
-  // ── Sobre la plataforma ──
   sobre: {
-    img: null, // no imagen única — se manejan dos banners
+    img: null,
     esMulti: true,
     slides: [
       { titulo: '¿Qué hace la plataforma?', img: 'kuna_workflow.png' },
@@ -1879,7 +2097,6 @@ const CUNA_DATOS={
     ]
   },
 
-  // ── Funcionalidades ──
   funcionalidades: {
     img: null,
     esMulti: true,
@@ -1929,7 +2146,6 @@ function cunaIr(key){
   const d=CUNA_DATOS[key];
   if(!d) return;
 
-  // Cambiar avatar a "pensando"
   const avatar=document.getElementById('cuna-avatar');
   avatar.style.opacity='0';
   setTimeout(()=>{ avatar.src='kuna_saludando.png'; avatar.style.opacity='1'; },150);
@@ -1939,18 +2155,15 @@ function cunaIr(key){
 
   setTimeout(()=>{
     menu.style.display='none';
-    detail.innerHTML=''; // limpiar contenido previo
+    detail.innerHTML='';
     detail.classList.remove('hidden');
     detail.classList.add('flex');
 
     if (d.esMulti) {
-      // ── Renderizado multi-slide ─────────────────────────────────
       _cunaCurrentKey = key;
       detail.innerHTML = cunaRenderMulti(d, key);
-      // Mostrar primer slide
       cunaSlide(0, d);
     } else {
-      // ── Renderizado simple (comportamiento original) ────────────
       detail.innerHTML = `
         <img id="cuna-detail-img" class="w-full h-44 object-cover rounded-xl mb-4 border border-slate-100" src="${d.img||''}" alt="">
         <div id="cuna-detail-text" class="text-sm text-slate-600 leading-relaxed cuna-detail-text">${d.msg||''}</div>
@@ -1965,7 +2178,6 @@ function cunaIr(key){
 let _cunaSlideIdx = 0;
 
 function cunaRenderMulti(d, key) {
-  // Genera el contenedor de slides
   return `
     <div class="flex items-center justify-between mb-3">
       <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest" id="kuna-slide-label">Cargando…</div>
@@ -1986,11 +2198,9 @@ function cunaSlide(idx, d) {
   const s = slides[_cunaSlideIdx];
   if (!s) return;
 
-  // Label
   const lbl = document.getElementById('kuna-slide-label');
   if (lbl) lbl.textContent = s.titulo;
 
-  // Dots
   const dots = document.getElementById('kuna-dots');
   if (dots) {
     dots.innerHTML = slides.map((_, i) =>
@@ -1998,14 +2208,11 @@ function cunaSlide(idx, d) {
     ).join('');
   }
 
-  // Content
   const cont = document.getElementById('kuna-slide-content');
   if (cont) {
-    // ── Sobre la plataforma: solo banner grande ──
     if (!s.kunaImg && !s.texto) {
       cont.innerHTML = `<img src="${s.img}" alt="${s.titulo}" class="w-full rounded-xl border border-slate-100 shadow-md" style="width:100%;object-fit:contain;background:#f8faf9;display:block">`;
     } else {
-      // ── Funcionalidades: kuna + imagen + texto ──
       cont.innerHTML = `
         <div class="flex items-start gap-3">
           <img src="${s.kunaImg||'kuna_saludando.png'}" alt="Kuna" class="w-14 h-14 rounded-xl object-cover shrink-0 border border-emerald-100">
@@ -2015,7 +2222,6 @@ function cunaSlide(idx, d) {
     }
   }
 
-  // Nav buttons
   const prev = document.getElementById('btn-prev');
   const next = document.getElementById('btn-next');
   if (prev) prev.style.visibility = _cunaSlideIdx === 0 ? 'hidden' : 'visible';
@@ -2047,10 +2253,8 @@ function cunaVolver(){
 }
 
 // ── Inicio ────────────────────────────────────────────────────────────────────
-// Inicializar el rango de fechas (default: últimos 30 días, mínimo 1-ene-2026)
 inicializarRangoFechas();
 
-// Cargar área de estudio al inicio y centrar mapa
 obtenerGeomAreaEstudio().then(geom => {
   if (geom) {
     try {
@@ -2059,7 +2263,6 @@ obtenerGeomAreaEstudio().then(geom => {
     } catch(e) { console.warn('fitBounds estudio:', e); }
   }
 });
-// Mostrar contorno del área de estudio por defecto
 toggleCapa('estudio', true);
 cargarMunicipios();
 cargarAlertas();
