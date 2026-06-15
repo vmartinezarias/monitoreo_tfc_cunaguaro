@@ -1016,8 +1016,9 @@ function pasaFiltroAreaDibujo(lat, lng) {
   // 1. Dentro del polígono dibujado
   const areaDib = obtenerAreaFiltroActiva();
   if (areaDib && !puntoEnArea(lat, lng, areaDib)) return false;
-  // 2. Dentro del Área de Estudio (intersección)
-  if (areaEstudioGeom) {
+  // 2. Intersección con Área de Estudio (solo si ya está cargada)
+  // Si aún no cargó, no bloqueamos — el filtro es conservador (incluye el punto)
+  if (areaEstudioGeom && typeof areaEstudioGeom === 'object') {
     const fakeFeature = { geometry: areaEstudioGeom };
     if (!puntoEnPoligono(lat, lng, fakeFeature)) return false;
   }
@@ -1201,16 +1202,22 @@ function descargarGFWActivo() {
 }
 
 // ── Descarga CSV ──────────────────────────────────────────────────────────────
-function alertasActualesIncendios() {
-  let r=alertasEnPeriodo(todasAlertas);
-  if(filtroActual!=='all')r=r.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
-  // Si modo dibujo activo, filtrar puntualmente por intersección polígono ∩ área estudio
+async function alertasActualesIncendios() {
+  // Garantizar que la geom del área de estudio esté disponible antes de filtrar
+  if (areaAnalisisActiva === 'dibujo' && !areaEstudioGeom) {
+    await obtenerGeomAreaEstudio();
+  }
+  let r = alertasEnPeriodo(todasAlertas);
+  if (filtroActual !== 'all') r = r.filter(a => (a.firms_confidence||'').toLowerCase() === filtroActual);
   if (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords) {
     r = r.filter(a => pasaFiltroAreaDibujo(a.latitud, a.longitud));
   }
   return r;
 }
-function alertasActualesDefor() {
+async function alertasActualesDefor() {
+  if (areaAnalisisActiva === 'dibujo' && !areaEstudioGeom) {
+    await obtenerGeomAreaEstudio();
+  }
   let r = alertasEnPeriodo(alertasDefor);
   if (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords) {
     r = r.filter(a => pasaFiltroAreaDibujo(a.latitud, a.longitud));
@@ -1277,8 +1284,11 @@ async function descargarCSV(modo) {
     return 'Sin vereda';
   }
 
-  const fi = alertasActualesIncendios();
+// alertasActualesIncendios es ahora async (pre-carga geom si modo dibujo)
+  const fi = await alertasActualesIncendios();
   const fd = alertasActualesDefor();
+  // Garantizar veredas cargadas antes de asignar municipios
+  if (!veredasGJ) await cargarVeredas();
 
   if (modo === 'incendios') {
     if (!fi.length) { alert('No hay alertas de incendio para exportar.'); return; }
