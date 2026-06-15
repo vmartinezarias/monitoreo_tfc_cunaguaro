@@ -582,6 +582,11 @@ let dibujoPoligonoCoords = null;   // Array [[lat,lng], ...] del polígono (cerr
 let dibujoHandler        = null;   // L.Draw.Polygon instance activo
 let dibujoArea_ha        = 0;      // Área del polígono dibujado en ha
 
+// Si true, el polígono personalizado se recorta al Área de Estudio.
+// Lo dejo en false para que el área dibujada por el usuario sea realmente el área de consulta.
+// Cámbialo a true si quieres obligar que los resultados queden solo dentro del Área de Estudio.
+const RECORTAR_DIBUJO_A_AREA_ESTUDIO = false;
+
 const drawnItems   = new L.FeatureGroup().addTo(map);
 const capaTodosGeo = new L.FeatureGroup().addTo(map);
 
@@ -975,6 +980,8 @@ map.on(L.Draw.Event.CREATED, function(e) {
     // Actualizar badge
     const txt = document.getElementById('area-activa-txt');
     if (txt) txt.textContent = `Polígono dibujado · ${dibujoArea_ha.toFixed(1)} ha`;
+    // Si se decide recortar al Área de Estudio, recalcular cuando esa geometría ya esté disponible.
+    if (RECORTAR_DIBUJO_A_AREA_ESTUDIO) aplicarFiltros();
   });
 
   // Disparar refresco de consultas
@@ -985,16 +992,111 @@ map.on(L.Draw.Event.CREATED, function(e) {
 });
 
 // ── Filtros incendios/defor ───────────────────────────────────────────────────
-function puntoEnArea(lat,lng,area) {
+function _numCoord(v) {
+  const n = (typeof v === 'number') ? v : parseFloat(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+function _alertaLatLng(a) {
+  const lat = _numCoord(a?.latitud ?? a?.latitude ?? a?.lat);
+  const lng = _numCoord(a?.longitud ?? a?.longitude ?? a?.lng ?? a?.lon);
+  if (lat === null || lng === null) return null;
+  return { lat, lng };
+}
+
+function puntoEnArea(lat, lng, area) {
+  lat = _numCoord(lat);
+  lng = _numCoord(lng);
+  if (lat === null || lng === null) return false;
   if (!area) return true;
-  if (area.tipo==='circulo') {
-    const d=Math.sqrt(Math.pow((lat-area.lat)*111,2)+Math.pow((lng-area.lng)*111*Math.cos(area.lat*Math.PI/180),2));
-    return d<=area.radio;
+
+  if (area.tipo === 'circulo') {
+    const alat = _numCoord(area.lat), alng = _numCoord(area.lng), radio = _numCoord(area.radio);
+    if (alat === null || alng === null || radio === null) return true;
+    const d = Math.sqrt(
+      Math.pow((lat - alat) * 111, 2) +
+      Math.pow((lng - alng) * 111 * Math.cos(alat * Math.PI / 180), 2)
+    );
+    return d <= radio;
   }
+
   // tipo 'poligono' — coords son [[lng,lat],...]
-  let dentro=false; const c=area.coords;
-  for(let i=0,j=c.length-1;i<c.length;j=i++){const xi=c[i][0],yi=c[i][1],xj=c[j][0],yj=c[j][1];if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))dentro=!dentro;}
+  if (area.tipo === 'poligono' && Array.isArray(area.coords)) {
+    return puntoEnRingLngLat(lat, lng, area.coords);
+  }
+
+  // Si llega algo raro, no bloqueamos puntos por accidente.
+  return true;
+}
+
+function puntoEnRingLngLat(lat, lng, ring) {
+  lat = _numCoord(lat);
+  lng = _numCoord(lng);
+  if (lat === null || lng === null || !Array.isArray(ring) || ring.length < 3) return false;
+
+  let dentro = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = _numCoord(ring[i]?.[0]), yi = _numCoord(ring[i]?.[1]);
+    const xj = _numCoord(ring[j]?.[0]), yj = _numCoord(ring[j]?.[1]);
+    if (xi === null || yi === null || xj === null || yj === null) continue;
+
+    const cruza = ((yi > lat) !== (yj > lat));
+    if (cruza) {
+      const xInt = (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi;
+      if (lng < xInt) dentro = !dentro;
+    }
+  }
   return dentro;
+}
+
+function puntoEnGeoJSON(lat, lng, obj) {
+  if (!obj) return null;
+
+  // Acepta Feature, Geometry o FeatureCollection.
+  if (obj.type === 'Feature') return puntoEnGeoJSON(lat, lng, obj.geometry);
+
+  if (obj.type === 'FeatureCollection') {
+    if (!Array.isArray(obj.features)) return null;
+    for (const f of obj.features) {
+      const r = puntoEnGeoJSON(lat, lng, f);
+      if (r === true) return true;
+    }
+    return false;
+  }
+
+  if (obj.type === 'GeometryCollection') {
+    if (!Array.isArray(obj.geometries)) return null;
+    for (const g of obj.geometries) {
+      const r = puntoEnGeoJSON(lat, lng, g);
+      if (r === true) return true;
+    }
+    return false;
+  }
+
+  if (obj.type === 'Polygon') {
+    // Primer anillo = exterior. Anillos siguientes = huecos.
+    const rings = obj.coordinates;
+    if (!Array.isArray(rings) || !rings.length) return null;
+    const dentroExterior = puntoEnRingLngLat(lat, lng, rings[0]);
+    if (!dentroExterior) return false;
+
+    // Respetar huecos si existen.
+    for (let i = 1; i < rings.length; i++) {
+      if (puntoEnRingLngLat(lat, lng, rings[i])) return false;
+    }
+    return true;
+  }
+
+  if (obj.type === 'MultiPolygon') {
+    if (!Array.isArray(obj.coordinates)) return null;
+    for (const poly of obj.coordinates) {
+      const r = puntoEnGeoJSON(lat, lng, { type: 'Polygon', coordinates: poly });
+      if (r === true) return true;
+    }
+    return false;
+  }
+
+  return null; // tipo no soportado
 }
 
 function alertasEnPeriodo(arr) {
@@ -1013,37 +1115,57 @@ function alertasEnPeriodo(arr) {
 function pasaFiltroAreaDibujo(lat, lng) {
   if (areaAnalisisActiva !== 'dibujo') return true;
   if (!dibujoPoligonoCoords || dibujoPoligonoCoords.length < 3) return true;
-  // 1. Dentro del polígono dibujado
+
+  lat = _numCoord(lat);
+  lng = _numCoord(lng);
+  if (lat === null || lng === null) return false;
+
+  // 1. Dentro del polígono dibujado por el usuario.
   const areaDib = obtenerAreaFiltroActiva();
   if (areaDib && !puntoEnArea(lat, lng, areaDib)) return false;
-  // 2. Intersección con Área de Estudio (solo si ya está cargada)
-  // Si aún no cargó, no bloqueamos — el filtro es conservador (incluye el punto)
-  if (areaEstudioGeom && typeof areaEstudioGeom === 'object') {
-    const fakeFeature = { geometry: areaEstudioGeom };
-    if (!puntoEnPoligono(lat, lng, fakeFeature)) return false;
+
+  // 2. Opcional: recortar al Área de Estudio.
+  // Antes esto era obligatorio; si areaEstudioGeom venía mal/no soportada, dejaba todo en cero.
+  if (RECORTAR_DIBUJO_A_AREA_ESTUDIO && areaEstudioGeom && typeof areaEstudioGeom === 'object') {
+    const dentroEstudio = puntoEnGeoJSON(lat, lng, areaEstudioGeom);
+    if (dentroEstudio === false) return false;
+    // Si dentroEstudio === null, no bloqueamos por seguridad.
   }
+
   return true;
 }
 
 function aplicarFiltros() {
-  let firms=alertasEnPeriodo(todasAlertas);
-  if (filtroActual!=='all') firms=firms.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
-  // En modo dibujo, filtramos puntualmente por intersección polígono ∩ área estudio
-  const aplicaFiltroDibujo = (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords);
+  let firms = alertasEnPeriodo(todasAlertas);
+  if (filtroActual !== 'all') {
+    firms = firms.filter(a => (a.firms_confidence || '').toLowerCase() === filtroActual);
+  }
+
+  const aplicaFiltroDibujo = (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords && dibujoPoligonoCoords.length >= 3);
   const firmsArea = aplicaFiltroDibujo
-    ? firms.filter(a => pasaFiltroAreaDibujo(a.latitud, a.longitud))
+    ? firms.filter(a => {
+        const p = _alertaLatLng(a);
+        return p ? pasaFiltroAreaDibujo(p.lat, p.lng) : false;
+      })
     : firms;
-  const deforPeriodo=alertasEnPeriodo(alertasDefor);
+
+  const deforPeriodo = alertasEnPeriodo(alertasDefor);
   const deforArea = aplicaFiltroDibujo
-    ? deforPeriodo.filter(a => pasaFiltroAreaDibujo(a.latitud, a.longitud))
+    ? deforPeriodo.filter(a => {
+        const p = _alertaLatLng(a);
+        return p ? pasaFiltroAreaDibujo(p.lat, p.lng) : false;
+      })
     : deforPeriodo;
-  actualizarStats(firms,firmsArea,deforArea);
+
+  actualizarStats(firms, firmsArea, deforArea);
   renderMarcadores(firmsArea);
-  if (tabActual==='incendios') renderLista(firmsArea,'incendios');
-  else renderLista(deforArea,'deforestacion');
+  if (tabActual === 'incendios') renderLista(firmsArea, 'incendios');
+  else renderLista(deforArea, 'deforestacion');
   actualizarBadgeArea();
-  setTimeout(filtrarDeforestacion,0);
-  Object.keys(gfwCapas).forEach(k=>{ if(gfwCapas[k].visible && k!=='hansen') filtrarGFW(k); });
+  setTimeout(filtrarDeforestacion, 0);
+  Object.keys(gfwCapas).forEach(k => {
+    if (gfwCapas[k].visible && k !== 'hansen') filtrarGFW(k);
+  });
 }
 
 function actualizarStats(firms,firmsArea,deforArea) {
@@ -1203,43 +1325,36 @@ function descargarGFWActivo() {
 
 // ── Descarga CSV ──────────────────────────────────────────────────────────────
 async function alertasActualesIncendios() {
-  // Garantizar que la geom del área de estudio esté disponible antes de filtrar
-  if (areaAnalisisActiva === 'dibujo' && !areaEstudioGeom) {
+  if (areaAnalisisActiva === 'dibujo' && RECORTAR_DIBUJO_A_AREA_ESTUDIO && !areaEstudioGeom) {
     await obtenerGeomAreaEstudio();
   }
   let r = alertasEnPeriodo(todasAlertas);
   if (filtroActual !== 'all') r = r.filter(a => (a.firms_confidence||'').toLowerCase() === filtroActual);
-  if (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords) {
-    r = r.filter(a => pasaFiltroAreaDibujo(a.latitud, a.longitud));
+  if (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords && dibujoPoligonoCoords.length >= 3) {
+    r = r.filter(a => {
+      const p = _alertaLatLng(a);
+      return p ? pasaFiltroAreaDibujo(p.lat, p.lng) : false;
+    });
   }
   return r;
 }
 async function alertasActualesDefor() {
-  if (areaAnalisisActiva === 'dibujo' && !areaEstudioGeom) {
+  if (areaAnalisisActiva === 'dibujo' && RECORTAR_DIBUJO_A_AREA_ESTUDIO && !areaEstudioGeom) {
     await obtenerGeomAreaEstudio();
   }
   let r = alertasEnPeriodo(alertasDefor);
-  if (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords) {
-    r = r.filter(a => pasaFiltroAreaDibujo(a.latitud, a.longitud));
+  if (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords && dibujoPoligonoCoords.length >= 3) {
+    r = r.filter(a => {
+      const p = _alertaLatLng(a);
+      return p ? pasaFiltroAreaDibujo(p.lat, p.lng) : false;
+    });
   }
   return r;
 }
 
 function puntoEnPoligono(lat, lng, feature) {
-  const geom = feature.geometry;
-  const polys = geom.type === 'Polygon'
-    ? [geom.coordinates]
-    : geom.coordinates;
-  for (const poly of polys) {
-    const ring = poly[0];
-    let dentro = false;
-    for (let i=0, j=ring.length-1; i<ring.length; j=i++) {
-      const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1];
-      if (((yi>lat)!==(yj>lat)) && (lng < (xj-xi)*(lat-yi)/(yj-yi)+xi)) dentro=!dentro;
-    }
-    if (dentro) return true;
-  }
-  return false;
+  const r = puntoEnGeoJSON(lat, lng, feature);
+  return r === true;
 }
 
 async function agruparAlertasPorVereda(alertas) {
@@ -1693,9 +1808,12 @@ function filtrarDeforestacion() {
   if(!deforVisible)return;
   const sev=document.getElementById('sel-defor-severidad').value;
   let f=sev==='all'?alertasDefor:alertasDefor.filter(a=>a.severidad===sev);
-  // En modo dibujo, filtrar adicionalmente por intersección
-  if (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords) {
-    f = f.filter(a => pasaFiltroAreaDibujo(a.latitud, a.longitud));
+  // En modo dibujo, filtrar adicionalmente por el polígono personalizado
+  if (areaAnalisisActiva === 'dibujo' && dibujoPoligonoCoords && dibujoPoligonoCoords.length >= 3) {
+    f = f.filter(a => {
+      const p = _alertaLatLng(a);
+      return p ? pasaFiltroAreaDibujo(p.lat, p.lng) : false;
+    });
   }
   marcadoresDefor.forEach(m=>map.removeLayer(m));marcadoresDefor=[];
   f.forEach(a=>{
@@ -1792,15 +1910,15 @@ async function cargarGFWAlertas(key){
     const resp=await fetch(`${GFW_BASE}/dataset/${cfg.dataset}/latest/query/json`,{method:'POST',headers:{'Content-Type':'application/json','x-api-key':GFW_API_KEY},body:JSON.stringify({sql,geometry:geom})});
     if(!resp.ok)throw new Error(`HTTP ${resp.status}: ${(await resp.text()).slice(0,150)}`);
     const data=await resp.json();
-    // En modo dibujo: la API ya filtró por el polígono dibujado, pero queremos
-    // intersección con Área de Estudio → filtrar puntualmente aquí
-    let datos = data.data||[];
-    if (areaAnalisisActiva === 'dibujo' && areaEstudioGeom) {
-      const fakeFeature = { geometry: areaEstudioGeom };
+    // En modo dibujo la API ya filtra por el polígono personalizado.
+    // El recorte contra Área de Estudio queda como opción explícita.
+    let datos = data.data || [];
+    if (RECORTAR_DIBUJO_A_AREA_ESTUDIO && areaAnalisisActiva === 'dibujo' && areaEstudioGeom) {
       datos = datos.filter(r => {
-        const lat = parseFloat(r.latitude), lng = parseFloat(r.longitude);
-        if (isNaN(lat) || isNaN(lng)) return false;
-        return puntoEnPoligono(lat, lng, fakeFeature);
+        const lat = _numCoord(r.latitude), lng = _numCoord(r.longitude);
+        if (lat === null || lng === null) return false;
+        const dentroEstudio = puntoEnGeoJSON(lat, lng, areaEstudioGeom);
+        return dentroEstudio !== false;
       });
     }
     gfwCapas[key].datos = datos;
