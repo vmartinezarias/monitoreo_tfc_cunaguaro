@@ -19,13 +19,9 @@
     .glass { background: rgba(255,255,255,0.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.55); box-shadow: 0 8px 32px rgba(0,0,0,0.06); }
     .syne { font-family: 'Syne', sans-serif; }
     .mono { font-family: 'Space Mono', monospace; }
-
-    /* Scrollbar */
     .scroll::-webkit-scrollbar { width: 4px; }
     .scroll::-webkit-scrollbar-track { background: transparent; }
     .scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 10px; }
-
-    /* Mapa */
     #map { height: 100%; width: 100%; }
     .leaflet-container { background: #e8eee5 !important; }
     .leaflet-popup-content-wrapper { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; box-shadow: 0 8px 30px rgba(0,0,0,0.12); color: #1e293b; font-family: 'Inter', sans-serif; }
@@ -35,28 +31,18 @@
     .popup-title.gfw   { color: var(--gfw-l); }
     .popup-row { font-size: 11px; color: #64748b; margin: 2px 0; }
     .popup-row span { color: #1e293b; font-family: 'Space Mono', monospace; }
-
-    /* Periodo botones */
     .btn-per { transition: all .15s; }
     .btn-per.activo { background: var(--verde) !important; color: white !important; box-shadow: 0 4px 12px rgba(26,74,46,0.25); }
-
-    /* Modo rango/preset — resalte visual sutil del bloque activo */
     #modo-rango { transition: opacity .2s; padding: 2px 0; }
     #modo-rango.rango-inactivo { opacity: 0.55; }
     #modo-rango.rango-activo { opacity: 1; }
     #modo-rango.rango-activo label { color: var(--verde) !important; }
-
-    /* Tipo alerta */
     .btn-tipo { transition: all .18s; border: 1.5px solid transparent; }
     .btn-tipo.activo { border-color: var(--verde-l); background: rgba(76,175,125,0.09) !important; }
     .btn-tipo.activo.fuego { border-color: var(--fuego-l) !important; background: rgba(232,72,10,0.07) !important; }
     .btn-tipo.activo.gfw   { border-color: var(--gfw) !important; background: rgba(0,180,216,0.07) !important; }
-
-    /* Área opts */
     .area-opt { transition: all .15s; border: 1.5px solid transparent; }
     .area-opt.activo { border-color: var(--verde-l); background: rgba(76,175,125,0.08) !important; }
-
-    /* GFW */
     .gfw-badge { font-size: 9px; font-weight: 700; letter-spacing: .1em; background: rgba(0,180,216,.12); border: 1px solid rgba(0,180,216,.3); color: var(--gfw-l); border-radius: 4px; padding: 2px 6px; text-transform: uppercase; }
     .gfw-status { font-family: 'Space Mono', monospace; font-size: 10px; }
     .gfw-status.ok  { color: #16a34a; }
@@ -64,31 +50,16 @@
     .gfw-status.loading { color: var(--amber); }
     .gfw-box { background: rgba(0,180,216,.05); border: 1px solid rgba(0,180,216,.18); border-radius: 8px; padding: 6px 10px; font-size: 10px; color: #475569; line-height: 1.7; }
     .gfw-box span { color: var(--gfw-l); font-family: 'Space Mono', monospace; }
-
-    /* Tabs */
     .tab-act { color: var(--verde); border-bottom: 2px solid var(--verde); }
     .tab-inact { color: #94a3b8; border-bottom: 2px solid transparent; }
-
-    /* Bouncing Kuna */
     @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
     .float { animation: float 3s ease-in-out infinite; }
-
-    /* Kuna modal detail */
     .cuna-detail-text b { color: var(--verde); font-weight: 600; }
     .cuna-detail-text b.gfw { color: var(--gfw-l); }
-
-    /* Dot pulse */
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
     .dot-pulse { animation: pulse 2s infinite; }
-
-    /* Slider */
     input[type=range] { accent-color: var(--gfw); }
-
-    /* Hidden compatibility elements */
-    #section-area, #btn-poligono, #btn-punto,
-    #hint-dibujo, .area-badge { display: none !important; }
-
-    /* Indicador modo dibujo activo */
+    #section-area, #btn-poligono, #btn-punto, #hint-dibujo, .area-badge { display: none !important; }
     .dibujo-hint {
       position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
       background: rgba(124,58,237,0.95); color: white;
@@ -98,11 +69,17 @@
       z-index: 1000; display: flex; align-items: center; gap: 8px;
       animation: pulse 2s infinite;
     }
+    /* Pills de capas activas — visibles aunque el panel esté colapsado */
+    .capa-pill {
+      font-size: 8px; font-weight: 700; letter-spacing: .05em;
+      padding: 1px 6px; border-radius: 999px;
+      background: rgba(76,175,125,0.15); border: 1px solid rgba(76,175,125,0.4);
+      color: var(--verde-m); text-transform: uppercase; white-space: nowrap;
+    }
   </style>
 </head>
 <body class="h-full flex flex-col overflow-hidden">
 
-<!-- ═══════════════ HEADER ═══════════════ -->
 <header class="relative z-20 flex items-center justify-between px-6 py-3 glass m-3 mb-0 rounded-2xl shrink-0">
   <div class="flex items-center gap-4">
     <div class="flex items-center gap-3">
@@ -120,7 +97,6 @@
       <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 dot-pulse"></div>
       <span class="text-[9px] font-bold uppercase tracking-widest text-emerald-700">NASA FIRMS · En vivo</span>
     </div>
-    <!-- Stats mini en header -->
     <div class="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-white/60 border border-slate-100 rounded-xl mono text-[10px] gap-4">
       <div class="text-center"><div class="font-bold text-red-500" id="total-alertas">—</div><div class="text-slate-400" style="font-size:8px">INCEND.</div></div>
       <div class="w-px h-5 bg-slate-200"></div>
@@ -130,7 +106,6 @@
       <div class="w-px h-5 bg-slate-200"></div>
       <div class="text-center"><div class="font-bold text-slate-700" id="total-frp">—</div><div class="text-slate-400" style="font-size:8px">FRP MW</div></div>
     </div>
-    <!-- Kuna btn -->
     <button onclick="cunaAbrir()" class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-lg shadow-emerald-200/60 float">
       <img src="Cunaguito1.png" class="w-5 h-5 rounded-md bg-white/20 object-cover" alt="">
       <span class="text-xs font-bold uppercase tracking-tight">Kuna</span>
@@ -138,42 +113,33 @@
   </div>
 </header>
 
-<!-- ═══════════════ MAIN ═══════════════ -->
 <main class="flex-1 flex gap-3 p-3 pt-3 overflow-hidden">
-
-  <!-- ══ SIDEBAR ══ -->
   <aside class="w-80 flex flex-col gap-3 overflow-y-auto scroll pr-0.5 shrink-0">
 
     <!-- 1. TEMPORALIDAD -->
     <div class="glass p-4 rounded-2xl shrink-0">
       <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-2.5">Período de Consulta</p>
-
-      <!-- ── Modo principal: Rango de fechas ── -->
       <div id="modo-rango" class="rango-activo">
         <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-[.18em] mb-2">Rango personalizado</p>
         <div class="grid grid-cols-2 gap-2 mb-1.5">
           <div>
             <label class="text-[9px] text-slate-400 uppercase tracking-wider font-bold">Desde</label>
-            <input type="date" id="fecha-inicio" min="2026-01-01"
-                   onchange="cambiarRangoFechas()"
+            <input type="date" id="fecha-inicio" min="2026-01-01" onchange="cambiarRangoFechas()"
                    class="w-full mt-0.5 text-[10px] mono px-2 py-1.5 border border-slate-200 rounded-lg bg-white/80 focus:outline-none focus:ring-2 focus:ring-emerald-400">
           </div>
           <div>
             <label class="text-[9px] text-slate-400 uppercase tracking-wider font-bold">Hasta</label>
-            <input type="date" id="fecha-fin" min="2026-01-01"
-                   onchange="cambiarRangoFechas()"
+            <input type="date" id="fecha-fin" min="2026-01-01" onchange="cambiarRangoFechas()"
                    class="w-full mt-0.5 text-[10px] mono px-2 py-1.5 border border-slate-200 rounded-lg bg-white/80 focus:outline-none focus:ring-2 focus:ring-emerald-400">
           </div>
         </div>
         <div id="rango-info" class="text-[9px] text-slate-500 italic mt-1.5">— días seleccionados</div>
       </div>
-
-      <!-- ── Atajos rápidos (presets) ── -->
       <div class="mt-3 pt-3 border-t border-slate-100">
         <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-2">Atajos rápidos</p>
         <div class="grid grid-cols-3 gap-1.5">
-          <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-dias="1" onclick="cambiarPeriodo(this)">24 h</button>
-          <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-dias="7" onclick="cambiarPeriodo(this)">7 días</button>
+          <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-dias="1"  onclick="cambiarPeriodo(this)">24 h</button>
+          <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-dias="7"  onclick="cambiarPeriodo(this)">7 días</button>
           <button class="btn-per py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-dias="30" onclick="cambiarPeriodo(this)">30 días</button>
         </div>
       </div>
@@ -185,38 +151,27 @@
       <div class="flex flex-col gap-2">
         <button class="btn-tipo fuego activo flex items-center gap-3 p-3 rounded-xl bg-white/60 hover:bg-white text-left" id="btn-tipo-incendios" onclick="cambiarTipo('incendios')">
           <div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-lg shrink-0">🔥</div>
-          <div>
-            <div class="text-sm font-bold text-slate-700">Incendios</div>
-            <div class="text-[10px] text-slate-400">NASA FIRMS · puntos de calor</div>
-          </div>
+          <div><div class="text-sm font-bold text-slate-700">Incendios</div><div class="text-[10px] text-slate-400">NASA FIRMS · puntos de calor</div></div>
         </button>
         <button class="btn-tipo gfw flex items-center gap-3 p-3 rounded-xl bg-white/60 hover:bg-white text-left" id="btn-tipo-gfw" onclick="cambiarTipo('gfw')">
           <div class="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center text-lg shrink-0">🌿</div>
-          <div>
-            <div class="text-sm font-bold text-slate-700">Global Forest Watch</div>
-            <div class="text-[10px] text-slate-400">Pérdida de coberturas · GFW API</div>
-          </div>
+          <div><div class="text-sm font-bold text-slate-700">Global Forest Watch</div><div class="text-[10px] text-slate-400">Pérdida de coberturas · GFW API</div></div>
         </button>
       </div>
-
-      <!-- Sub-panel incendios -->
       <div id="panel-incendios" class="mt-3 pt-3 border-t border-slate-100">
         <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-2">Filtrar por confianza</p>
         <div class="flex gap-1.5 flex-wrap">
           <button class="filtro-btn px-3 py-1.5 rounded-full text-[10px] font-bold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 activo" data-filtro="all"     onclick="filtrar(this)">Todas</button>
           <button class="filtro-btn px-3 py-1.5 rounded-full text-[10px] font-bold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-filtro="high"    onclick="filtrar(this)">Alta</button>
-          <button class="filtro-btn px-3 py-1.5 rounded-full text-[10px] font-bold border border-slate-300 bg-white text-slate-600 hover:bg-slate-50" data-filtro="nominal" onclick="filtrar(this)">Nominal</button>
+          <button class="filtro-btn px-3 py-1.5 rounded-full text-[10px] font-bold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-filtro="nominal" onclick="filtrar(this)">Nominal</button>
           <button class="filtro-btn px-3 py-1.5 rounded-full text-[10px] font-bold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-filtro="low"     onclick="filtrar(this)">Baja</button>
         </div>
       </div>
-
-      <!-- Sub-panel GFW -->
       <div id="panel-gfw" class="mt-3 pt-3 border-t border-slate-100 hidden">
         <div class="flex items-center gap-2 mb-3">
           <span class="gfw-badge">GFW API</span>
           <span class="gfw-status" id="gfw-status">—</span>
         </div>
-        <!-- GLAD -->
         <label class="flex items-center gap-2 mb-2 cursor-pointer">
           <input type="checkbox" id="chk-glad" onchange="toggleGFW('glad', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--gfw)">
           <span class="text-xs font-semibold text-slate-700">🌲 Alertas GLAD <span class="text-slate-400 font-normal">(Landsat)</span></span>
@@ -230,7 +185,6 @@
           <div class="gfw-box" id="stats-glad">Sin datos</div>
           <button id="btn-dl-gfw-glad" onclick="descargarGFW('glad')" class="mt-1.5 w-full text-[10px] font-bold py-1.5 rounded-lg border text-sky-600 border-sky-200 bg-sky-50 hover:bg-sky-100 transition-all">⬇ Descargar GLAD (3 archivos)</button>
         </div>
-        <!-- RADD -->
         <label class="flex items-center gap-2 mb-2 cursor-pointer">
           <input type="checkbox" id="chk-radd" onchange="toggleGFW('radd', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--gfw)">
           <span class="text-xs font-semibold text-slate-700">📡 Alertas RADD <span class="text-slate-400 font-normal">(SAR)</span></span>
@@ -239,7 +193,6 @@
           <div class="gfw-box" id="stats-radd">Sin datos</div>
           <button id="btn-dl-gfw-radd" onclick="descargarGFW('radd')" class="mt-1.5 w-full text-[10px] font-bold py-1.5 rounded-lg border text-violet-600 border-violet-200 bg-violet-50 hover:bg-violet-100 transition-all">⬇ Descargar RADD (3 archivos)</button>
         </div>
-        <!-- Hansen -->
         <label class="flex items-center gap-2 mb-2 cursor-pointer">
           <input type="checkbox" id="chk-hansen" onchange="toggleGFW('hansen', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--gfw)">
           <span class="text-xs font-semibold text-slate-700">🌳 Cobertura Hansen <span class="text-slate-400 font-normal">(tiles)</span></span>
@@ -261,40 +214,27 @@
       <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-1">Área de Análisis</p>
       <p class="text-[9px] text-slate-400 italic mb-3">Solo una opción a la vez · la mayor predomina</p>
       <div class="flex flex-col gap-2">
-        <!-- Área de estudio -->
         <label class="area-opt activo flex items-center justify-between p-3 rounded-xl bg-white/60 cursor-pointer hover:bg-white" id="opt-estudio">
           <div class="flex items-center gap-2.5">
             <input type="checkbox" id="chk-area-estudio" checked onchange="cambiarAreaAnalisis()" class="w-4 h-4 rounded" style="accent-color:var(--verde)">
-            <div>
-              <div class="text-sm font-bold text-slate-700">Área de Estudio</div>
-              <div class="text-[10px] text-slate-400">Zona completa de monitoreo</div>
-            </div>
+            <div><div class="text-sm font-bold text-slate-700">Área de Estudio</div><div class="text-[10px] text-slate-400">Zona completa de monitoreo</div></div>
           </div>
           <span class="text-[9px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">Mayor</span>
         </label>
-        <!-- Núcleos -->
         <label class="area-opt flex items-center p-3 rounded-xl bg-white/60 cursor-pointer hover:bg-white" id="opt-nucleos">
           <div class="flex items-center gap-2.5">
             <input type="checkbox" id="chk-area-nucleos" onchange="cambiarAreaAnalisis()" class="w-4 h-4 rounded" style="accent-color:var(--verde)">
-            <div>
-              <div class="text-sm font-bold text-slate-700">Núcleos Boscosos</div>
-              <div class="text-[10px] text-slate-400">Fragmentos de bosque</div>
-            </div>
+            <div><div class="text-sm font-bold text-slate-700">Núcleos Boscosos</div><div class="text-[10px] text-slate-400">Fragmentos de bosque</div></div>
           </div>
         </label>
-        <!-- Municipio -->
         <div class="area-opt flex flex-col gap-2 p-3 rounded-xl bg-white/60" id="opt-municipio">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2.5">
               <input type="checkbox" id="chk-area-municipio" onchange="cambiarAreaAnalisis()" class="w-4 h-4 rounded" style="accent-color:var(--verde)">
-              <div>
-                <div class="text-sm font-bold text-slate-700">Municipio</div>
-                <div class="text-[10px] text-slate-400">Por municipio y veredas</div>
-              </div>
+              <div><div class="text-sm font-bold text-slate-700">Municipio</div><div class="text-[10px] text-slate-400">Por municipio y veredas</div></div>
             </div>
             <span class="text-[9px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">Menor</span>
           </div>
-          <!-- Selector municipio: visible solo si checkbox activo -->
           <div id="sel-municipio-wrap" class="hidden pl-6">
             <select id="sel-municipio" onchange="seleccionarMunicipio(this.value)"
               class="w-full text-[10px] px-2 py-1.5 border border-slate-200 rounded-lg bg-white/70 focus:outline-none focus:ring-1 focus:ring-emerald-400">
@@ -303,19 +243,14 @@
             <div id="municipio-veredas-info" class="mt-1.5 text-[9px] text-slate-400 italic"></div>
           </div>
         </div>
-        <!-- Dibujar área personalizada -->
         <div class="area-opt flex flex-col gap-2 p-3 rounded-xl bg-white/60" id="opt-dibujo">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2.5">
               <input type="checkbox" id="chk-area-dibujo" onchange="cambiarAreaAnalisis()" class="w-4 h-4 rounded" style="accent-color:var(--verde)">
-              <div>
-                <div class="text-sm font-bold text-slate-700">✏️ Dibujar área</div>
-                <div class="text-[10px] text-slate-400">Polígono personalizado</div>
-              </div>
+              <div><div class="text-sm font-bold text-slate-700">✏️ Dibujar área</div><div class="text-[10px] text-slate-400">Polígono personalizado</div></div>
             </div>
             <span class="text-[9px] font-bold px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full">Custom</span>
           </div>
-          <!-- Sub-controles dibujo -->
           <div id="sub-dibujo" class="hidden pl-6 flex flex-col gap-1.5">
             <button id="btn-iniciar-dibujo" onclick="iniciarDibujoPoligono()"
               class="w-full py-1.5 px-2 text-[10px] font-bold rounded-lg border border-violet-200 bg-violet-50 hover:bg-violet-100 text-violet-700 transition-all">
@@ -329,7 +264,6 @@
           </div>
         </div>
       </div>
-      <!-- Badge área activa -->
       <div class="mt-3 flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl" id="area-activa-badge">
         <span class="text-emerald-600">📍</span>
         <span class="text-[10px] font-bold text-emerald-700" id="area-activa-txt">Área de estudio activa</span>
@@ -356,16 +290,32 @@
       </div>
     </div>
 
-    <!-- 5. CAPAS ADICIONALES (colapsable) -->
+    <!-- 5. CAPAS ADICIONALES
+         FIX: panel abierto por defecto; colapsar solo esconde los controles,
+         las capas del mapa permanecen siempre visibles. -->
     <div class="glass rounded-2xl shrink-0 overflow-hidden">
       <button onclick="toggleCapasExtra(this)" class="w-full flex items-center justify-between p-4 text-left hover:bg-white/30 transition-all">
-        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em]">Capas Adicionales</p>
-        <span id="ico-capas" class="text-slate-400 text-xs">▸</span>
+        <div class="flex items-center gap-2 flex-wrap">
+          <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em]">Capas Adicionales</p>
+          <!-- Pills siempre visibles de capas activas -->
+          <div id="capas-pills" class="flex gap-1 flex-wrap"></div>
+        </div>
+        <span id="ico-capas" class="text-slate-400 text-xs ml-2 shrink-0">▾</span>
       </button>
-      <div id="capas-extra-body" class="hidden px-4 pb-4 flex flex-col gap-2">
-        <label class="flex items-center gap-2 cursor-pointer py-1.5"><input type="checkbox" onchange="toggleCapa('municipio', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)"><span class="text-xs text-slate-600 font-medium">Límites municipales</span></label>
-        <label class="flex items-center gap-2 cursor-pointer py-1.5"><input type="checkbox" id="chk-estudio-capa" onchange="toggleCapa('estudio', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)"><span class="text-xs text-slate-600 font-medium">Área de estudio (contorno)</span></label>
-        <label class="flex items-center gap-2 cursor-pointer py-1.5"><input type="checkbox" id="chk-bosque-capa" onchange="toggleCapa('bosque', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)"><span class="text-xs text-slate-600 font-medium">Núcleos boscosos</span></label>
+      <!-- Sin clase "hidden" → abierto por defecto -->
+      <div id="capas-extra-body" class="px-4 pb-4 flex flex-col gap-2">
+        <label class="flex items-center gap-2 cursor-pointer py-1.5">
+          <input type="checkbox" id="chk-municipio-capa" onchange="toggleCapa('municipio', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)">
+          <span class="text-xs text-slate-600 font-medium">Límites municipales</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer py-1.5">
+          <input type="checkbox" id="chk-estudio-capa" onchange="toggleCapa('estudio', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)">
+          <span class="text-xs text-slate-600 font-medium">Área de estudio (contorno)</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer py-1.5">
+          <input type="checkbox" id="chk-bosque-capa" onchange="toggleCapa('bosque', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)">
+          <span class="text-xs text-slate-600 font-medium">Núcleos boscosos</span>
+        </label>
         <label class="flex items-center gap-2 cursor-pointer py-1.5">
           <input type="checkbox" id="chk-perdidas" onchange="toggleCapa('perdidas', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)">
           <span class="text-xs text-slate-600 font-medium">Pérdidas 2020-2024</span>
@@ -422,19 +372,16 @@
 
   </aside>
 
-  <!-- ══ MAPA ══ -->
   <div class="flex-1 relative rounded-2xl overflow-hidden glass">
     <div id="map"></div>
     <div class="absolute bottom-3 left-3 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-lg text-[9px] mono text-slate-500 shadow border border-slate-200/60 z-10 pointer-events-none uppercase tracking-wider">
       WGS 84 · Chámeza, Casanare
     </div>
-    <!-- Hint flotante mientras se dibuja -->
     <div id="dibujo-hint" class="dibujo-hint" style="display:none">
       <span>✏️</span>
       <span>Haz clic para añadir vértices · doble-clic para cerrar el polígono</span>
     </div>
   </div>
-
 </main>
 
 <!-- Elementos hidden de compatibilidad JS -->
@@ -449,11 +396,10 @@
   </div>
 </div>
 
-<!-- ═══════════════ MODAL CUNAGÜITO ═══════════════ -->
+<!-- MODAL KUNA -->
 <div id="cuna-overlay" class="fixed inset-0 z-[100] hidden items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onclick="cunaOverlayClick(event)">
   <div class="bg-white rounded-[2rem] w-full max-w-3xl overflow-hidden shadow-2xl border border-slate-100" style="animation: cunaIn .28s cubic-bezier(.34,1.56,.64,1)">
     <style>@keyframes cunaIn{from{opacity:0;transform:scale(.88) translateY(12px)}to{opacity:1;transform:none}}</style>
-    <!-- Header modal -->
     <div class="bg-emerald-600 p-5 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <div class="w-14 h-14 rounded-2xl bg-white/20 overflow-hidden border-2 border-white/30 flex-shrink-0">
@@ -466,29 +412,20 @@
       </div>
       <button onclick="cunaCerrar()" class="hover:bg-white/10 p-2 rounded-full transition-colors text-white/80 hover:text-white text-xl leading-none">✕</button>
     </div>
-    <!-- Body modal -->
     <div class="p-6">
       <p id="cuna-msg" class="text-slate-600 text-sm leading-relaxed font-medium mb-5">¡Hola! Soy Kuna. Estoy aquí para guiarte en el manejo del aplicativo. ¿Qué quieres hacer?</p>
-      <!-- Menú principal -->
       <div id="cuna-menu" class="flex flex-col gap-4">
         <div onclick="cunaIr('sobre')" class="flex items-center gap-4 p-5 rounded-2xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg">
           <span class="text-4xl">🌳</span>
-          <div>
-            <div class="text-base font-extrabold text-slate-800 syne">Sobre la plataforma</div>
-            <div class="text-[11px] text-slate-500 mt-0.5">¿Qué hace? · ¿En qué estamos ahora?</div>
-          </div>
+          <div><div class="text-base font-extrabold text-slate-800 syne">Sobre la plataforma</div><div class="text-[11px] text-slate-500 mt-0.5">¿Qué hace? · ¿En qué estamos ahora?</div></div>
           <span class="ml-auto text-emerald-400 text-xl">›</span>
         </div>
         <div onclick="cunaIr('funcionalidades')" class="flex items-center gap-4 p-5 rounded-2xl border-2 border-violet-200 bg-violet-50 hover:bg-violet-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg">
           <span class="text-4xl">📖</span>
-          <div>
-            <div class="text-base font-extrabold text-slate-800 syne">Funcionalidades</div>
-            <div class="text-[11px] text-slate-500 mt-0.5">Guía de uso · capas · datos</div>
-          </div>
+          <div><div class="text-base font-extrabold text-slate-800 syne">Funcionalidades</div><div class="text-[11px] text-slate-500 mt-0.5">Guía de uso · capas · datos</div></div>
           <span class="ml-auto text-violet-400 text-xl">›</span>
         </div>
       </div>
-      <!-- Detalle -->
       <div id="cuna-detail" class="hidden flex-col gap-0">
         <img id="cuna-detail-img" class="w-full h-44 object-cover rounded-xl mb-4 border border-slate-100" src="" alt="">
         <div id="cuna-detail-text" class="text-sm text-slate-600 leading-relaxed cuna-detail-text"></div>
@@ -503,6 +440,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://unpkg.com/georaster"></script>
 <script src="https://unpkg.com/georaster-layer-for-leaflet"></script>
-<script src="/app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
