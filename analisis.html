@@ -267,7 +267,27 @@
 
   <div id="tabla-veredas" class="mt-4 overflow-auto scroll rounded-xl border border-slate-100 bg-white/70"></div>
 </section>
+<section class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+  <div class="glass rounded-2xl p-4">
+    <div class="mb-3">
+      <p class="card-title">Conectividad</p>
+      <h2 class="syne text-lg font-extrabold text-slate-800">Alertas por decil de conectividad</h2>
+    </div>
+    <div class="h-[320px]">
+      <canvas id="chartConectividadDecil"></canvas>
+    </div>
+  </div>
 
+  <div class="glass rounded-2xl p-4">
+    <div class="mb-3">
+      <p class="card-title">Priorización</p>
+      <h2 class="syne text-lg font-extrabold text-slate-800">Alertas por clase de conectividad</h2>
+    </div>
+    <div class="h-[320px]">
+      <canvas id="chartConectividadClase"></canvas>
+    </div>
+  </div>
+</section>
     
     <section class="glass rounded-2xl p-4">
       <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-3">
@@ -294,6 +314,8 @@
               <th class="px-3 py-2 text-left">Fuente</th>
               <th class="px-3 py-2 text-left">Fecha</th>
               <th class="px-3 py-2 text-left">Confianza</th>
+              <th class="px-3 py-2 text-right">Conectividad</th>
+              <th class="px-3 py-2 text-left">Clase</th>
               <th class="px-3 py-2 text-right">Latitud</th>
               <th class="px-3 py-2 text-right">Longitud</th>
               <th class="px-3 py-2 text-left">Intensidad</th>
@@ -401,7 +423,18 @@
         r.areaHa ??
         AREA_HA_POR_ALERTA
       );
+      const conectividad_decile = parseInt(
+        r.conectividad_decile ??
+        r.conectividadDecile ??
+        r.conectividad ??
+        ''
+      );
       
+      const conectividad_clase = String(
+        r.conectividad_clase ??
+        r.conectividadClase ??
+        clasificarConectividadAnalisis(conectividad_decile)
+      ).trim() || 'Sin dato';
       return {
         fuente,
         fecha,
@@ -412,6 +445,8 @@
         municipio,
         vereda,
         area_ha: Number.isFinite(area_ha) ? area_ha : AREA_HA_POR_ALERTA,
+        conectividad_decile: Number.isFinite(conectividad_decile) ? conectividad_decile : null,
+        conectividad_clase,
         original: r
       };
      }
@@ -428,7 +463,17 @@
       if (isNaN(d.getTime())) return null;
       return d.toISOString().slice(0, 10);
     }
-
+    function clasificarConectividadAnalisis(decil) {
+      const n = Number(decil);
+    
+      if (!Number.isFinite(n)) return 'Sin dato';
+      if (n === 10) return 'Crítica';
+      if (n >= 7) return 'Alta';
+      if (n >= 4) return 'Media';
+      if (n >= 1) return 'Baja';
+    
+      return 'Sin dato';
+    }
     function formatearFecha(iso) {
       if (!iso) return '—';
       const d = new Date(iso + 'T12:00:00');
@@ -529,6 +574,8 @@
       renderConfianza();
       renderMes();
       renderVeredas();
+      renderConectividadDecil();
+      renderConectividadClase();
     }
     function renderSerieTiempo() {
       const fechas = [...new Set(datos.map(d => d.fecha))].sort();
@@ -639,7 +686,93 @@
         })
       }));
     }
-
+    function renderConectividadDecil() {
+      const canvas = document.getElementById('chartConectividadDecil');
+      if (!canvas) return;
+    
+      const base = Array.from({ length: 10 }, (_, i) => ({
+        decil: i + 1,
+        alertas: 0
+      }));
+    
+      datos.forEach(d => {
+        const n = Number(d.conectividad_decile);
+        if (Number.isFinite(n) && n >= 1 && n <= 10) {
+          base[n - 1].alertas += 1;
+        }
+      });
+    
+      charts.push(new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: base.map(d => `Decil ${d.decil}`),
+          datasets: [{
+            label: 'Alertas',
+            data: base.map(d => d.alertas),
+            borderWidth: 1,
+            borderRadius: 8
+          }]
+        },
+        options: baseOptions({
+          yTitle: 'Número de alertas',
+          xTitle: 'Decil de conectividad'
+        })
+      }));
+    }
+    
+    function renderConectividadClase() {
+      const canvas = document.getElementById('chartConectividadClase');
+      if (!canvas) return;
+    
+      const orden = ['Baja', 'Media', 'Alta', 'Crítica', 'Sin dato'];
+    
+      const conteo = {
+        Baja: 0,
+        Media: 0,
+        Alta: 0,
+        Crítica: 0,
+        'Sin dato': 0
+      };
+    
+      datos.forEach(d => {
+        const clase = d.conectividad_clase || 'Sin dato';
+        if (conteo[clase] === undefined) conteo[clase] = 0;
+        conteo[clase] += 1;
+      });
+    
+      const labels = orden.filter(k => conteo[k] > 0);
+      const values = labels.map(k => conteo[k]);
+    
+      charts.push(new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom'
+            },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                  const val = ctx.raw || 0;
+                  const pct = total ? (val / total * 100).toFixed(1) : 0;
+                  return `${ctx.label}: ${val} alertas (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      }));
+    }
     function etiquetaMes(yyyyMm) {
       if (!/^\d{4}-\d{2}$/.test(yyyyMm)) return yyyyMm;
 
@@ -737,7 +870,14 @@
             alertas: 0,
             area_ha: 0,
             glad: 0,
-            radd: 0
+            radd: 0,
+            conectividad_sum: 0,
+            conectividad_n: 0,
+            conectividad_max: null,
+            criticas: 0,
+            altas: 0,
+            medias: 0,
+            bajas: 0
           };
         }
     
@@ -746,6 +886,27 @@
     
         if (d.fuente === 'GLAD' || d.fuente === 'GFW_GLAD') resumen[vereda].glad += 1;
         if (d.fuente === 'RADD' || d.fuente === 'GFW_RADD') resumen[vereda].radd += 1;
+    
+        const decil = Number(d.conectividad_decile);
+    
+        if (Number.isFinite(decil)) {
+          resumen[vereda].conectividad_sum += decil;
+          resumen[vereda].conectividad_n += 1;
+    
+          if (
+            resumen[vereda].conectividad_max === null ||
+            decil > resumen[vereda].conectividad_max
+          ) {
+            resumen[vereda].conectividad_max = decil;
+          }
+        }
+    
+        const clase = d.conectividad_clase || 'Sin dato';
+    
+        if (clase === 'Crítica') resumen[vereda].criticas += 1;
+        else if (clase === 'Alta') resumen[vereda].altas += 1;
+        else if (clase === 'Media') resumen[vereda].medias += 1;
+        else if (clase === 'Baja') resumen[vereda].bajas += 1;
       });
     
       return Object.values(resumen)
@@ -754,6 +915,25 @@
           r.vereda !== 'Sin vereda' &&
           r.vereda !== 'Fuera de límites'
         )
+        .map(r => {
+          const promedio = r.conectividad_n
+            ? r.conectividad_sum / r.conectividad_n
+            : null;
+    
+          let claseResumen = 'Sin dato';
+    
+          if (r.criticas > 0) claseResumen = 'Crítica';
+          else if (r.altas > 0) claseResumen = 'Alta';
+          else if (r.medias > 0) claseResumen = 'Media';
+          else if (r.bajas > 0) claseResumen = 'Baja';
+    
+          return {
+            ...r,
+            conectividad_decile: promedio !== null ? promedio : null,
+            conectividad_max: r.conectividad_max,
+            conectividad_clase: claseResumen
+          };
+        })
         .sort((a, b) => b.alertas - a.alertas);
     }
     
@@ -886,6 +1066,8 @@
               <th class="px-3 py-2 text-right">GLAD</th>
               <th class="px-3 py-2 text-right">RADD</th>
               <th class="px-3 py-2 text-right">Área estimada</th>
+              <th class="px-3 py-2 text-right">Conectividad</th>
+              <th class="px-3 py-2 text-left">Clase</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
@@ -898,6 +1080,8 @@
                 <td class="px-3 py-2 text-right mono text-sky-700">${d.glad}</td>
                 <td class="px-3 py-2 text-right mono text-violet-700">${d.radd}</td>
                 <td class="px-3 py-2 text-right mono text-emerald-700">${d.area_ha.toFixed(2)} ha</td>
+                <td class="px-3 py-2 text-right mono font-bold">${d.conectividad_decile ?? '—'}</td>
+                <td class="px-3 py-2 font-bold ${claseConectividadCSS(d.conectividad_clase)}">${esc(d.conectividad_clase || 'Sin dato')}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -947,6 +1131,10 @@
             d.fuente,
             d.fecha,
             d.confianza,
+            d.municipio,
+            d.vereda,
+            d.conectividad_decile,
+            d.conectividad_clase,
             d.latitud,
             d.longitud,
             d.intensidad
@@ -964,13 +1152,21 @@
           <td class="px-3 py-2 font-bold ${d.fuente === 'RADD' ? 'text-violet-700' : 'text-sky-700'}">${esc(d.fuente)}</td>
           <td class="px-3 py-2 mono">${esc(d.fecha)}</td>
           <td class="px-3 py-2">${esc(d.confianza)}</td>
+          <td class="px-3 py-2 text-right mono font-bold">${d.conectividad_decile ?? '—'}</td>
+          <td class="px-3 py-2 font-bold ${claseConectividadCSS(d.conectividad_clase)}">${esc(d.conectividad_clase || 'Sin dato')}</td>
           <td class="px-3 py-2 text-right mono">${d.latitud.toFixed(5)}</td>
           <td class="px-3 py-2 text-right mono">${d.longitud.toFixed(5)}</td>
           <td class="px-3 py-2">${esc(d.intensidad || '—')}</td>
         </tr>
       `).join('');
     }
-
+    function claseConectividadCSS(clase) {
+      if (clase === 'Crítica') return 'text-red-700';
+      if (clase === 'Alta') return 'text-orange-600';
+      if (clase === 'Media') return 'text-amber-600';
+      if (clase === 'Baja') return 'text-emerald-700';
+      return 'text-slate-400';
+    }
     function esc(v) {
       return String(v ?? '')
         .replaceAll('&', '&amp;')
@@ -987,18 +1183,28 @@
         'fuente',
         'fecha',
         'confianza',
+        'municipio',
+        'vereda',
+        'conectividad_decile',
+        'conectividad_clase',
         'latitud',
         'longitud',
-        'intensidad'
+        'intensidad',
+        'area_ha'
       ];
 
       const rows = datos.map(d => [
         d.fuente,
         d.fecha,
         d.confianza,
+        d.municipio,
+        d.vereda,
+        d.conectividad_decile ?? '',
+        d.conectividad_clase || '',
         d.latitud,
         d.longitud,
-        d.intensidad || ''
+        d.intensidad || '',
+        d.area_ha || ''
       ]);
 
       const csv = [
