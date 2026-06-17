@@ -7,9 +7,10 @@ recientes de incendios en la tabla `alertas` de Supabase.
 Corre cada 3 horas via GitHub Actions.
 NO borra alertas antiguas — la base histórica crece indefinidamente.
 
-NOTA TÉCNICA FIRMS:
-  Cuando se pasa una fecha específica, la API acepta máximo 5 días por llamada.
-  Para 30 días necesitamos 6 bloques de 5 días cada uno.
+NOTAS TÉCNICAS FIRMS:
+  - Con fecha específica: máximo 5 días por llamada.
+  - Se prueban dos endpoints: firms2 (primario) y firms (fallback).
+  - Timeout extendido a 120s para runners con latencia alta.
 
 Variables de entorno requeridas:
   SUPABASE_URL  — URL del proyecto Supabase
@@ -27,14 +28,15 @@ import urllib.request
 import urllib.parse
 import urllib.error
 import socket
+import ssl
 import sys
 
 
-# ── Forzar IPv4 (fix GitHub Actions / NASA FIRMS) ─────────────────────────────
-_original_getaddrinfo = socket.getaddrinfo
-def _getaddrinfo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
-    return _original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
-socket.getaddrinfo = _getaddrinfo_ipv4
+# ── Forzar IPv4 (fix GitHub Actions) ──────────────────────────────────────────
+_orig_getaddrinfo = socket.getaddrinfo
+def _ipv4_only(host, port, family=0, type=0, proto=0, flags=0):
+    return _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+socket.getaddrinfo = _ipv4_only
 
 
 # ── Configuración ──────────────────────────────────────────────────────────────
@@ -48,7 +50,7 @@ if not FIRMS_KEY:    raise RuntimeError("Falta FIRMS_KEY")
 
 BBOX            = "-73.20,4.60,-71.80,5.60"
 DIAS_TOTAL      = 30
-DIAS_POR_BLOQUE = 5    # FIX: FIRMS acepta max 5 días cuando se usa fecha específica
+DIAS_POR_BLOQUE = 5    # máximo permitido por FIRMS con fecha específica
 
 FUENTES = [
     "VIIRS_SNPP_NRT",
@@ -56,10 +58,16 @@ FUENTES = [
     "MODIS_NRT",
 ]
 
-FIRMS_BASE           = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
-PAUSA_ENTRE_LLAMADAS = 2
-MAX_REINTENTOS       = 3
-PAUSA_REINTENTO      = 5
+# Endpoints en orden de preferencia — si el primero falla se prueba el segundo
+FIRMS_ENDPOINTS = [
+    "https://firms2.modaps.eosdis.nasa.gov/api/area/csv",
+    "https://firms.modaps.eosdis.nasa.gov/api/area/csv",
+]
+
+TIMEOUT              = 120   # segundos — runners CI pueden ser lentos
+PAUSA_ENTRE_LLAMADAS = 3
+MAX_REINTENTOS       = 2
+PAUSA_REINTENTO      = 8
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -68,10 +76,7 @@ def ocultar_key(url):
 
 
 def generar_bloques(fecha_fin, dias_total, dias_bloque):
-    """
-    Genera lista de (fecha_inicio_bloque, n_dias).
-    FIRMS con fecha: DATE es el inicio, devuelve DATE + n_dias - 1.
-    """
+    """Genera bloques (fecha_inicio, n_dias) cubriendo los últimos dias_total días."""
     fecha_inicio = fecha_fin - datetime.timedelta(days=dias_total - 1)
     bloques = []
     cursor = fecha_inicio
@@ -83,36 +88,58 @@ def generar_bloques(fecha_fin, dias_total, dias_bloque):
 
 
 def fetch_firms(producto, bbox, dias, fecha_str):
-    url = f"{FIRMS_BASE}/{FIRMS_KEY}/{producto}/{bbox}/{dias}/{fecha_str}"
-    print(f"      GET {ocultar_key(url)}")
+    """
+    Intenta descargar el CSV de FIRMS probando ambos endpoints.
+    Retorna (filas, ok).
+    """
+    # Contexto SSL que no verifica certificado — necesario en algunos runners
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
 
-    for intento in range(1, MAX_REINTENTOS + 1):
-        try:
-            req = urllib.request.Request(
-                url,
-                headers={"User-Agent": "monitor-incendios-cunaguaro/2.0"},
-                method="GET"
-            )
-            with urllib.request.urlopen(req, timeout=90) as resp:
-                raw = resp.read().decode("utf-8")
+    for base_url in FIRMS_ENDPOINTS:
+        url = f"{base_url}/{FIRMS_KEY}/{producto}/{bbox}/{dias}/{fecha_str}"
+        print(f"      → {ocultar_key(url)}")
 
-            if not raw.strip():
-                return [], True
-            if raw.startswith("Error") or "<!DOCTYPE" in raw:
-                print(f"      ⚠ Respuesta no-CSV: {raw[:160]}")
-                return [], True
+        for intento in range(1, MAX_REINTENTOS + 1):
+            try:
+                req = urllib.request.Request(
+                    url,
+                    headers={
+                        "User-Agent": "monitor-incendios-cunaguaro/3.0",
+                        "Accept":     "text/csv,*/*",
+                    },
+                    method="GET"
+                )
+                with urllib.request.urlopen(req, timeout=TIMEOUT, context=ctx) as resp:
+                    raw = resp.read().decode("utf-8", errors="replace")
 
-            return list(csv.DictReader(io.StringIO(raw))), True
+                # Respuesta vacía = sin fuegos en esa zona/período → OK
+                if not raw.strip():
+                    return [], True
 
-        except urllib.error.HTTPError as e:
-            body = e.read().decode(errors="ignore")
-            print(f"      ⚠ HTTPError intento {intento}/{MAX_REINTENTOS}: {e.code} · {body[:180]}")
-        except Exception as e:
-            print(f"      ⚠ Error intento {intento}/{MAX_REINTENTOS}: {e}")
+                # Error textual de FIRMS
+                if raw.lstrip().startswith("Error") or "<!DOCTYPE" in raw:
+                    print(f"      ⚠ Respuesta no-CSV ({base_url.split('/')[2]}): {raw[:160]}")
+                    break  # probar siguiente endpoint
 
-        if intento < MAX_REINTENTOS:
-            time.sleep(PAUSA_REINTENTO)
+                filas = list(csv.DictReader(io.StringIO(raw)))
+                print(f"      ✓ {len(filas)} registros ({base_url.split('/')[2]})")
+                return filas, True
 
+            except urllib.error.HTTPError as e:
+                body = e.read().decode(errors="ignore")
+                print(f"      ⚠ HTTP {e.code} intento {intento}/{MAX_REINTENTOS} "
+                      f"({base_url.split('/')[2]}): {body[:150]}")
+
+            except Exception as e:
+                print(f"      ⚠ Error intento {intento}/{MAX_REINTENTOS} "
+                      f"({base_url.split('/')[2]}): {type(e).__name__}: {e}")
+
+            if intento < MAX_REINTENTOS:
+                time.sleep(PAUSA_REINTENTO)
+
+    print("      ✗ Ambos endpoints fallaron para este bloque")
     return [], False
 
 
@@ -194,8 +221,10 @@ def supabase_request(method, path, body=None):
 
 
 def obtener_existentes(dias=32):
-    print("  Cargando registros existentes recientes de Supabase…")
-    fecha_min = (datetime.datetime.utcnow() - datetime.timedelta(days=dias)).isoformat() + "+00:00"
+    print("  Cargando alertas existentes de Supabase…")
+    fecha_min = (
+        datetime.datetime.utcnow() - datetime.timedelta(days=dias)
+    ).isoformat() + "+00:00"
     path = (
         f"alertas?select=fuente,fecha_deteccion,latitud,longitud"
         f"&tipo=eq.incendio"
@@ -204,7 +233,7 @@ def obtener_existentes(dias=32):
     )
     status, body = supabase_request("GET", path)
     if status != 200:
-        print(f"  ⚠ No se pudo leer Supabase (HTTP {status}): {body[:250]}")
+        print(f"  ⚠ Error leyendo Supabase (HTTP {status}): {body[:250]}")
         return set()
     try:
         registros = json.loads(body)
@@ -247,21 +276,21 @@ def main():
 
     print("=" * 70)
     print("MONITOR DE INCENDIOS — NASA FIRMS")
-    print(f"Fecha UTC: {datetime.datetime.utcnow().isoformat(timespec='seconds')}")
-    print(f"Ventana consultada: últimos {DIAS_TOTAL} días")
-    print(f"Días por bloque   : {DIAS_POR_BLOQUE} (límite FIRMS con fecha)")
-    print(f"Fuentes: {', '.join(FUENTES)}")
-    print(f"BBOX: {BBOX}")
+    print(f"Fecha UTC : {datetime.datetime.utcnow().isoformat(timespec='seconds')}")
+    print(f"Ventana   : últimos {DIAS_TOTAL} días  |  Bloque: {DIAS_POR_BLOQUE} días")
+    print(f"Endpoints : {' · '.join(e.split('/')[2] for e in FIRMS_ENDPOINTS)}")
+    print(f"Fuentes   : {', '.join(FUENTES)}")
+    print(f"BBOX      : {BBOX}")
     print("=" * 70)
 
     bloques = generar_bloques(hoy, DIAS_TOTAL, DIAS_POR_BLOQUE)
     total_llamadas = len(bloques) * len(FUENTES)
-    print(f"\nBloques: {len(bloques)} × {len(FUENTES)} fuentes = {total_llamadas} llamadas\n")
+    print(f"\n{len(bloques)} bloques × {len(FUENTES)} fuentes = {total_llamadas} llamadas\n")
 
-    print("[1] Consultando alertas existentes en Supabase…")
+    print("[1] Alertas existentes en Supabase…")
     existentes = obtener_existentes(dias=DIAS_TOTAL + 2)
 
-    print(f"\n[2] Descargando datos de NASA FIRMS…")
+    print(f"\n[2] Descargando de NASA FIRMS…")
     todas_nuevas   = []
     total_filas    = 0
     llamadas_ok    = 0
@@ -275,20 +304,19 @@ def main():
 
         for fecha_bloque, dias in bloques:
             llamada_n += 1
-            print(f"  [{llamada_n}/{total_llamadas}] {fuente} · desde {fecha_bloque} · {dias} días…")
+            print(f"\n  [{llamada_n}/{total_llamadas}] "
+                  f"{fuente} · {fecha_bloque} · {dias} días")
 
             filas, ok = fetch_firms(fuente, BBOX, dias, fecha_bloque)
 
             if not ok:
                 llamadas_error += 1
-                print("      ✗ Falló la llamada")
                 time.sleep(PAUSA_ENTRE_LLAMADAS)
                 continue
 
             llamadas_ok += 1
 
             if not filas:
-                print("      sin datos en este bloque")
                 time.sleep(PAUSA_ENTRE_LLAMADAS)
                 continue
 
@@ -296,7 +324,7 @@ def main():
             nuevas = []
             for fila in filas:
                 alerta = row_a_alerta(fila, fuente)
-                if alerta is None:
+                if not alerta:
                     continue
                 clave = (
                     alerta["fuente"],
@@ -320,16 +348,16 @@ def main():
         insertadas = insertar_lote(todas_nuevas)
         print(f"\n  ✅ {insertadas:,} alertas insertadas")
     else:
-        print("\n  ℹ No hay alertas nuevas para insertar")
+        print("\n  ℹ Sin alertas nuevas")
 
     print("\n[5] Histórico activo — no se eliminan alertas antiguas")
 
     print("\n" + "=" * 70)
     print("RESUMEN FINAL")
     print("=" * 70)
-    print(f"  Llamadas FIRMS   : {llamada_n} ({llamadas_ok} ok · {llamadas_error} error)")
-    print(f"  Filas recibidas  : {total_filas:,}")
-    print(f"  Alertas nuevas   : {len(todas_nuevas):,}")
+    print(f"  Llamadas: {llamada_n} total · {llamadas_ok} ok · {llamadas_error} error")
+    print(f"  Filas FIRMS recibidas : {total_filas:,}")
+    print(f"  Alertas nuevas        : {len(todas_nuevas):,}")
     print("=" * 70)
 
     if llamadas_ok == 0 and llamadas_error > 0:
