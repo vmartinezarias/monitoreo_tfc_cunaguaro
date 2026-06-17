@@ -1,0 +1,27 @@
+name: Carga Histórica Incendios (enero 2026 → hoy)
+
+on:
+  workflow_dispatch:   # SOLO manual — no se repite automáticamente
+
+jobs:
+  carga-historica:
+    runs-on: ubuntu-latest
+    # La carga puede tardar 20-30 min dependiendo del volumen de datos
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # No requiere dependencias externas — solo stdlib de Python
+      - name: Ejecutar carga histórica
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          FIRMS_KEY:    ${{ secrets.FIRMS_KEY }}
+        run: python carga_historica_incendios.py
