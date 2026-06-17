@@ -415,7 +415,7 @@ def main():
 
             print(
                 f"  [{llamada_n}/{total_llamadas}] "
-                f"{fuente} · hasta {fecha_bloque} · {dias} días…",
+                f"{fuente} · desde {fecha_bloque} · {dias} días…",
                 end=""
             )
 
