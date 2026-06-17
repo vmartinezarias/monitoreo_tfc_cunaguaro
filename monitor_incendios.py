@@ -100,22 +100,29 @@ def ocultar_key_en_url(url):
 
 def generar_bloques(fecha_fin, dias_total, dias_bloque):
     """
-    Genera bloques de descarga hacia atrás desde fecha_fin.
+    Genera bloques correctos para FIRMS.
 
-    Para DIAS_TOTAL = 30 y DIAS_POR_BLOQUE = 10 genera 3 bloques:
-    - hasta hoy, 10 días
-    - hasta hoy - 10 días, 10 días
-    - hasta hoy - 20 días, 10 días
+    OJO:
+    En FIRMS, el parámetro DATE es la fecha INICIAL del bloque.
+    La API devuelve:
+      DATE → DATE + DAY_RANGE - 1
+
+    Para últimos 30 días, si hoy es 2026-06-17:
+      2026-05-19 · 10 días
+      2026-05-29 · 10 días
+      2026-06-08 · 10 días
     """
-    bloques = []
-    dias_restantes = dias_total
-    cursor = fecha_fin
+    fecha_inicio = fecha_fin - datetime.timedelta(days=dias_total - 1)
 
-    while dias_restantes > 0:
+    bloques = []
+    cursor = fecha_inicio
+
+    while cursor <= fecha_fin:
+        dias_restantes = (fecha_fin - cursor).days + 1
         dias = min(dias_bloque, dias_restantes)
+
         bloques.append((cursor.strftime("%Y-%m-%d"), dias))
-        cursor -= datetime.timedelta(days=dias)
-        dias_restantes -= dias
+        cursor += datetime.timedelta(days=dias)
 
     return bloques
 
