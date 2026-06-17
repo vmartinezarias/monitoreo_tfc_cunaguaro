@@ -15,6 +15,7 @@
     .cuna-detail-text b.gfw { color: #0096b4; }
     @keyframes cunaIn { from{opacity:0;transform:scale(.88) translateY(12px)} to{opacity:1;transform:none} }
     .cuna-in { animation: cunaIn .28s cubic-bezier(.34,1.56,.64,1); }
+
     /* Overlay del video */
     #video-overlay {
       display: none;
@@ -36,6 +37,7 @@
     #btn-cerrar-video:hover { opacity: 1; }
   </style>
 </head>
+
 <body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
 
 <!-- Overlay video -->
@@ -47,7 +49,7 @@
 </div>
 
 <!-- Tarjeta principal -->
-<div class="bg-white rounded-[2rem] w-full max-w-2xl overflow-hidden shadow-2xl border border-slate-100 cuna-in">
+<div id="kuna-card" class="bg-white rounded-[2rem] w-full max-w-2xl overflow-hidden shadow-2xl border border-slate-100 cuna-in">
 
   <!-- Header -->
   <div class="bg-emerald-600 p-5 flex items-center justify-between">
@@ -90,6 +92,7 @@
         </div>
         <span class="ml-auto text-emerald-400 text-xl">›</span>
       </div>
+
       <div onclick="cunaIr('funcionalidades')"
            class="flex items-center gap-4 p-5 rounded-2xl border-2 border-violet-200 bg-violet-50 hover:bg-violet-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg">
         <span class="text-4xl">📖</span>
@@ -99,6 +102,7 @@
         </div>
         <span class="ml-auto text-violet-400 text-xl">›</span>
       </div>
+
       <div onclick="cunaIr('deforestacion')"
            class="flex items-center gap-4 p-5 rounded-2xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg">
         <span class="text-4xl">🌿</span>
@@ -110,7 +114,7 @@
       </div>
     </div>
 
-    <!-- Detalle (oculto por defecto) -->
+    <!-- Detalle oculto por defecto -->
     <div id="cuna-detail" class="hidden flex-col gap-0">
       <img id="cuna-detail-img" class="w-full h-44 object-cover rounded-xl mb-4 border border-slate-100" src="" alt="">
       <div id="cuna-detail-text" class="text-sm text-slate-600 leading-relaxed cuna-detail-text"></div>
@@ -131,17 +135,22 @@ function abrirVideo() {
   overlay.classList.add('abierto');
   video.play();
 }
+
 function cerrarVideo(e) {
   // Si el click fue sobre el video mismo, no cerrar
   if (e && e.target && e.target.tagName === 'VIDEO') return;
+
   const overlay = document.getElementById('video-overlay');
   const video   = document.getElementById('kuna-video');
   overlay.classList.remove('abierto');
   video.pause();
   video.currentTime = 0;
 }
+
 // Cerrar con Escape
-document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarVideo(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') cerrarVideo();
+});
 
 // ── Datos Kuna ────────────────────────────────────────────────────────────────
 const KUNA_IMG = 'Kuna/';   // prefijo para todas las imágenes de Kuna
@@ -154,6 +163,7 @@ const CUNA_DATOS = {
       { titulo: '¿En qué estamos ahora?',   img: KUNA_IMG + 'kuna_workflow_estado.png' }
     ]
   },
+
   deforestacion: {
     esMulti: true,
     slides: [
@@ -161,6 +171,7 @@ const CUNA_DATOS = {
       { titulo: 'Alertas de deforestación · Parte 2', img: KUNA_IMG + 'explicar_alertasgfw2.png' }
     ]
   },
+
   funcionalidades: {
     esMulti: true,
     slides: [
@@ -200,9 +211,24 @@ function cunaIr(key) {
   const d = CUNA_DATOS[key];
   if (!d) return;
 
+  // Ampliar la tarjeta SOLO para las infografías de Global Forest Watch
+  const card = document.getElementById('kuna-card');
+  if (card) {
+    if (key === 'deforestacion') {
+      card.classList.remove('max-w-2xl');
+      card.classList.add('max-w-5xl');
+    } else {
+      card.classList.remove('max-w-5xl');
+      card.classList.add('max-w-2xl');
+    }
+  }
+
   const avatar = document.getElementById('cuna-avatar');
   avatar.style.opacity = '0';
-  setTimeout(() => { avatar.src = KUNA_IMG + 'kuna_saludando.png'; avatar.style.opacity = '1'; }, 150);
+  setTimeout(() => {
+    avatar.src = KUNA_IMG + 'kuna_saludando.png';
+    avatar.style.opacity = '1';
+  }, 150);
 
   const menu   = document.getElementById('cuna-menu');
   const detail = document.getElementById('cuna-detail');
@@ -220,12 +246,15 @@ function cunaIr(key) {
       cunaSlide(0, d);
     } else {
       detail.innerHTML = `
-        <img class="w-full h-44 object-cover rounded-xl mb-4 border border-slate-100" src="${d.img||''}" alt="">
-        <div class="text-sm text-slate-600 leading-relaxed cuna-detail-text">${d.msg||''}</div>
+        <img class="w-full h-44 object-cover rounded-xl mb-4 border border-slate-100" src="${d.img || ''}" alt="">
+        <div class="text-sm text-slate-600 leading-relaxed cuna-detail-text">${d.msg || ''}</div>
         <button onclick="cunaVolver()" class="mt-5 w-full py-3 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all">← Volver al menú</button>`;
     }
+
     detail.style.opacity = '0';
-    setTimeout(() => { detail.style.opacity = '1'; }, 20);
+    setTimeout(() => {
+      detail.style.opacity = '1';
+    }, 20);
   }, 180);
 }
 
@@ -235,21 +264,33 @@ function renderMulti() {
       <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest" id="kuna-slide-label">Cargando…</div>
       <div class="flex gap-1" id="kuna-dots"></div>
     </div>
+
     <div id="kuna-slide-content" class="flex flex-col gap-3 w-full"></div>
+
     <div class="flex gap-2 mt-4 w-full">
       <button onclick="cunaSlideNav(-1)" id="btn-prev"
-              class="flex-1 py-2.5 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all">← Anterior</button>
+              class="flex-1 py-2.5 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all">
+        ← Anterior
+      </button>
+
       <button onclick="cunaSlideNav(1)" id="btn-next"
-              class="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all">Siguiente →</button>
+              class="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all">
+        Siguiente →
+      </button>
     </div>
+
     <button onclick="cunaVolver()"
-            class="mt-2 w-full py-2.5 border-2 border-slate-100 rounded-xl text-[10px] font-bold text-slate-400 hover:bg-slate-50 transition-all">← Volver al menú</button>`;
+            class="mt-2 w-full py-2.5 border-2 border-slate-100 rounded-xl text-[10px] font-bold text-slate-400 hover:bg-slate-50 transition-all">
+      ← Volver al menú
+    </button>`;
 }
 
 function cunaSlide(idx, d) {
   if (!d) return;
+
   const slides = d.slides || [];
   _slideIdx = Math.max(0, Math.min(idx, slides.length - 1));
+
   const s = slides[_slideIdx];
   if (!s) return;
 
@@ -264,11 +305,13 @@ function cunaSlide(idx, d) {
   }
 
   const cont = document.getElementById('kuna-slide-content');
+
   if (cont) {
     if (!s.kunaImg && !s.texto) {
-      cont.innerHTML = `<img src="${s.img}" alt="${s.titulo}"
-        class="w-full rounded-xl border border-slate-100 shadow-md"
-        style="width:100%;object-fit:contain;background:#f8faf9;display:block">`;
+      cont.innerHTML = `
+        <img src="${s.img}" alt="${s.titulo}"
+             class="w-full rounded-xl border border-slate-100 shadow-md"
+             style="width:100%;object-fit:contain;background:#f8faf9;display:block">`;
     } else {
       cont.innerHTML = `
         <div class="flex items-start gap-3">
@@ -276,6 +319,7 @@ function cunaSlide(idx, d) {
                class="w-14 h-14 rounded-xl object-cover shrink-0 border border-emerald-100">
           <div class="text-sm font-semibold text-slate-700 leading-relaxed">${s.texto || ''}</div>
         </div>
+
         <img src="${s.img}" alt="${s.titulo}"
              class="w-full rounded-xl border border-slate-100 shadow-sm"
              style="max-height:200px;object-fit:contain;background:#f8faf9">`;
@@ -284,7 +328,9 @@ function cunaSlide(idx, d) {
 
   const prev = document.getElementById('btn-prev');
   const next = document.getElementById('btn-next');
+
   if (prev) prev.style.visibility = _slideIdx === 0 ? 'hidden' : 'visible';
+
   if (next) {
     next.textContent = _slideIdx === slides.length - 1 ? '✓ Listo' : 'Siguiente →';
     next.onclick = _slideIdx === slides.length - 1 ? cunaVolver : () => cunaSlideNav(1);
@@ -293,19 +339,36 @@ function cunaSlide(idx, d) {
 
 function cunaSlideNav(dir) {
   if (!_slideKey) return;
+
   const d = CUNA_DATOS[_slideKey];
   if (!d || !d.slides) return;
+
   const ni = _slideIdx + dir;
-  if (ni >= 0 && ni < d.slides.length) cunaSlide(ni, d);
+
+  if (ni >= 0 && ni < d.slides.length) {
+    cunaSlide(ni, d);
+  }
 }
 
 function cunaVolver() {
+  // Restaurar tamaño normal de la tarjeta al volver al menú
+  const card = document.getElementById('kuna-card');
+  if (card) {
+    card.classList.remove('max-w-5xl');
+    card.classList.add('max-w-2xl');
+  }
+
   const avatar = document.getElementById('cuna-avatar');
   avatar.style.opacity = '0';
-  setTimeout(() => { avatar.src = KUNA_IMG + 'kuna_saludando.png'; avatar.style.opacity = '1'; }, 150);
+
+  setTimeout(() => {
+    avatar.src = KUNA_IMG + 'kuna_saludando.png';
+    avatar.style.opacity = '1';
+  }, 150);
 
   const msg = document.getElementById('cuna-msg');
   msg.style.opacity = '0';
+
   setTimeout(() => {
     msg.textContent = '¡Hola! Soy Kuna. Estoy aquí para guiarte en el manejo del aplicativo. ¿Qué quieres hacer?';
     msg.style.opacity = '1';
@@ -313,15 +376,21 @@ function cunaVolver() {
 
   const menu   = document.getElementById('cuna-menu');
   const detail = document.getElementById('cuna-detail');
+
   detail.style.opacity = '0';
+
   setTimeout(() => {
     detail.classList.add('hidden');
     detail.classList.remove('flex');
     menu.classList.remove('hidden');
     menu.style.opacity = '0';
-    setTimeout(() => { menu.style.opacity = '1'; }, 20);
+
+    setTimeout(() => {
+      menu.style.opacity = '1';
+    }, 20);
   }, 180);
 }
 </script>
+
 </body>
 </html>
