@@ -15,26 +15,62 @@
     .cuna-detail-text b.gfw { color: #0096b4; }
     @keyframes cunaIn { from{opacity:0;transform:scale(.88) translateY(12px)} to{opacity:1;transform:none} }
     .cuna-in { animation: cunaIn .28s cubic-bezier(.34,1.56,.64,1); }
+    /* Overlay del video */
+    #video-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.82);
+      align-items: center; justify-content: center;
+    }
+    #video-overlay.abierto { display: flex; }
+    #video-overlay video {
+      max-width: 90vw; max-height: 85vh;
+      border-radius: 16px; box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    }
+    #btn-cerrar-video {
+      position: absolute; top: 20px; right: 24px;
+      color: white; font-size: 2rem; cursor: pointer;
+      line-height: 1; opacity: 0.8;
+      background: none; border: none;
+    }
+    #btn-cerrar-video:hover { opacity: 1; }
   </style>
 </head>
 <body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
 
+<!-- Overlay video -->
+<div id="video-overlay" onclick="cerrarVideo(event)">
+  <button id="btn-cerrar-video" onclick="cerrarVideo()">✕</button>
+  <video id="kuna-video" src="Kuna/Kuna_presentacion.mp4" controls playsinline>
+    Tu navegador no soporta video HTML5.
+  </video>
+</div>
+
+<!-- Tarjeta principal -->
 <div class="bg-white rounded-[2rem] w-full max-w-2xl overflow-hidden shadow-2xl border border-slate-100 cuna-in">
 
   <!-- Header -->
   <div class="bg-emerald-600 p-5 flex items-center justify-between">
     <div class="flex items-center gap-4">
       <div class="w-14 h-14 rounded-2xl bg-white/20 overflow-hidden border-2 border-white/30 flex-shrink-0">
-        <img id="cuna-avatar" src="Cunaguito1.png" alt="Kuna" class="w-full h-full object-cover transition-opacity duration-300">
+        <img id="cuna-avatar" src="Kuna/kuna_saludando.png" alt="Kuna"
+             class="w-full h-full object-cover transition-opacity duration-300">
       </div>
       <div>
         <h3 class="font-extrabold text-xl text-white syne leading-none">Kuna</h3>
         <p class="text-[9px] font-bold text-emerald-200 uppercase tracking-widest mt-1">Asistente · CBC Cunaguaro</p>
       </div>
     </div>
-    <a href="index.html"
-       class="hover:bg-white/10 p-2 rounded-full transition-colors text-white/80 hover:text-white text-xl leading-none"
-       title="Volver al mapa">✕</a>
+    <div class="flex items-center gap-2">
+      <!-- Botón "Conóceme" -->
+      <button onclick="abrirVideo()"
+              class="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-xl text-[10px] font-bold transition-all border border-white/30">
+        ▶ Conóceme
+      </button>
+      <a href="index.html"
+         class="hover:bg-white/10 p-2 rounded-full transition-colors text-white/80 hover:text-white text-xl leading-none"
+         title="Volver al mapa">✕</a>
+    </div>
   </div>
 
   <!-- Body -->
@@ -79,49 +115,68 @@
 </div><!-- /card -->
 
 <script>
+// ── Video ─────────────────────────────────────────────────────────────────────
+function abrirVideo() {
+  const overlay = document.getElementById('video-overlay');
+  const video   = document.getElementById('kuna-video');
+  overlay.classList.add('abierto');
+  video.play();
+}
+function cerrarVideo(e) {
+  // Si el click fue sobre el video mismo, no cerrar
+  if (e && e.target && e.target.tagName === 'VIDEO') return;
+  const overlay = document.getElementById('video-overlay');
+  const video   = document.getElementById('kuna-video');
+  overlay.classList.remove('abierto');
+  video.pause();
+  video.currentTime = 0;
+}
+// Cerrar con Escape
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarVideo(); });
+
 // ── Datos Kuna ────────────────────────────────────────────────────────────────
+const KUNA_IMG = 'Kuna/';   // prefijo para todas las imágenes de Kuna
+
 const CUNA_DATOS = {
   sobre: {
-    img: null,
     esMulti: true,
     slides: [
-      { titulo: '¿Qué hace la plataforma?', img: 'kuna_workflow.png' },
-      { titulo: '¿En qué estamos ahora?',   img: 'kuna_workflow_estado.png' }
+      { titulo: '¿Qué hace la plataforma?', img: KUNA_IMG + 'kuna_workflow.png' },
+      { titulo: '¿En qué estamos ahora?',   img: KUNA_IMG + 'kuna_workflow_estado.png' }
     ]
   },
   funcionalidades: {
-    img: null,
     esMulti: true,
     slides: [
       {
         titulo: 'Cambiar el mapa base',
-        img: 'mapabase.png',
-        kunaImg: 'kuna_senala.png',
+        img:     KUNA_IMG + 'mapabase.png',
+        kunaImg: KUNA_IMG + 'kuna_senala.png',
         texto: `Usa el control de capas en la <b>esquina inferior derecha</b> del mapa. Tienes 5 opciones: <b>CartoDB Claro</b> (predeterminado), <b>Google Maps</b>, <b>Satélite</b>, <b>Relieve</b> y <b>Oscuro</b>. Cambia según la mejor visualización para tu análisis.`
       },
       {
         titulo: 'Global Forest Watch — GLAD & RADD',
-        img: 'gfw_incon.png',
-        kunaImg: 'kuna_saludando.png',
+        img:     KUNA_IMG + 'gfw_incon.png',
+        kunaImg: KUNA_IMG + 'kuna_saludando.png',
         texto: `<b class="gfw">Global Forest Watch</b> (WRI) provee alertas satelitales de deforestación casi en tiempo real.<br><br>🌲 <b>GLAD</b> — Landsat · Universidad de Maryland · detección semanal<br>📡 <b>RADD</b> — Sentinel-1 SAR · Univ. Wageningen · funciona bajo nubes<br><br>Créditos: © Global Forest Watch / World Resources Institute. Datos bajo licencia CC BY 4.0.`
       },
       {
         titulo: 'Alertas de Incendios — NASA FIRMS',
-        img: 'incendios.png',
-        kunaImg: 'kuna_senala.png',
+        img:     KUNA_IMG + 'incendios.png',
+        kunaImg: KUNA_IMG + 'kuna_senala.png',
         texto: `Los puntos de calor provienen de <b>NASA FIRMS</b> (Fire Information for Resource Management System), usando sensores <b>VIIRS</b> (375 m) y <b>MODIS</b> (1 km) actualizados cada 3 horas.<br><br>Cada punto muestra: coordenadas, nivel de confianza (Alta / Nominal / Baja) y potencia radiativa del fuego (<b>FRP en MW</b>).`
       },
       {
         titulo: 'Capas Adicionales',
-        img: 'capas_adicionales.png',
-        kunaImg: 'kuna_saludando.png',
+        img:     KUNA_IMG + 'kuna_workflow.png',
+        kunaImg: KUNA_IMG + 'kuna_saludando.png',
         texto: `En <b>Capas adicionales</b> (panel izquierdo) puedes activar:<br><br>📍 <b>Límites municipales</b> — contornos administrativos<br>📐 <b>Área de estudio</b> — polígono de monitoreo CBC Cunaguaro<br>🌲 <b>Núcleos boscosos</b> — fragmentos prioritarios<br>📉 <b>Pérdidas 2020-2024</b> — pérdida forestal por año<br>🔗 <b>Conectividad</b> — modelo de deciles de importancia ecológica<br>🌿 <b>Alertas deforestación GEE</b> — basado en cambio NDVI Sentinel-2`
       }
     ]
   }
 };
 
-// ── Lógica de slides ──────────────────────────────────────────────────────────
+// ── Lógica slides ─────────────────────────────────────────────────────────────
 let _slideIdx = 0;
 let _slideKey = null;
 
@@ -131,12 +186,12 @@ function cunaIr(key) {
 
   const avatar = document.getElementById('cuna-avatar');
   avatar.style.opacity = '0';
-  setTimeout(() => { avatar.src = 'kuna_saludando.png'; avatar.style.opacity = '1'; }, 150);
+  setTimeout(() => { avatar.src = KUNA_IMG + 'kuna_saludando.png'; avatar.style.opacity = '1'; }, 150);
 
   const menu   = document.getElementById('cuna-menu');
   const detail = document.getElementById('cuna-detail');
-
   menu.style.opacity = '0';
+
   setTimeout(() => {
     menu.classList.add('hidden');
     detail.innerHTML = '';
@@ -149,8 +204,8 @@ function cunaIr(key) {
       cunaSlide(0, d);
     } else {
       detail.innerHTML = `
-        <img id="cuna-detail-img" class="w-full h-44 object-cover rounded-xl mb-4 border border-slate-100" src="${d.img||''}" alt="">
-        <div id="cuna-detail-text" class="text-sm text-slate-600 leading-relaxed cuna-detail-text">${d.msg||''}</div>
+        <img class="w-full h-44 object-cover rounded-xl mb-4 border border-slate-100" src="${d.img||''}" alt="">
+        <div class="text-sm text-slate-600 leading-relaxed cuna-detail-text">${d.msg||''}</div>
         <button onclick="cunaVolver()" class="mt-5 w-full py-3 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all">← Volver al menú</button>`;
     }
     detail.style.opacity = '0';
@@ -201,7 +256,7 @@ function cunaSlide(idx, d) {
     } else {
       cont.innerHTML = `
         <div class="flex items-start gap-3">
-          <img src="${s.kunaImg || 'kuna_saludando.png'}" alt="Kuna"
+          <img src="${s.kunaImg}" alt="Kuna"
                class="w-14 h-14 rounded-xl object-cover shrink-0 border border-emerald-100">
           <div class="text-sm font-semibold text-slate-700 leading-relaxed">${s.texto || ''}</div>
         </div>
@@ -231,7 +286,7 @@ function cunaSlideNav(dir) {
 function cunaVolver() {
   const avatar = document.getElementById('cuna-avatar');
   avatar.style.opacity = '0';
-  setTimeout(() => { avatar.src = 'Cunaguito1.png'; avatar.style.opacity = '1'; }, 150);
+  setTimeout(() => { avatar.src = KUNA_IMG + 'kuna_saludando.png'; avatar.style.opacity = '1'; }, 150);
 
   const msg = document.getElementById('cuna-msg');
   msg.style.opacity = '0';
