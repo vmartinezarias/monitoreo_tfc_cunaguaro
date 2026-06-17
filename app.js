@@ -577,6 +577,70 @@ function descargarGFWActivo(){
   a.forEach(k=>descargarGFW(k));
 }
 
+// funcion conectividad
+async function asegurarRasterConectividad() {
+  if (georasterConectividad) return georasterConectividad;
+
+  try {
+    const resp = await fetch(URLS.conectividad);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const buffer = await resp.arrayBuffer();
+    georasterConectividad = await parseGeoraster(buffer);
+
+    return georasterConectividad;
+  } catch (e) {
+    console.warn('No fue posible cargar el ráster de conectividad:', e);
+    return null;
+  }
+}
+
+function muestrearConectividad(lat, lng, raster) {
+  if (!raster) return null;
+
+  const x = Number(lng);
+  const y = Number(lat);
+
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+
+  const col = Math.floor((x - raster.xmin) / raster.pixelWidth);
+  const row = Math.floor((raster.ymax - y) / raster.pixelHeight);
+
+  const banda = raster.values?.[0];
+
+  if (!banda || row < 0 || col < 0 || row >= banda.length || col >= banda[0].length) {
+    return null;
+  }
+
+  const valor = banda[row][col];
+
+  if (
+    valor === null ||
+    valor === undefined ||
+    Number.isNaN(Number(valor)) ||
+    valor === raster.noDataValue
+  ) {
+    return null;
+  }
+
+  const decil = Math.round(Number(valor));
+
+  if (decil < 1 || decil > 10) return null;
+
+  return decil;
+}
+
+function clasificarConectividad(decil) {
+  if (!Number.isFinite(decil)) return 'Sin dato';
+
+  if (decil === 10) return 'Crítica';
+  if (decil >= 7) return 'Alta';
+  if (decil >= 4) return 'Media';
+  if (decil >= 1) return 'Baja';
+
+  return 'Sin dato';
+}
+
 // 👇 AQUÍ VA LA NUEVA FUNCIÓN
 async function abrirAnalisisGFW() {
   const capas = ['glad', 'radd'];
@@ -625,11 +689,11 @@ async function abrirAnalisisGFW() {
       vereda: vf.properties.NOMBRE_VER || 'Sin vereda'
     };
   }
-
+  const rasterConectividad = await asegurarRasterConectividad();
   const datos = datosCrudos.map(r => {
     const lat = parseFloat(r.latitude ?? r.latitud ?? r.lat);
     const lng = parseFloat(r.longitude ?? r.longitud ?? r.lng ?? r.lon);
-
+    const decilConectividad = muestrearConectividad(lat, lng, rasterConectividad);
     const ubicacion = Number.isFinite(lat) && Number.isFinite(lng)
       ? ubicarPuntoEnVereda(lat, lng)
       : {
@@ -643,7 +707,9 @@ async function abrirAnalisisGFW() {
       longitude: lng,
       municipio: ubicacion.municipio,
       vereda: ubicacion.vereda,
-      area_ha: AREA_HA_POR_PIXEL
+      area_ha: AREA_HA_POR_PIXEL,
+      conectividad_decile: decilConectividad,
+      conectividad_clase: clasificarConectividad(decilConectividad)
     };
   });
 
