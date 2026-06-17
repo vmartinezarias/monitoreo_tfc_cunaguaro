@@ -552,6 +552,69 @@ async function descargarActual(formato) {
 }
 function descargarGFWActivo(){const a=Object.keys(gfwCapas).filter(k=>gfwCapas[k].visible&&k!=='hansen'&&gfwCapas[k].datos.length);if(!a.length){alert('Activa primero una capa GFW (GLAD o RADD) y espera que cargue.');return;}a.forEach(k=>descargarGFW(k));}
 
+// ── Descarga ──────────────────────────────────────────────────────────────────
+async function descargarActual(formato) {
+  if(tipoActual==='incendios'){
+    if(formato==='csv')descargarCSV('incendios');
+    else descargarPDF('incendios');
+  }
+  else{
+    const a=Object.keys(gfwCapas).filter(k=>gfwCapas[k].visible&&k!=='hansen'&&gfwCapas[k].datos.length);
+    if(a.length)a.forEach(k=>descargarGFW(k));
+    else{
+      if(formato==='csv')descargarCSV('deforestacion');
+      else descargarPDF('deforestacion');
+    }
+  }
+}
+
+function descargarGFWActivo(){
+  const a=Object.keys(gfwCapas).filter(k=>gfwCapas[k].visible&&k!=='hansen'&&gfwCapas[k].datos.length);
+  if(!a.length){
+    alert('Activa primero una capa GFW (GLAD o RADD) y espera que cargue.');
+    return;
+  }
+  a.forEach(k=>descargarGFW(k));
+}
+
+// 👇 AQUÍ VA LA NUEVA FUNCIÓN
+function abrirAnalisisGFW() {
+  const capas = ['glad', 'radd'];
+
+  const datos = capas.flatMap(key => {
+    const rows = gfwCapas[key]?.datos || [];
+    return rows.map(r => ({
+      ...r,
+      fuente: key.toUpperCase()
+    }));
+  });
+
+  if (!datos.length) {
+    alert('Activa primero GLAD o RADD y espera a que carguen los datos.');
+    return;
+  }
+
+  const paquete = {
+    generado_en: new Date().toISOString(),
+    area: areaAnalisisActiva,
+    municipio: municipioActual || null,
+    fecha_inicio: fechaInicio ? fechaInicio.toISOString().slice(0, 10) : null,
+    fecha_fin: fechaFin ? fechaFin.toISOString().slice(0, 10) : null,
+    datos
+  };
+
+  sessionStorage.setItem('gfw_analisis_datos', JSON.stringify(paquete));
+  window.open('analisis.html', '_blank');
+}
+
+function alertasActualesIncendios() {
+  let r=alertasEnPeriodo(todasAlertas);
+  if(filtroActual!=='all')r=r.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
+  if(areaAnalisisActiva==='dibujo'&&dibujoPoligonoCoords&&dibujoPoligonoCoords.length>=3)
+    r=r.filter(a=>{const p=_alertaLatLng(a);return p?pasaFiltroAreaDibujo(p.lat,p.lng):false;});
+  return r;
+}
+
 function alertasActualesIncendios() {
   let r=alertasEnPeriodo(todasAlertas);
   if(filtroActual!=='all')r=r.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
