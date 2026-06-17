@@ -54,8 +54,6 @@
     .tab-inact { color: #94a3b8; border-bottom: 2px solid transparent; }
     @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
     .float { animation: float 3s ease-in-out infinite; }
-    .cuna-detail-text b { color: var(--verde); font-weight: 600; }
-    .cuna-detail-text b.gfw { color: var(--gfw-l); }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
     .dot-pulse { animation: pulse 2s infinite; }
     input[type=range] { accent-color: var(--gfw); }
@@ -69,7 +67,6 @@
       z-index: 1000; display: flex; align-items: center; gap: 8px;
       animation: pulse 2s infinite;
     }
-    /* Pills de capas activas — visibles aunque el panel esté colapsado */
     .capa-pill {
       font-size: 8px; font-weight: 700; letter-spacing: .05em;
       padding: 1px 6px; border-radius: 999px;
@@ -80,6 +77,7 @@
 </head>
 <body class="h-full flex flex-col overflow-hidden">
 
+<!-- HEADER -->
 <header class="relative z-20 flex items-center justify-between px-6 py-3 glass m-3 mb-0 rounded-2xl shrink-0">
   <div class="flex items-center gap-4">
     <div class="flex items-center gap-3">
@@ -106,13 +104,16 @@
       <div class="w-px h-5 bg-slate-200"></div>
       <div class="text-center"><div class="font-bold text-slate-700" id="total-frp">—</div><div class="text-slate-400" style="font-size:8px">FRP MW</div></div>
     </div>
-    <button onclick="cunaAbrir()" class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-lg shadow-emerald-200/60 float">
+    <!-- Kuna: ahora abre kuna.html en nueva pestaña -->
+    <a href="kuna.html" target="_blank"
+       class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-lg shadow-emerald-200/60 float">
       <img src="Cunaguito1.png" class="w-5 h-5 rounded-md bg-white/20 object-cover" alt="">
       <span class="text-xs font-bold uppercase tracking-tight">Kuna</span>
-    </button>
+    </a>
   </div>
 </header>
 
+<!-- MAIN -->
 <main class="flex-1 flex gap-3 p-3 pt-3 overflow-hidden">
   <aside class="w-80 flex flex-col gap-3 overflow-y-auto scroll pr-0.5 shrink-0">
 
@@ -271,46 +272,52 @@
     </div>
 
     <!-- 4. DESCARGA -->
+    <!-- CAMBIO: se quitaron "CSV Combinado" y "GFW capas activas".
+         Se mantienen CSV, PDF Reporte y Análisis GFW.
+         Se agrega el botón de Inscripción a Alertas. -->
     <div class="glass p-4 rounded-2xl shrink-0">
       <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-3">Descargar Datos</p>
       <div class="grid grid-cols-2 gap-2">
-        <button onclick="descargarActual('csv')" class="flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-lg">
-          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        <button onclick="descargarActual('csv')"
+                class="flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-lg">
+          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
           CSV
         </button>
-        <button onclick="descargarActual('pdf')" class="py-3 border-2 border-slate-200 bg-white text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all">PDF Reporte</button>
-      </div>
-      <div class="mt-2">
-        <button onclick="descargarCSV('combinado')" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-200/50">
-          ⭐ CSV Combinado (incendios + deforest.)
+        <button onclick="descargarActual('pdf')"
+                class="py-3 border-2 border-slate-200 bg-white text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all">
+          PDF Reporte
         </button>
       </div>
+
+      <!-- Análisis GFW — visible solo cuando tipo=gfw -->
       <div id="gfw-dl-btns" class="mt-2 hidden">
-        <button onclick="descargarGFWActivo()" 
-          class="w-full py-2.5 border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-xl text-xs font-bold transition-all">
-          ⬇ GFW (capas activas · 3 archivos c/u)
-        </button>
-      
         <button onclick="abrirAnalisisGFW()"
-          class="mt-2 w-full py-2.5 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold transition-all">
+                class="w-full py-2.5 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold transition-all">
           📊 Análisis GFW
         </button>
       </div>
+
+      <!-- Inscripción a alertas — siempre visible -->
+      <a href="https://docs.google.com/forms/d/e/1FAIpQLSds1mTWkSJUIygCtWA8NausZue0Dr3eQ5tHsrmIfK9r8Cksgg/viewform?usp=dialog"
+         target="_blank" rel="noopener"
+         class="mt-2 flex items-center justify-center gap-2 w-full py-2.5
+                bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl
+                text-xs font-bold transition-all shadow-lg shadow-emerald-200/50">
+        🔔 Inscribirme a alertas
+      </a>
     </div>
 
-    <!-- 5. CAPAS ADICIONALES
-         FIX: panel abierto por defecto; colapsar solo esconde los controles,
-         las capas del mapa permanecen siempre visibles. -->
+    <!-- 5. CAPAS ADICIONALES -->
     <div class="glass rounded-2xl shrink-0 overflow-hidden">
       <button onclick="toggleCapasExtra(this)" class="w-full flex items-center justify-between p-4 text-left hover:bg-white/30 transition-all">
         <div class="flex items-center gap-2 flex-wrap">
           <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[.18em]">Capas Adicionales</p>
-          <!-- Pills siempre visibles de capas activas -->
           <div id="capas-pills" class="flex gap-1 flex-wrap"></div>
         </div>
         <span id="ico-capas" class="text-slate-400 text-xs ml-2 shrink-0">▾</span>
       </button>
-      <!-- Sin clase "hidden" → abierto por defecto -->
       <div id="capas-extra-body" class="px-4 pb-4 flex flex-col gap-2">
         <label class="flex items-center gap-2 cursor-pointer py-1.5">
           <input type="checkbox" id="chk-municipio-capa" onchange="toggleCapa('municipio', this.checked)" class="w-3.5 h-3.5 rounded" style="accent-color:var(--verde-l)">
@@ -380,6 +387,7 @@
 
   </aside>
 
+  <!-- MAPA -->
   <div class="flex-1 relative rounded-2xl overflow-hidden glass">
     <div id="map"></div>
     <div class="absolute bottom-3 left-3 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-lg text-[9px] mono text-slate-500 shadow border border-slate-200/60 z-10 pointer-events-none uppercase tracking-wider">
@@ -401,45 +409,6 @@
     <button id="btn-poligono"></button><button id="btn-punto"></button>
     <div id="hint-dibujo"></div>
     <div id="area-badge"><span id="area-badge-txt"></span></div>
-  </div>
-</div>
-
-<!-- MODAL KUNA -->
-<div id="cuna-overlay" class="fixed inset-0 z-[100] hidden items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onclick="cunaOverlayClick(event)">
-  <div class="bg-white rounded-[2rem] w-full max-w-3xl overflow-hidden shadow-2xl border border-slate-100" style="animation: cunaIn .28s cubic-bezier(.34,1.56,.64,1)">
-    <style>@keyframes cunaIn{from{opacity:0;transform:scale(.88) translateY(12px)}to{opacity:1;transform:none}}</style>
-    <div class="bg-emerald-600 p-5 flex items-center justify-between">
-      <div class="flex items-center gap-4">
-        <div class="w-14 h-14 rounded-2xl bg-white/20 overflow-hidden border-2 border-white/30 flex-shrink-0">
-          <img id="cuna-avatar" src="Cunaguito1.png" alt="Kuna" class="w-full h-full object-cover transition-opacity duration-300">
-        </div>
-        <div>
-          <h3 class="font-extrabold text-xl text-white syne leading-none">Kuna</h3>
-          <p class="text-[9px] font-bold text-emerald-200 uppercase tracking-widest mt-1">Asistente · CBC Cunaguaro</p>
-        </div>
-      </div>
-      <button onclick="cunaCerrar()" class="hover:bg-white/10 p-2 rounded-full transition-colors text-white/80 hover:text-white text-xl leading-none">✕</button>
-    </div>
-    <div class="p-6">
-      <p id="cuna-msg" class="text-slate-600 text-sm leading-relaxed font-medium mb-5">¡Hola! Soy Kuna. Estoy aquí para guiarte en el manejo del aplicativo. ¿Qué quieres hacer?</p>
-      <div id="cuna-menu" class="flex flex-col gap-4">
-        <div onclick="cunaIr('sobre')" class="flex items-center gap-4 p-5 rounded-2xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg">
-          <span class="text-4xl">🌳</span>
-          <div><div class="text-base font-extrabold text-slate-800 syne">Sobre la plataforma</div><div class="text-[11px] text-slate-500 mt-0.5">¿Qué hace? · ¿En qué estamos ahora?</div></div>
-          <span class="ml-auto text-emerald-400 text-xl">›</span>
-        </div>
-        <div onclick="cunaIr('funcionalidades')" class="flex items-center gap-4 p-5 rounded-2xl border-2 border-violet-200 bg-violet-50 hover:bg-violet-100 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg">
-          <span class="text-4xl">📖</span>
-          <div><div class="text-base font-extrabold text-slate-800 syne">Funcionalidades</div><div class="text-[11px] text-slate-500 mt-0.5">Guía de uso · capas · datos</div></div>
-          <span class="ml-auto text-violet-400 text-xl">›</span>
-        </div>
-      </div>
-      <div id="cuna-detail" class="hidden flex-col gap-0">
-        <img id="cuna-detail-img" class="w-full h-44 object-cover rounded-xl mb-4 border border-slate-100" src="" alt="">
-        <div id="cuna-detail-text" class="text-sm text-slate-600 leading-relaxed cuna-detail-text"></div>
-        <button onclick="cunaVolver()" class="mt-5 w-full py-3 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all">← Volver al menú</button>
-      </div>
-    </div>
   </div>
 </div>
 
