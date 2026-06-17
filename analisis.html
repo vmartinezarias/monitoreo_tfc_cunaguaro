@@ -219,6 +219,57 @@
     </section>
 
     <section class="glass rounded-2xl p-4">
+  <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-3">
+    <div>
+      <p class="card-title">Comparación espacial</p>
+      <h2 class="syne text-lg font-extrabold text-slate-800">Alertas por vereda</h2>
+      <p class="text-xs text-slate-400 mt-1">
+        Puedes ver el Top N de veredas o seleccionar veredas específicas para compararlas.
+      </p>
+    </div>
+
+    <div class="no-print grid grid-cols-1 md:grid-cols-3 gap-2 w-full lg:w-auto">
+      <div>
+        <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-1">
+          Top veredas
+        </label>
+        <input id="top-veredas" type="number" min="1" max="50" value="10"
+          oninput="renderVeredas()"
+          class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white/80 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400">
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-[.18em] mb-1">
+          Comparar veredas
+        </label>
+        <select id="select-veredas" multiple onchange="renderVeredas()"
+          class="w-full h-24 px-3 py-2 rounded-xl border border-slate-200 bg-white/80 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400">
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="no-print flex gap-2 mb-3">
+    <button onclick="limpiarSeleccionVeredas()"
+      class="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold transition-all">
+      Limpiar selección
+    </button>
+
+    <button onclick="seleccionarTopVeredas()"
+      class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all">
+      Seleccionar Top N
+    </button>
+  </div>
+
+  <div class="h-[420px]">
+    <canvas id="chartVeredas"></canvas>
+  </div>
+
+  <div id="tabla-veredas" class="mt-4 overflow-auto scroll rounded-xl border border-slate-100 bg-white/70"></div>
+</section>
+
+    
+    <section class="glass rounded-2xl p-4">
       <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-3">
         <div>
           <p class="card-title">Tabla de registros</p>
@@ -261,6 +312,7 @@
     let paquete = null;
     let datos = [];
     let charts = [];
+    let chartVeredas = null;
 
     document.addEventListener('DOMContentLoaded', iniciar);
 
@@ -285,6 +337,7 @@
 
       renderMetadatos();
       renderKPIs();
+      llenarSelectorVeredas();
       renderGraficos();
       renderTabla();
     }
@@ -331,6 +384,24 @@
         ''
       ).trim();
 
+      const municipio = String(
+        r.municipio ??
+        r.municipality ??
+        'Sin municipio'
+      ).trim() || 'Sin municipio';
+      
+      const vereda = String(
+        r.vereda ??
+        r.village ??
+        'Sin vereda'
+      ).trim() || 'Sin vereda';
+      
+      const area_ha = parseFloat(
+        r.area_ha ??
+        r.areaHa ??
+        AREA_HA_POR_ALERTA
+      );
+      
       return {
         fuente,
         fecha,
@@ -338,9 +409,12 @@
         latitud,
         longitud,
         intensidad,
+        municipio,
+        vereda,
+        area_ha: Number.isFinite(area_ha) ? area_ha : AREA_HA_POR_ALERTA,
         original: r
       };
-    }
+     }
 
     function normalizarFecha(v) {
       if (!v) return null;
@@ -444,13 +518,18 @@
     function renderGraficos() {
       charts.forEach(c => c.destroy());
       charts = [];
-
+    
+      if (chartVeredas) {
+        chartVeredas.destroy();
+        chartVeredas = null;
+      }
+    
       renderSerieTiempo();
       renderFuente();
       renderConfianza();
       renderMes();
+      renderVeredas();
     }
-
     function renderSerieTiempo() {
       const fechas = [...new Set(datos.map(d => d.fecha))].sort();
       const fuentes = [...new Set(datos.map(d => d.fuente))].sort();
@@ -626,7 +705,236 @@
         return acc;
       }, {});
     }
-
+    function llenarSelectorVeredas() {
+      const sel = document.getElementById('select-veredas');
+      if (!sel) return;
+    
+      const veredas = [...new Set(
+        datos
+          .map(d => d.vereda)
+          .filter(v =>
+            v &&
+            v !== 'Sin vereda' &&
+            v !== 'Fuera de límites'
+          )
+      )].sort((a, b) => a.localeCompare(b, 'es'));
+    
+      sel.innerHTML = veredas.map(v => `
+        <option value="${esc(v)}">${esc(v)}</option>
+      `).join('');
+    }
+    
+    function obtenerResumenVeredas() {
+      const resumen = {};
+    
+      datos.forEach(d => {
+        const vereda = d.vereda || 'Sin vereda';
+    
+        if (!resumen[vereda]) {
+          resumen[vereda] = {
+            vereda,
+            municipio: d.municipio || 'Sin municipio',
+            alertas: 0,
+            area_ha: 0,
+            glad: 0,
+            radd: 0
+          };
+        }
+    
+        resumen[vereda].alertas += 1;
+        resumen[vereda].area_ha += d.area_ha || AREA_HA_POR_ALERTA;
+    
+        if (d.fuente === 'GLAD' || d.fuente === 'GFW_GLAD') resumen[vereda].glad += 1;
+        if (d.fuente === 'RADD' || d.fuente === 'GFW_RADD') resumen[vereda].radd += 1;
+      });
+    
+      return Object.values(resumen)
+        .filter(r =>
+          r.vereda &&
+          r.vereda !== 'Sin vereda' &&
+          r.vereda !== 'Fuera de límites'
+        )
+        .sort((a, b) => b.alertas - a.alertas);
+    }
+    
+    function veredasSeleccionadas() {
+      const sel = document.getElementById('select-veredas');
+      if (!sel) return [];
+    
+      return Array.from(sel.selectedOptions).map(o => o.value);
+    }
+    
+    function renderVeredas() {
+      const canvas = document.getElementById('chartVeredas');
+      const tabla = document.getElementById('tabla-veredas');
+    
+      if (!canvas || !tabla) return;
+    
+      const topN = Math.max(
+        1,
+        Math.min(50, parseInt(document.getElementById('top-veredas')?.value || '10'))
+      );
+    
+      const seleccionadas = veredasSeleccionadas();
+      const resumen = obtenerResumenVeredas();
+    
+      let datosVeredas = [];
+    
+      if (seleccionadas.length) {
+        datosVeredas = resumen.filter(r => seleccionadas.includes(r.vereda));
+      } else {
+        datosVeredas = resumen.slice(0, topN);
+      }
+    
+      if (chartVeredas) {
+        chartVeredas.destroy();
+        chartVeredas = null;
+      }
+    
+      if (!datosVeredas.length) {
+        tabla.innerHTML = `
+          <div class="p-4 text-xs text-slate-400 italic">
+            No hay veredas disponibles para graficar. Revisa si los puntos GFW fueron enriquecidos con municipio/vereda.
+          </div>
+        `;
+        return;
+      }
+    
+      chartVeredas = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: datosVeredas.map(d => d.vereda),
+          datasets: [
+            {
+              label: 'GLAD',
+              data: datosVeredas.map(d => d.glad),
+              borderWidth: 1,
+              borderRadius: 8
+            },
+            {
+              label: 'RADD',
+              data: datosVeredas.map(d => d.radd),
+              borderWidth: 1,
+              borderRadius: 8
+            }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              position: 'bottom'
+            },
+            tooltip: {
+              callbacks: {
+                afterBody: function(items) {
+                  const idx = items[0].dataIndex;
+                  const d = datosVeredas[idx];
+                  return [
+                    `Total: ${d.alertas} alertas`,
+                    `Área estimada: ${d.area_ha.toFixed(2)} ha`,
+                    `Municipio: ${d.municipio}`
+                  ];
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              stacked: true,
+              title: {
+                display: true,
+                text: 'Número de alertas'
+              },
+              ticks: {
+                precision: 0
+              }
+            },
+            y: {
+              stacked: true,
+              title: {
+                display: true,
+                text: 'Vereda'
+              }
+            }
+          }
+        }
+      });
+    
+      renderTablaVeredas(datosVeredas);
+    }
+    
+    function renderTablaVeredas(datosVeredas) {
+      const tabla = document.getElementById('tabla-veredas');
+      if (!tabla) return;
+    
+      tabla.innerHTML = `
+        <table class="min-w-full text-xs">
+          <thead class="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px]">
+            <tr>
+              <th class="px-3 py-2 text-left">#</th>
+              <th class="px-3 py-2 text-left">Vereda</th>
+              <th class="px-3 py-2 text-left">Municipio</th>
+              <th class="px-3 py-2 text-right">Alertas</th>
+              <th class="px-3 py-2 text-right">GLAD</th>
+              <th class="px-3 py-2 text-right">RADD</th>
+              <th class="px-3 py-2 text-right">Área estimada</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            ${datosVeredas.map((d, i) => `
+              <tr class="hover:bg-emerald-50/40">
+                <td class="px-3 py-2 text-slate-400 mono">${i + 1}</td>
+                <td class="px-3 py-2 font-bold text-slate-700">${esc(d.vereda)}</td>
+                <td class="px-3 py-2 text-slate-500">${esc(d.municipio)}</td>
+                <td class="px-3 py-2 text-right mono font-bold">${d.alertas}</td>
+                <td class="px-3 py-2 text-right mono text-sky-700">${d.glad}</td>
+                <td class="px-3 py-2 text-right mono text-violet-700">${d.radd}</td>
+                <td class="px-3 py-2 text-right mono text-emerald-700">${d.area_ha.toFixed(2)} ha</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+    
+    function limpiarSeleccionVeredas() {
+      const sel = document.getElementById('select-veredas');
+      if (!sel) return;
+    
+      Array.from(sel.options).forEach(o => {
+        o.selected = false;
+      });
+    
+      renderVeredas();
+    }
+    
+    function seleccionarTopVeredas() {
+      const sel = document.getElementById('select-veredas');
+      if (!sel) return;
+    
+      const topN = Math.max(
+        1,
+        Math.min(50, parseInt(document.getElementById('top-veredas')?.value || '10'))
+      );
+    
+      const top = obtenerResumenVeredas()
+        .slice(0, topN)
+        .map(d => d.vereda);
+    
+      Array.from(sel.options).forEach(o => {
+        o.selected = top.includes(o.value);
+      });
+    
+      renderVeredas();
+    }
     function renderTabla() {
       const tbody = document.getElementById('tabla-body');
       const q = (document.getElementById('buscar')?.value || '').toLowerCase().trim();
