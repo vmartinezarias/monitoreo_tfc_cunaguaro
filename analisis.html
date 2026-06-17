@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Análisis GFW · Bosques en movimiento</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --verde: #1a4a2e;
+      --verde-m: #2d7a4f;
+      --verde-l: #4caf7d;
+      --gfw: #00b4d8;
+      --gfw-l: #0096b4;
+      --fuego: #e8480a;
+      --violeta: #7c3aed;
+      --gris: #64748b;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f0f4f1;
+    }
+
+    .syne {
+      font-family: 'Syne', sans-serif;
+    }
+
+    .mono {
+      font-family: 'Space Mono', monospace;
+    }
+
+    .glass {
+      background: rgba(255,255,255,0.78);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.65);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.06);
+    }
+
+    .card-title {
+      font-size: 9px;
+      font-weight: 800;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: .18em;
+    }
+
+    .scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .scroll::-webkit-scrollbar-thumb {
+      background: rgba(0,0,0,0.14);
+      border-radius: 999px;
+    }
+
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+
+      body {
+        background: white !important;
+      }
+
+      .glass {
+        box-shadow: none !important;
+        border: 1px solid #e2e8f0 !important;
+        background: white !important;
+      }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen text-slate-800">
+
+  <header class="glass m-4 rounded-2xl px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div>
+      <h1 class="syne text-2xl md:text-3xl font-extrabold tracking-tight text-slate-800">
+        Análisis GFW
+        <span class="text-emerald-700">· Bosques en movimiento</span>
+      </h1>
+      <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-[.18em] mt-1">
+        Estadísticos básicos · GLAD / RADD · Global Forest Watch
+      </p>
+    </div>
+
+    <div class="no-print flex flex-wrap gap-2">
+      <button onclick="descargarCSVAnalisis()"
+        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all">
+        ⬇ CSV análisis
+      </button>
+
+      <button onclick="window.print()"
+        class="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold transition-all">
+        🖨 Imprimir
+      </button>
+
+      <button onclick="cerrarVentana()"
+        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all">
+        ← Volver
+      </button>
+    </div>
+  </header>
+
+  <section id="sin-datos" class="hidden m-4 glass rounded-2xl p-8 text-center">
+    <div class="text-5xl mb-4">🌿</div>
+    <h2 class="syne text-2xl font-extrabold text-slate-800 mb-2">No hay datos GFW para analizar</h2>
+    <p class="text-sm text-slate-500 max-w-xl mx-auto">
+      Vuelve al monitor, selecciona <b>Global Forest Watch</b>, activa <b>GLAD</b> o <b>RADD</b>,
+      espera a que carguen las alertas y luego abre de nuevo el botón <b>📊 Análisis GFW</b>.
+    </p>
+  </section>
+
+  <main id="dashboard" class="hidden p-4 pt-0 space-y-4">
+
+    <section class="glass rounded-2xl p-4">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div class="bg-white/70 rounded-xl p-4 border border-slate-100">
+          <p class="card-title">Total alertas</p>
+          <div class="mt-2 text-3xl font-extrabold mono text-slate-800" id="kpi-total">—</div>
+          <p class="text-[10px] text-slate-400 mt-1">GLAD + RADD</p>
+        </div>
+
+        <div class="bg-white/70 rounded-xl p-4 border border-slate-100">
+          <p class="card-title">Área estimada</p>
+          <div class="mt-2 text-3xl font-extrabold mono text-emerald-700" id="kpi-area">—</div>
+          <p class="text-[10px] text-slate-400 mt-1">0.09 ha por alerta</p>
+        </div>
+
+        <div class="bg-white/70 rounded-xl p-4 border border-slate-100">
+          <p class="card-title">Promedio diario</p>
+          <div class="mt-2 text-3xl font-extrabold mono text-sky-700" id="kpi-promedio">—</div>
+          <p class="text-[10px] text-slate-400 mt-1">Alertas / día con rango</p>
+        </div>
+
+        <div class="bg-white/70 rounded-xl p-4 border border-slate-100">
+          <p class="card-title">Máximo diario</p>
+          <div class="mt-2 text-3xl font-extrabold mono text-violet-700" id="kpi-maxdia">—</div>
+          <p class="text-[10px] text-slate-400 mt-1" id="kpi-maxdia-fecha">—</p>
+        </div>
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+        <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+          <p class="card-title">Área de análisis</p>
+          <p class="mt-1 font-bold text-emerald-800" id="meta-area">—</p>
+        </div>
+
+        <div class="bg-sky-50 border border-sky-100 rounded-xl p-3">
+          <p class="card-title">Municipio</p>
+          <p class="mt-1 font-bold text-sky-800" id="meta-municipio">—</p>
+        </div>
+
+        <div class="bg-slate-50 border border-slate-100 rounded-xl p-3">
+          <p class="card-title">Rango consultado</p>
+          <p class="mt-1 font-bold text-slate-700" id="meta-rango">—</p>
+        </div>
+
+        <div class="bg-violet-50 border border-violet-100 rounded-xl p-3">
+          <p class="card-title">Generado</p>
+          <p class="mt-1 font-bold text-violet-800" id="meta-generado">—</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div class="glass rounded-2xl p-4">
+        <div class="mb-3">
+          <p class="card-title">Serie de tiempo</p>
+          <h2 class="syne text-lg font-extrabold text-slate-800">Alertas GFW por día</h2>
+        </div>
+        <div class="h-[320px]">
+          <canvas id="chartSerie"></canvas>
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl p-4">
+        <div class="mb-3">
+          <p class="card-title">Composición</p>
+          <h2 class="syne text-lg font-extrabold text-slate-800">Distribución por fuente</h2>
+        </div>
+        <div class="h-[320px]">
+          <canvas id="chartFuente"></canvas>
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl p-4">
+        <div class="mb-3">
+          <p class="card-title">Confianza</p>
+          <h2 class="syne text-lg font-extrabold text-slate-800">Alertas por nivel de confianza</h2>
+        </div>
+        <div class="h-[320px]">
+          <canvas id="chartConfianza"></canvas>
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl p-4">
+        <div class="mb-3">
+          <p class="card-title">Resumen mensual</p>
+          <h2 class="syne text-lg font-extrabold text-slate-800">Alertas por mes</h2>
+        </div>
+        <div class="h-[320px]">
+          <canvas id="chartMes"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="glass rounded-2xl p-4">
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-3">
+        <div>
+          <p class="card-title">Tabla de registros</p>
+          <h2 class="syne text-lg font-extrabold text-slate-800">Detalle de alertas consultadas</h2>
+          <p class="text-xs text-slate-400 mt-1">
+            Se muestran máximo 500 registros en pantalla. El CSV exporta todos.
+          </p>
+        </div>
+
+        <div class="no-print flex items-center gap-2">
+          <input id="buscar" type="text" placeholder="Buscar fuente, confianza, fecha..."
+            oninput="renderTabla()"
+            class="w-full md:w-72 px-3 py-2 rounded-xl border border-slate-200 bg-white/80 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400">
+        </div>
+      </div>
+
+      <div class="overflow-auto scroll rounded-xl border border-slate-100 bg-white/70">
+        <table class="min-w-full text-xs">
+          <thead class="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px]">
+            <tr>
+              <th class="px-3 py-2 text-left">#</th>
+              <th class="px-3 py-2 text-left">Fuente</th>
+              <th class="px-3 py-2 text-left">Fecha</th>
+              <th class="px-3 py-2 text-left">Confianza</th>
+              <th class="px-3 py-2 text-right">Latitud</th>
+              <th class="px-3 py-2 text-right">Longitud</th>
+              <th class="px-3 py-2 text-left">Intensidad</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-body" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    const AREA_HA_POR_ALERTA = 0.09;
+
+    let paquete = null;
+    let datos = [];
+    let charts = [];
+
+    document.addEventListener('DOMContentLoaded', iniciar);
+
+    function iniciar() {
+      paquete = leerPaquete();
+
+      if (!paquete || !Array.isArray(paquete.datos) || paquete.datos.length === 0) {
+        document.getElementById('sin-datos').classList.remove('hidden');
+        return;
+      }
+
+      datos = paquete.datos
+        .map(normalizarRegistro)
+        .filter(d => d.fecha && Number.isFinite(d.latitud) && Number.isFinite(d.longitud));
+
+      if (!datos.length) {
+        document.getElementById('sin-datos').classList.remove('hidden');
+        return;
+      }
+
+      document.getElementById('dashboard').classList.remove('hidden');
+
+      renderMetadatos();
+      renderKPIs();
+      renderGraficos();
+      renderTabla();
+    }
+
+    function leerPaquete() {
+      try {
+        return JSON.parse(sessionStorage.getItem('gfw_analisis_datos') || 'null');
+      } catch (e) {
+        console.error('No fue posible leer gfw_analisis_datos:', e);
+        return null;
+      }
+    }
+
+    function normalizarRegistro(r) {
+      const fuente = String(r.fuente || r.source || 'GFW').toUpperCase();
+
+      const latitud = parseFloat(
+        r.latitude ?? r.latitud ?? r.lat
+      );
+
+      const longitud = parseFloat(
+        r.longitude ?? r.longitud ?? r.lng ?? r.lon
+      );
+
+      const fecha = normalizarFecha(
+        r.fecha ??
+        r.date ??
+        r.gfw_integrated_alerts__date ??
+        r.wur_radd_alerts__date ??
+        r.acq_date
+      );
+
+      const confianza = String(
+        r.confianza ??
+        r.confidence ??
+        r.gfw_integrated_alerts__confidence ??
+        r.wur_radd_alerts__confidence ??
+        'Sin dato'
+      ).trim() || 'Sin dato';
+
+      const intensidad = String(
+        r.intensidad ??
+        r.gfw_integrated_alerts__intensity ??
+        ''
+      ).trim();
+
+      return {
+        fuente,
+        fecha,
+        confianza,
+        latitud,
+        longitud,
+        intensidad,
+        original: r
+      };
+    }
+
+    function normalizarFecha(v) {
+      if (!v) return null;
+
+      if (typeof v === 'string') {
+        const s = v.trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+      }
+
+      const d = new Date(v);
+      if (isNaN(d.getTime())) return null;
+      return d.toISOString().slice(0, 10);
+    }
+
+    function formatearFecha(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso + 'T12:00:00');
+      return d.toLocaleDateString('es-CO', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    }
+
+    function formatearFechaHora(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleString('es-CO', {
+        timeZone: 'America/Bogota',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function renderMetadatos() {
+      const area = paquete.area || '—';
+      const municipio = paquete.municipio || 'No especificado';
+      const fi = paquete.fecha_inicio || null;
+      const ff = paquete.fecha_fin || null;
+
+      document.getElementById('meta-area').textContent = etiquetaArea(area);
+      document.getElementById('meta-municipio').textContent = municipio;
+      document.getElementById('meta-rango').textContent =
+        fi && ff ? `${formatearFecha(fi)} → ${formatearFecha(ff)}` : 'Rango no especificado';
+      document.getElementById('meta-generado').textContent =
+        paquete.generado_en ? formatearFechaHora(paquete.generado_en) : '—';
+    }
+
+    function etiquetaArea(area) {
+      const mapa = {
+        estudio: 'Área de estudio',
+        nucleos: 'Núcleos boscosos',
+        municipio: 'Municipio',
+        dibujo: 'Polígono personalizado'
+      };
+
+      return mapa[area] || area || '—';
+    }
+
+    function renderKPIs() {
+      const total = datos.length;
+      const areaHa = total * AREA_HA_POR_ALERTA;
+
+      const porDia = contarPor(datos, 'fecha');
+      const fechas = Object.keys(porDia).sort();
+
+      let diasRango = fechas.length;
+
+      if (paquete.fecha_inicio && paquete.fecha_fin) {
+        const ini = new Date(paquete.fecha_inicio + 'T00:00:00');
+        const fin = new Date(paquete.fecha_fin + 'T00:00:00');
+        const diff = Math.round((fin - ini) / 86400000) + 1;
+        if (diff > 0) diasRango = diff;
+      }
+
+      const promedio = diasRango ? total / diasRango : total;
+
+      const maxEntry = Object.entries(porDia).sort((a, b) => b[1] - a[1])[0];
+
+      document.getElementById('kpi-total').textContent = total.toLocaleString('es-CO');
+      document.getElementById('kpi-area').textContent = areaHa.toLocaleString('es-CO', {
+        maximumFractionDigits: 2
+      }) + ' ha';
+      document.getElementById('kpi-promedio').textContent = promedio.toLocaleString('es-CO', {
+        maximumFractionDigits: 2
+      });
+
+      if (maxEntry) {
+        document.getElementById('kpi-maxdia').textContent = maxEntry[1].toLocaleString('es-CO');
+        document.getElementById('kpi-maxdia-fecha').textContent = formatearFecha(maxEntry[0]);
+      } else {
+        document.getElementById('kpi-maxdia').textContent = '0';
+        document.getElementById('kpi-maxdia-fecha').textContent = '—';
+      }
+    }
+
+    function renderGraficos() {
+      charts.forEach(c => c.destroy());
+      charts = [];
+
+      renderSerieTiempo();
+      renderFuente();
+      renderConfianza();
+      renderMes();
+    }
+
+    function renderSerieTiempo() {
+      const fechas = [...new Set(datos.map(d => d.fecha))].sort();
+      const fuentes = [...new Set(datos.map(d => d.fuente))].sort();
+
+      const datasets = fuentes.map(fuente => {
+        return {
+          label: fuente,
+          data: fechas.map(fecha => datos.filter(d => d.fecha === fecha && d.fuente === fuente).length),
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.25
+        };
+      });
+
+      charts.push(new Chart(document.getElementById('chartSerie'), {
+        type: 'line',
+        data: {
+          labels: fechas.map(formatearFecha),
+          datasets
+        },
+        options: baseOptions({
+          yTitle: 'Número de alertas',
+          xTitle: 'Fecha'
+        })
+      }));
+    }
+
+    function renderFuente() {
+      const conteo = contarPor(datos, 'fuente');
+
+      charts.push(new Chart(document.getElementById('chartFuente'), {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(conteo),
+          datasets: [{
+            data: Object.values(conteo),
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom'
+            },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                  const val = ctx.raw || 0;
+                  const pct = total ? (val / total * 100).toFixed(1) : 0;
+                  return `${ctx.label}: ${val} alertas (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      }));
+    }
+
+    function renderConfianza() {
+      const conteo = contarPor(datos, 'confianza');
+      const ordenado = Object.entries(conteo).sort((a, b) => b[1] - a[1]);
+
+      charts.push(new Chart(document.getElementById('chartConfianza'), {
+        type: 'bar',
+        data: {
+          labels: ordenado.map(d => d[0]),
+          datasets: [{
+            label: 'Alertas',
+            data: ordenado.map(d => d[1]),
+            borderWidth: 1,
+            borderRadius: 8
+          }]
+        },
+        options: baseOptions({
+          yTitle: 'Número de alertas',
+          xTitle: 'Confianza'
+        })
+      }));
+    }
+
+    function renderMes() {
+      const datosMes = datos.map(d => ({
+        ...d,
+        mes: d.fecha ? d.fecha.slice(0, 7) : 'Sin fecha'
+      }));
+
+      const conteo = contarPor(datosMes, 'mes');
+      const ordenado = Object.entries(conteo).sort((a, b) => a[0].localeCompare(b[0]));
+
+      charts.push(new Chart(document.getElementById('chartMes'), {
+        type: 'bar',
+        data: {
+          labels: ordenado.map(d => etiquetaMes(d[0])),
+          datasets: [{
+            label: 'Alertas',
+            data: ordenado.map(d => d[1]),
+            borderWidth: 1,
+            borderRadius: 8
+          }]
+        },
+        options: baseOptions({
+          yTitle: 'Número de alertas',
+          xTitle: 'Mes'
+        })
+      }));
+    }
+
+    function etiquetaMes(yyyyMm) {
+      if (!/^\d{4}-\d{2}$/.test(yyyyMm)) return yyyyMm;
+
+      const d = new Date(yyyyMm + '-01T12:00:00');
+      return d.toLocaleDateString('es-CO', {
+        year: 'numeric',
+        month: 'short'
+      });
+    }
+
+    function baseOptions({ yTitle, xTitle }) {
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            position: 'bottom'
+          },
+          tooltip: {
+            callbacks: {
+              label: function(ctx) {
+                return `${ctx.dataset.label || 'Valor'}: ${ctx.raw}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: {
+              display: Boolean(xTitle),
+              text: xTitle
+            },
+            grid: {
+              display: false
+            },
+            ticks: {
+              maxRotation: 45,
+              minRotation: 0
+            }
+          },
+          y: {
+            beginAtZero: true,
+            title: {
+              display: Boolean(yTitle),
+              text: yTitle
+            },
+            ticks: {
+              precision: 0
+            }
+          }
+        }
+      };
+    }
+
+    function contarPor(arr, campo) {
+      return arr.reduce((acc, item) => {
+        const key = item[campo] || 'Sin dato';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+    }
+
+    function renderTabla() {
+      const tbody = document.getElementById('tabla-body');
+      const q = (document.getElementById('buscar')?.value || '').toLowerCase().trim();
+
+      let filtrados = datos;
+
+      if (q) {
+        filtrados = datos.filter(d => {
+          const texto = [
+            d.fuente,
+            d.fecha,
+            d.confianza,
+            d.latitud,
+            d.longitud,
+            d.intensidad
+          ].join(' ').toLowerCase();
+
+          return texto.includes(q);
+        });
+      }
+
+      const visibles = filtrados.slice(0, 500);
+
+      tbody.innerHTML = visibles.map((d, i) => `
+        <tr class="hover:bg-emerald-50/40">
+          <td class="px-3 py-2 text-slate-400 mono">${i + 1}</td>
+          <td class="px-3 py-2 font-bold ${d.fuente === 'RADD' ? 'text-violet-700' : 'text-sky-700'}">${esc(d.fuente)}</td>
+          <td class="px-3 py-2 mono">${esc(d.fecha)}</td>
+          <td class="px-3 py-2">${esc(d.confianza)}</td>
+          <td class="px-3 py-2 text-right mono">${d.latitud.toFixed(5)}</td>
+          <td class="px-3 py-2 text-right mono">${d.longitud.toFixed(5)}</td>
+          <td class="px-3 py-2">${esc(d.intensidad || '—')}</td>
+        </tr>
+      `).join('');
+    }
+
+    function esc(v) {
+      return String(v ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function descargarCSVAnalisis() {
+      if (!datos.length) return;
+
+      const headers = [
+        'fuente',
+        'fecha',
+        'confianza',
+        'latitud',
+        'longitud',
+        'intensidad'
+      ];
+
+      const rows = datos.map(d => [
+        d.fuente,
+        d.fecha,
+        d.confianza,
+        d.latitud,
+        d.longitud,
+        d.intensidad || ''
+      ]);
+
+      const csv = [
+        headers.join(','),
+        ...rows.map(row => row.map(csvEsc).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `analisis_gfw_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      URL.revokeObjectURL(url);
+    }
+
+    function csvEsc(v) {
+      const s = String(v ?? '');
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        return '"' + s.replaceAll('"', '""') + '"';
+      }
+      return s;
+    }
+
+    function cerrarVentana() {
+      window.close();
+
+      setTimeout(() => {
+        if (!window.closed) {
+          history.back();
+        }
+      }, 150);
+    }
+  </script>
+
+</body>
+</html>
