@@ -215,11 +215,11 @@ function cunaIr(key) {
   const card = document.getElementById('kuna-card');
   if (card) {
     if (key === 'deforestacion') {
-      card.classList.remove('max-w-2xl');
-      card.classList.add('max-w-5xl');
-    } else {
       card.classList.remove('max-w-5xl');
-      card.classList.add('max-w-2xl');
+      card.classList.add('max-w-9xl');
+    } else {
+      card.classList.remove('max-w-9xl');
+      card.classList.add('max-w-5xl');
     }
   }
 
