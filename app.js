@@ -578,21 +578,74 @@ function descargarGFWActivo(){
 }
 
 // 👇 AQUÍ VA LA NUEVA FUNCIÓN
-function abrirAnalisisGFW() {
+async function abrirAnalisisGFW() {
   const capas = ['glad', 'radd'];
+  const AREA_HA_POR_PIXEL = 0.09;
 
-  const datos = capas.flatMap(key => {
+  const datosCrudos = capas.flatMap(key => {
     const rows = gfwCapas[key]?.datos || [];
+
     return rows.map(r => ({
       ...r,
       fuente: key.toUpperCase()
     }));
   });
 
-  if (!datos.length) {
+  if (!datosCrudos.length) {
     alert('Activa primero GLAD o RADD y espera a que carguen los datos.');
     return;
   }
+
+  // Cargar veredas si todavía no están disponibles
+  try {
+    if (!veredasGJ) await cargarVeredas();
+  } catch (e) {
+    console.warn('No fue posible cargar veredas para el análisis:', e);
+  }
+
+  function ubicarPuntoEnVereda(lat, lng) {
+    if (!veredasGJ || !Array.isArray(veredasGJ.features)) {
+      return {
+        municipio: municipioActual || 'Sin municipio',
+        vereda: 'Sin vereda'
+      };
+    }
+
+    const vf = veredasGJ.features.find(f => puntoEnPoligono(lat, lng, f));
+
+    if (!vf) {
+      return {
+        municipio: municipioActual || 'Fuera de límites',
+        vereda: 'Fuera de límites'
+      };
+    }
+
+    return {
+      municipio: vf.properties.NOMB_MPIO || municipioActual || 'Sin municipio',
+      vereda: vf.properties.NOMBRE_VER || 'Sin vereda'
+    };
+  }
+
+  const datos = datosCrudos.map(r => {
+    const lat = parseFloat(r.latitude ?? r.latitud ?? r.lat);
+    const lng = parseFloat(r.longitude ?? r.longitud ?? r.lng ?? r.lon);
+
+    const ubicacion = Number.isFinite(lat) && Number.isFinite(lng)
+      ? ubicarPuntoEnVereda(lat, lng)
+      : {
+          municipio: municipioActual || 'Sin municipio',
+          vereda: 'Sin vereda'
+        };
+
+    return {
+      ...r,
+      latitude: lat,
+      longitude: lng,
+      municipio: ubicacion.municipio,
+      vereda: ubicacion.vereda,
+      area_ha: AREA_HA_POR_PIXEL
+    };
+  });
 
   const paquete = {
     generado_en: new Date().toISOString(),
@@ -606,7 +659,6 @@ function abrirAnalisisGFW() {
   sessionStorage.setItem('gfw_analisis_datos', JSON.stringify(paquete));
   window.open('analisis.html', '_blank');
 }
-
 function alertasActualesIncendios() {
   let r=alertasEnPeriodo(todasAlertas);
   if(filtroActual!=='all')r=r.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
