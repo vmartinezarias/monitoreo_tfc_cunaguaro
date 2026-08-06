@@ -1,0 +1,27 @@
+name: Reporte Mensual Suscriptores
+
+on:
+  schedule:
+    - cron: '0 10 1 * *'      # Mensual (se queda igual)
+  workflow_dispatch:           # Botón manual
+  push:                        # ← SE EJECUTA AL SUBIR ARCHIVOS
+    branches: [main]
+
+jobs:
+  reporte:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Ejecutar reporte mensual
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          GITHUB_RAW_BASE: "https://raw.githubusercontent.com/${{ github.repository }}/main/"
+        run: python reporte_suscripciones.py
