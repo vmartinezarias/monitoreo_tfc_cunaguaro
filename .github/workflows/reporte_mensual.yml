@@ -2,9 +2,12 @@ name: Reporte Mensual Suscriptores
 
 on:
   schedule:
-    - cron: '0 10 1 * *'      # Mensual (se queda igual)
-  workflow_dispatch:           # Botón manual
-  push:                        # ← SE EJECUTA AL SUBIR ARCHIVOS
+    # Temporal: hoy 6 ago 2026 a las 13:47 UTC = 8:47 AM Colombia
+    - cron: '47 13 6 8 *'
+    # Mensual permanente: 1ro de cada mes a las 10:00 UTC = 5:00 AM Colombia
+    - cron: '0 10 1 * *'
+  workflow_dispatch:
+  push:
     branches: [main]
 
 jobs:
