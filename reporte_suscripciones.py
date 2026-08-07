@@ -26,7 +26,7 @@ GITHUB_RAW_BASE = os.environ.get(
     "https://raw.githubusercontent.com/vmartinezarias/monitoreo_tfc_cunaguaro/main/"
 )
 
-CSV_SUSCRIPTORES = "suscriptores.csv"
+CSV_SUSCRIPTORES = os.environ.get("SUSCRIPTORES_FILE", "suscriptores.csv")
 REPORTES_DIR = "reportes"
 
 if not SUPABASE_URL or not SUPABASE_KEY:
