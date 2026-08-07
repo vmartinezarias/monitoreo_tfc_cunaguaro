@@ -5,17 +5,26 @@ on:
   schedule:
     - cron: '0 10 1 * *'
 
-  # Botón manual para ejecutar cuando quieras
+  # Botón manual: puedes elegir modo prueba y archivo de suscriptores
+  # sin tocar código. Ve a Actions → Reporte Mensual Suscriptores → Run workflow.
   workflow_dispatch:
+    inputs:
+      modo_prueba:
+        description: "Modo prueba (no envía correos reales si es true)"
+        type: boolean
+        default: true
+      archivo_suscriptores:
+        description: "Archivo CSV a usar"
+        type: choice
+        default: 'suscriptores.csv'
+        options:
+          - 'suscriptores.csv'
+          - 'suscriptores_PRUEBA.csv'
 
-  # ╔══════════════════════════════════════════════════════════════╗
-  # ║  INTERRUPTOR TEMPORAL                                        ║
-  # ║  Quita los # de las 2 líneas de abajo para que se ejecute    ║
-  # ║  automáticamente al hacer push a main.                       ║
-  # ║  Después de probar, vuelve a ponerlos.                       ║
-  # ╚══════════════════════════════════════════════════════════════╝
-   push:
-     branches: [main]
+  # NOTA: el disparador por "push" queda desactivado a propósito.
+  # Ya no es necesario: usa el botón "Run workflow" de arriba para probar.
+  # push:
+  #   branches: [main]
 
 jobs:
   reporte:
@@ -33,8 +42,10 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          MODO_PRUEBA: "true"      # ← Descomenta para NO enviar emails, solo generar archivos
-          # FORZAR_MES: "2026-08"    # ← Descomenta para probar agosto en vez del mes anterior
+          RESEND_FROM: ${{ secrets.RESEND_FROM }}   # vacío = usa onboarding@resend.dev (sandbox)
+          MODO_PRUEBA: ${{ github.event_name == 'workflow_dispatch' && inputs.modo_prueba || 'true' }}
+          SUSCRIPTORES_FILE: ${{ github.event_name == 'workflow_dispatch' && inputs.archivo_suscriptores || 'suscriptores.csv' }}
+          # FORZAR_MES: "2026-08"    # ← Descomenta para probar un mes específico
           GITHUB_RAW_BASE: "https://raw.githubusercontent.com/${{ github.repository }}/main/"
         run: python reporte_suscripciones.py
 
