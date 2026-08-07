@@ -1,14 +1,21 @@
 name: Reporte Mensual Suscriptores
 
 on:
+  # Mensual permanente: 1ro de cada mes, 5:00 AM Colombia
   schedule:
-    # Temporal: hoy 6 ago 2026 a las 13:47 UTC = 8:47 AM Colombia
-    - cron: '47 13 6 8 *'
-    # Mensual permanente: 1ro de cada mes a las 10:00 UTC = 5:00 AM Colombia
     - cron: '0 10 1 * *'
+
+  # Botón manual para ejecutar cuando quieras
   workflow_dispatch:
-  push:
-    branches: [main]
+
+  # ╔══════════════════════════════════════════════════════════════╗
+  # ║  INTERRUPTOR TEMPORAL                                        ║
+  # ║  Quita los # de las 2 líneas de abajo para que se ejecute    ║
+  # ║  automáticamente al hacer push a main.                       ║
+  # ║  Después de probar, vuelve a ponerlos.                       ║
+  # ╚══════════════════════════════════════════════════════════════╝
+   push:
+     branches: [main]
 
 jobs:
   reporte:
@@ -21,10 +28,20 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Ejecutar reporte mensual
+      - name: Ejecutar reporte
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          # MODO_PRUEBA: "true"      # ← Descomenta para NO enviar emails, solo generar archivos
+          # FORZAR_MES: "2026-08"    # ← Descomenta para probar agosto en vez del mes anterior
           GITHUB_RAW_BASE: "https://raw.githubusercontent.com/${{ github.repository }}/main/"
         run: python reporte_suscripciones.py
+
+      - name: Subir reportes como artifacts
+        if: always()  # ← Se ejecuta aunque falle el paso anterior
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-generados
+          path: reportes/
+          retention-days: 5
