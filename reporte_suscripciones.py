@@ -10,6 +10,7 @@ import json
 import csv
 import io
 import urllib.request
+import urllib.parse
 import base64
 from datetime import datetime, timedelta, date
 
@@ -18,7 +19,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 MODO_PRUEBA = os.environ.get("MODO_PRUEBA", "").lower() in ("true", "1", "yes")
-FORZAR_MES = os.environ.get("FORZAR_MES", "")  # ej: "2026-08"
+FORZAR_MES = os.environ.get("FORZAR_MES", "")
 
 GITHUB_RAW_BASE = os.environ.get(
     "GITHUB_RAW_BASE",
@@ -31,7 +32,6 @@ REPORTES_DIR = "reportes"
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Faltan credenciales de Supabase")
 
-# Crear carpeta de reportes
 os.makedirs(REPORTES_DIR, exist_ok=True)
 
 # ── Calcular rango de fechas ─────────────────────────────────────────────────
@@ -55,12 +55,12 @@ else:
     fecha_ini = fecha_fin.replace(day=1)
 
 print(f"Reporte para: {fecha_ini} → {fecha_fin}")
-print(f"Modo prueba: {'SÍ (no se enviarán emails)' if MODO_PRUEBA else 'NO (se intentarán enviar emails)'}")
+print(f"Modo prueba: {'SÍ' if MODO_PRUEBA else 'NO'}")
 
 if not RESEND_API_KEY:
-    print("⚠ RESEND_API_KEY no definido — los correos NO se enviarán.")
+    print("⚠ RESEND_API_KEY no definido")
 else:
-    print(f"✓ RESEND_API_KEY configurada ({RESEND_API_KEY[:8]}...)")
+    print(f"✓ RESEND_API_KEY configurada")
 
 # ── Helpers HTTP ──────────────────────────────────────────────────────────────
 def http_get_json(url, timeout=60):
@@ -197,8 +197,10 @@ def _ring_contains(x, y, ring):
 
 # ── Consulta de alertas ─────────────────────────────────────────────────────
 def obtener_alertas(tabla, fecha_ini, fecha_fin, geometria):
-    fi = f"{fecha_ini}T00:00:00+00:00"
-    ff = f"{fecha_fin}T23:59:59+00:00"
+    # FIX: codificar fechas para URL
+    fi = urllib.parse.quote(f"{fecha_ini}T00:00:00+00:00")
+    ff = urllib.parse.quote(f"{fecha_fin}T23:59:59+00:00")
+    
     path = (
         f"{tabla}?select=*"
         f"&fecha_deteccion=gte.{fi}"
@@ -263,13 +265,11 @@ def guardar_reporte(email, html, attachments):
     carpeta = os.path.join(REPORTES_DIR, safe_email)
     os.makedirs(carpeta, exist_ok=True)
 
-    # Guardar HTML
     ruta_html = os.path.join(carpeta, "reporte.html")
     with open(ruta_html, "w", encoding="utf-8") as f:
         f.write(html)
-    print(f"    💾 HTML guardado: {ruta_html}")
+    print(f"    💾 HTML guardado")
 
-    # Guardar adjuntos
     for att in attachments:
         ruta = os.path.join(carpeta, att["filename"])
         with open(ruta, "w", encoding="utf-8") as f:
@@ -282,12 +282,16 @@ def guardar_reporte(email, html, attachments):
 # ── Envío de correo vía Resend ──────────────────────────────────────────────
 def enviar_email(destinatario, nombre, html_body, attachments):
     if MODO_PRUEBA:
-        print(f"  [MODO PRUEBA] Email NO enviado a {destinatario}")
+        print(f"  [MODO PRUEBA] Email NO enviado")
         return 200, '{"id":"modo-prueba"}'
 
     if not RESEND_API_KEY:
-        print(f"  [SIN API KEY] Email NO enviado a {destinatario}")
+        print(f"  [SIN API KEY] Email NO enviado")
         return 200, '{"id":"sin-api-key"}'
+
+    # FIX: usar dirección de Resend verificada o de prueba
+    # Si tienes dominio verificado en Resend, cámbialo aquí:
+    from_email = os.environ.get("RESEND_FROM", "onboarding@resend.dev")
 
     att_list = []
     for att in attachments:
@@ -297,7 +301,7 @@ def enviar_email(destinatario, nombre, html_body, attachments):
         })
 
     payload = {
-        "from": "Bosques en Movimiento <reportes@cunaguaro.org>",
+        "from": f"Bosques en Movimiento <{from_email}>",
         "to": [destinatario],
         "subject": f"Tu reporte mensual - {mes_anio}",
         "html": html_body,
@@ -389,10 +393,8 @@ def main():
     print("REPORTE MENSUAL DE SUSCRIPTORES")
     print("=" * 65)
 
-    # 1. Leer CSV local
     if not os.path.exists(CSV_SUSCRIPTORES):
         print(f"✗ FATAL: No se encontró {CSV_SUSCRIPTORES}")
-        print("   Asegúrate de que el archivo esté commiteado en la rama main.")
         sys.exit(1)
 
     suscriptores = []
@@ -403,7 +405,7 @@ def main():
 
     print(f"Suscriptores leídos: {len(suscriptores)}")
     if not suscriptores:
-        print("✗ No hay suscriptores en el CSV.")
+        print("✗ No hay suscriptores")
         sys.exit(1)
 
     for s in suscriptores:
@@ -415,62 +417,57 @@ def main():
         val_match = s.get("valor_match", "")
 
         if not email or not capa:
-            print(f"\n→ Fila incompleta, saltando: {s}")
+            print(f"\n→ Fila incompleta, saltando")
             continue
 
         print(f"\n{'─' * 65}")
-        print(f"→ {email} | capa: {capa} | match: {col_match or '-'} = {val_match or '(toda)'}")
-        print(f"{'─' * 65}")
+        print(f"→ {email} | capa: {capa}")
+        print(f"  match: {col_match or '-'} = {val_match or '(toda la capa)'}")
 
-        # 2. Obtener capa y geometría
         gj = obtener_capa(capa)
         if gj is None:
-            print("  ✗ No se pudo cargar la capa, saltando.")
+            print("  ✗ No se pudo cargar la capa")
             continue
 
         geometria = extraer_geometria(gj, col_match, val_match)
         if geometria is None:
-            print("  ✗ No se pudo extraer geometría, saltando.")
+            print("  ✗ No se pudo extraer geometría")
             continue
 
-        # 3. Consultar alertas
         incendios = []
         defor = []
 
         if tipo in ("completo", "incendios"):
             incendios = obtener_alertas("alertas", fecha_ini, fecha_fin, geometria)
-            print(f"  Incendios encontrados: {len(incendios)}")
+            print(f"  Incendios: {len(incendios)}")
 
         if tipo in ("completo", "deforestacion"):
             defor = obtener_alertas("alertas_deforestacion", fecha_ini, fecha_fin, geometria)
-            print(f"  Deforestación encontradas: {len(defor)}")
+            print(f"  Deforestación: {len(defor)}")
 
-        # 4. Generar reporte
         html = generar_html(nombre, incendios, defor, mes_anio)
 
         attachments = []
         if incendios:
             csv_inc = csv_from_rows(incendios, ["fecha_deteccion", "latitud", "longitud", "firms_confidence", "firms_frp", "firms_satellite"])
-            attachments.append({"filename": f"incendios.csv", "content": csv_inc, "mime": "text/csv"})
-            attachments.append({"filename": f"incendios.geojson", "content": geojson_from_rows(incendios), "mime": "application/geo+json"})
+            attachments.append({"filename": "incendios.csv", "content": csv_inc, "mime": "text/csv"})
+            attachments.append({"filename": "incendios.geojson", "content": geojson_from_rows(incendios), "mime": "application/geo+json"})
         if defor:
             csv_def = csv_from_rows(defor, ["fecha_deteccion", "latitud", "longitud", "severidad", "area_afectada_ha", "cambio_ndvi"])
-            attachments.append({"filename": f"deforestacion.csv", "content": csv_def, "mime": "text/csv"})
-            attachments.append({"filename": f"deforestacion.geojson", "content": geojson_from_rows(defor), "mime": "application/geo+json"})
+            attachments.append({"filename": "deforestacion.csv", "content": csv_def, "mime": "text/csv"})
+            attachments.append({"filename": "deforestacion.geojson", "content": geojson_from_rows(defor), "mime": "application/geo+json"})
 
-        # 5. Guardar localmente (siempre)
         guardar_reporte(email, html, attachments)
 
-        # 6. Enviar email
         status, resp = enviar_email(email, nombre, html, attachments)
         if status == 200:
             print(f"  ✓ Correo enviado a {email}")
         else:
-            print(f"  ✗ Error enviando a {email}: HTTP {status} — {resp[:300]}")
+            print(f"  ✗ Error enviando: HTTP {status} — {resp[:300]}")
 
     print("\n" + "=" * 65)
     print("✅ Reportes completados.")
-    print(f"📁 Archivos guardados en: {REPORTES_DIR}/")
+    print(f"📁 Descarga los archivos en: Actions → este run → Artifacts")
     print("=" * 65)
 
 
