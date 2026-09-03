@@ -315,6 +315,9 @@ def enviar_email(destinatario, nombre, html_body, attachments):
         headers={
             "Authorization": f"Bearer {RESEND_API_KEY}",
             "Content-Type": "application/json",
+            # FIX: Resend/Cloudflare bloquea con 403 (error 1010) las peticiones
+            # sin User-Agent explícito, porque el default de Python es "Python-urllib/x.y".
+            "User-Agent": "reporte-cunaguaro/1.0",
         },
         method="POST",
     )
