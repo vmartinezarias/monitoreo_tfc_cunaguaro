@@ -1,9 +1,15 @@
 name: Reporte Mensual Suscriptores
 
 on:
-  # Mensual permanente: 1ro de cada mes, 5:00 AM Colombia
+  # Mensual permanente: 1ro de cada mes, 5:00 AM Colombia (10:00 UTC)
   schedule:
     - cron: '0 10 1 * *'
+
+    # ── Disparo único para HOY 2026-09-03 a las 16:10 Colombia (21:10 UTC) ──
+    # Colombia = UTC-5 todo el año (sin horario de verano).
+    # IMPORTANTE: borra esta línea después de hoy, o se repetirá cada
+    # 3 de septiembre de los próximos años.
+    - cron: '10 21 3 9 *'
 
   # Botón manual: puedes elegir modo prueba y archivo de suscriptores
   # sin tocar código. Ve a Actions → Reporte Mensual Suscriptores → Run workflow.
@@ -45,7 +51,10 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM: ${{ secrets.RESEND_FROM }}
-          MODO_PRUEBA: ${{ github.event_name == 'workflow_dispatch' && inputs.modo_prueba || 'true' }}
+          # Disparo manual (botón): usa lo que elijas en el desplegable (por defecto 'true', seguro).
+          # Disparo automático (cron, incluida la corrida de hoy): 'false' → envío real,
+          # que es justamente el propósito del cron.
+          MODO_PRUEBA: ${{ github.event_name == 'workflow_dispatch' && inputs.modo_prueba || 'false' }}
           SUSCRIPTORES_FILE: ${{ github.event_name == 'workflow_dispatch' && inputs.archivo_suscriptores || 'suscriptores.csv' }}
           # FORZAR_MES: "2026-08"    # ← Descomenta para probar un mes específico
           GITHUB_RAW_BASE: "https://raw.githubusercontent.com/${{ github.repository }}/main/"
