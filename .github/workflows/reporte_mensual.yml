@@ -10,9 +10,12 @@ on:
   workflow_dispatch:
     inputs:
       modo_prueba:
-        description: "Modo prueba (no envía correos reales si es true)"
-        type: boolean
-        default: true
+        description: "Modo prueba (true = NO envía correos reales)"
+        type: choice
+        default: 'true'
+        options:
+          - 'true'
+          - 'false'
       archivo_suscriptores:
         description: "Archivo CSV a usar"
         type: choice
@@ -22,7 +25,6 @@ on:
           - 'suscriptores_PRUEBA.csv'
 
   # NOTA: el disparador por "push" queda desactivado a propósito.
-  # Ya no es necesario: usa el botón "Run workflow" de arriba para probar.
   # push:
   #   branches: [main]
 
@@ -42,7 +44,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          RESEND_FROM: ${{ secrets.RESEND_FROM }}   # vacío = usa onboarding@resend.dev (sandbox)
+          RESEND_FROM: ${{ secrets.RESEND_FROM }}
           MODO_PRUEBA: ${{ github.event_name == 'workflow_dispatch' && inputs.modo_prueba || 'true' }}
           SUSCRIPTORES_FILE: ${{ github.event_name == 'workflow_dispatch' && inputs.archivo_suscriptores || 'suscriptores.csv' }}
           # FORZAR_MES: "2026-08"    # ← Descomenta para probar un mes específico
@@ -50,7 +52,7 @@ jobs:
         run: python reporte_suscripciones.py
 
       - name: Subir reportes como artifacts
-        if: always()  # ← Se ejecuta aunque falle el paso anterior
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: reportes-generados
