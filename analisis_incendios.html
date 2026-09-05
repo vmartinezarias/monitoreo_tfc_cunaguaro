@@ -7,6 +7,12 @@
 
   <link rel="stylesheet" href="tailwind.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -174,6 +180,28 @@
           <p class="mt-1 font-bold text-violet-800" id="meta-generado">—</p>
         </div>
       </div>
+    </section>
+
+    <section class="glass rounded-2xl p-4">
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-3">
+        <div>
+          <p class="card-title">Análisis espacial</p>
+          <h2 class="syne text-lg font-extrabold text-slate-800">Patrón de puntos en el territorio</h2>
+          <p class="text-xs text-slate-400 mt-1">
+            Cambia la vista para ver puntos individuales, agrupaciones (clusters) o el mapa de calor de concentración.
+          </p>
+        </div>
+        <div class="no-print flex gap-2">
+          <button id="btn-vista-puntos" onclick="cambiarVistaMapa('puntos')"
+            class="px-3 py-2 rounded-xl border text-xs font-bold transition-all">● Puntos</button>
+          <button id="btn-vista-clusters" onclick="cambiarVistaMapa('clusters')"
+            class="px-3 py-2 rounded-xl border text-xs font-bold transition-all">◎ Clusters</button>
+          <button id="btn-vista-calor" onclick="cambiarVistaMapa('calor')"
+            class="px-3 py-2 rounded-xl border text-xs font-bold transition-all">▲ Calor</button>
+        </div>
+      </div>
+      <div id="mapaEspacial" class="h-[480px] rounded-xl overflow-hidden border border-slate-100"></div>
+      <div id="leyenda-mapa" class="mt-3 flex flex-wrap gap-4 text-[10px] font-bold text-slate-500"></div>
     </section>
 
     <section class="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -362,6 +390,7 @@
       llenarSelectorVeredas();
       renderGraficos();
       renderTabla();
+      inicializarMapaEspacial();
     }
 
     function leerPaquete() {
@@ -1252,6 +1281,96 @@
           history.back();
         }
       }, 150);
+    }
+
+    // ── Mapa de patrones espaciales ──────────────────────────────────────────
+    let mapaEspacial = null, capaPuntos = null, capaClusters = null, capaCalor = null;
+    let vistaMapaActual = 'puntos';
+
+    function colorPorConfianza(confianza) {
+      const c = String(confianza || '').toLowerCase();
+      if (c === 'high' || c === 'alta') return '#dc2626';
+      if (c === 'nominal') return '#d97706';
+      if (c === 'low' || c === 'baja') return '#94a3b8';
+      return '#64748b';
+    }
+
+    function inicializarMapaEspacial() {
+      const el = document.getElementById('mapaEspacial');
+      if (!el || typeof L === 'undefined') return;
+
+      const puntosValidos = datos.filter(d => Number.isFinite(d.latitud) && Number.isFinite(d.longitud));
+      if (!puntosValidos.length) return;
+
+      mapaEspacial = L.map('mapaEspacial', { scrollWheelZoom: true });
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2yhc_1_eb45687d9b963723dc9a6d88', {
+        attribution: '© CARTO, © OpenStreetMap', subdomains: 'abcd', maxZoom: 19
+      }).addTo(mapaEspacial);
+
+      const marcadores = puntosValidos.map(d => {
+        const m = L.circleMarker([d.latitud, d.longitud], {
+          radius: 6, weight: 1.5, color: '#fff', opacity: .9,
+          fillColor: colorPorConfianza(d.confianza), fillOpacity: .85
+        });
+        m.bindPopup(
+          `<b>Confianza: ${esc(d.confianza)}</b><br>` +
+          `${formatearFecha(d.fecha)}<br>` +
+          `${esc(d.fuente)}${d.intensidad ? ' · ' + esc(d.intensidad) : ''}<br>` +
+          `Vereda: ${esc(d.vereda)}, ${esc(d.municipio)}`
+        );
+        return m;
+      });
+
+      capaPuntos = L.layerGroup(marcadores);
+
+      capaClusters = L.markerClusterGroup();
+      marcadores.forEach(m => capaClusters.addLayer(
+        L.circleMarker(m.getLatLng(), m.options).bindPopup(m.getPopup().getContent())
+      ));
+
+      const puntosCalor = puntosValidos.map(d => [d.latitud, d.longitud, 0.5]);
+      capaCalor = L.heatLayer(puntosCalor, { radius: 22, blur: 18, maxZoom: 14 });
+
+      const bounds = L.latLngBounds(puntosValidos.map(d => [d.latitud, d.longitud]));
+      mapaEspacial.fitBounds(bounds, { padding: [24, 24] });
+
+      renderLeyendaMapa();
+      cambiarVistaMapa('puntos');
+    }
+
+    function cambiarVistaMapa(modo) {
+      if (!mapaEspacial) return;
+      vistaMapaActual = modo;
+
+      [capaPuntos, capaClusters, capaCalor].forEach(c => c && mapaEspacial.removeLayer(c));
+
+      if (modo === 'puntos') capaPuntos.addTo(mapaEspacial);
+      else if (modo === 'clusters') capaClusters.addTo(mapaEspacial);
+      else if (modo === 'calor') capaCalor.addTo(mapaEspacial);
+
+      ['puntos', 'clusters', 'calor'].forEach(m => {
+        const btn = document.getElementById(`btn-vista-${m}`);
+        if (!btn) return;
+        btn.className = 'px-3 py-2 rounded-xl border text-xs font-bold transition-all ' +
+          (m === modo
+            ? 'bg-orange-600 border-orange-600 text-white'
+            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50');
+      });
+
+      const leyenda = document.getElementById('leyenda-mapa');
+      if (leyenda) leyenda.classList.toggle('hidden', modo === 'calor');
+    }
+
+    function renderLeyendaMapa() {
+      const leyenda = document.getElementById('leyenda-mapa');
+      if (!leyenda) return;
+      const niveles = [...new Set(datos.map(d => d.confianza))].sort();
+      leyenda.innerHTML = niveles.map(c =>
+        `<span class="flex items-center gap-1.5">
+           <span class="inline-block w-2.5 h-2.5 rounded-full" style="background:${colorPorConfianza(c)}"></span>
+           ${esc(c)}
+         </span>`
+      ).join('');
     }
   </script>
 
