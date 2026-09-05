@@ -418,6 +418,7 @@ def main():
         capa = s.get("capa_geojson", "")
         col_match = s.get("columna_match", "")
         val_match = s.get("valor_match", "")
+        area_completa = s.get("area_completa", "").strip().lower() in ("si", "sí", "true", "1", "yes")
 
         if not email or not capa:
             print(f"\n→ Fila incompleta, saltando")
@@ -426,6 +427,18 @@ def main():
         print(f"\n{'─' * 65}")
         print(f"→ {email} | capa: {capa}")
         print(f"  match: {col_match or '-'} = {val_match or '(toda la capa)'}")
+
+        # Sin columna_match/valor_match, extraer_geometria() devuelve TODA la capa.
+        # Eso es válido solo si el suscriptor lo pidió explícitamente
+        # (columna "area_completa" = si en el CSV); si no, es casi seguro
+        # un dato faltante del formulario y el reporte saldría idéntico
+        # al de cualquier otro suscriptor de la misma capa.
+        if (not col_match or not val_match) and not area_completa:
+            print(f"  ⚠ SIN FILTRO GEOGRÁFICO y sin 'area_completa=si' — "
+                  f"este suscriptor recibiría el área completa de '{capa}'. "
+                  f"Saltando para evitar reporte duplicado/incorrecto. "
+                  f"Revisa columna_match/valor_match o marca area_completa=si.")
+            continue
 
         gj = obtener_capa(capa)
         if gj is None:
