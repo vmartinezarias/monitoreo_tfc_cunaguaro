@@ -416,18 +416,51 @@ map.on(L.Draw.Event.CREATED,function(e){
 // ── Filtros ───────────────────────────────────────────────────────────────────
 // FIX PRINCIPAL: pasaFiltroAreaDibujo solo usa el polígono dibujado.
 // NO intersecta con Área de Estudio (RECORTAR_DIBUJO_A_AREA_ESTUDIO=false).
-function pasaFiltroAreaDibujo(lat, lng) {
-  if(areaAnalisisActiva!=='dibujo')return true;
-  if(!dibujoPoligonoCoords||dibujoPoligonoCoords.length<3)return true;
-  lat=_numCoord(lat);lng=_numCoord(lng);
-  if(lat===null||lng===null)return false;
-  const insideDrawn=isPointInPolygon(lat,lng,dibujoPoligonoCoords);
-  if(!insideDrawn)return false;
-  if(RECORTAR_DIBUJO_A_AREA_ESTUDIO&&areaEstudioGeom&&typeof areaEstudioGeom==='object'){
-    if(!puntoEnGeoJSON(lat,lng,areaEstudioGeom))return false;
+//
+// FIX 2: el modo 'municipio' (vereda) no filtraba nada — solo dibujaba el
+// contorno en el mapa, pero aplicarFiltros() seguía mostrando TODA el área
+// de estudio. pasaFiltroAreaActiva() ahora cubre ambos modos.
+function hayFiltroAreaActivo() {
+  if(areaAnalisisActiva==='dibujo')return !!(dibujoPoligonoCoords&&dibujoPoligonoCoords.length>=3);
+  if(areaAnalisisActiva==='municipio')return !!municipioActual;
+  return false;
+}
+
+// Geometría del municipio/veredas activo, calculada SIN red: veredasGJ ya
+// está cargado en memoria antes de llegar aquí (seleccionarMunicipio hace
+// `await cargarVeredas()` antes de activar este modo).
+function geomMunicipioActivoSync() {
+  if(!municipioActual||!veredasGJ)return null;
+  const vMun=veredasGJ.features.filter(f=>(f.properties.NOMB_MPIO||'').toUpperCase()===municipioActual.toUpperCase());
+  if(vMun.length===1)return vMun[0].geometry;
+  if(vMun.length>1)return{type:'GeometryCollection',geometries:vMun.map(f=>f.geometry)};
+  return null;
+}
+
+function pasaFiltroAreaActiva(lat, lng) {
+  if(areaAnalisisActiva==='dibujo'){
+    if(!dibujoPoligonoCoords||dibujoPoligonoCoords.length<3)return true;
+    lat=_numCoord(lat);lng=_numCoord(lng);
+    if(lat===null||lng===null)return false;
+    const insideDrawn=isPointInPolygon(lat,lng,dibujoPoligonoCoords);
+    if(!insideDrawn)return false;
+    if(RECORTAR_DIBUJO_A_AREA_ESTUDIO&&areaEstudioGeom&&typeof areaEstudioGeom==='object'){
+      if(!puntoEnGeoJSON(lat,lng,areaEstudioGeom))return false;
+    }
+    return true;
+  }
+  if(areaAnalisisActiva==='municipio'){
+    if(!municipioActual)return true;
+    lat=_numCoord(lat);lng=_numCoord(lng);
+    if(lat===null||lng===null)return false;
+    const geomMun=geomMunicipioActivoSync();
+    if(!geomMun)return true; // veredas aún no cargadas: no bloquear de más
+    return puntoEnGeoJSON(lat,lng,geomMun);
   }
   return true;
 }
+// Alias por compatibilidad con el nombre anterior.
+const pasaFiltroAreaDibujo = pasaFiltroAreaActiva;
 
 function alertasEnPeriodo(arr) {
   if(modoPeriodo==='rango'&&fechaInicio&&fechaFin)
@@ -439,7 +472,7 @@ function alertasEnPeriodo(arr) {
 function aplicarFiltros() {
   let firms=alertasEnPeriodo(todasAlertas);
   if(filtroActual!=='all')firms=firms.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
-  const aplicaFiltroDibujo=(areaAnalisisActiva==='dibujo'&&dibujoPoligonoCoords&&dibujoPoligonoCoords.length>=3);
+  const aplicaFiltroDibujo=(hayFiltroAreaActivo());
   const firmsArea=aplicaFiltroDibujo?firms.filter(a=>{const p=_alertaLatLng(a);return p?pasaFiltroAreaDibujo(p.lat,p.lng):false;}):firms;
   const deforPeriodo=alertasEnPeriodo(alertasDefor);
   const deforArea=aplicaFiltroDibujo?deforPeriodo.filter(a=>{const p=_alertaLatLng(a);return p?pasaFiltroAreaDibujo(p.lat,p.lng):false;}):deforPeriodo;
@@ -451,7 +484,7 @@ function aplicarFiltros() {
 }
 
 function actualizarStats(firms,firmsArea,deforArea) {
-  const aplicaFiltroDibujo=(areaAnalisisActiva==='dibujo'&&dibujoPoligonoCoords);
+  const aplicaFiltroDibujo=hayFiltroAreaActivo();
   document.getElementById('total-alertas').textContent=aplicaFiltroDibujo?firmsArea.length:firms.length;
   document.getElementById('total-defor').textContent=deforArea.length;
   document.getElementById('total-high').textContent=firms.filter(a=>(a.firms_confidence||'').toLowerCase()==='high').length;
@@ -728,7 +761,7 @@ async function abrirAnalisisGFW() {
 function alertasActualesIncendios() {
   let r=alertasEnPeriodo(todasAlertas);
   if(filtroActual!=='all')r=r.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
-  if(areaAnalisisActiva==='dibujo'&&dibujoPoligonoCoords&&dibujoPoligonoCoords.length>=3)
+  if(hayFiltroAreaActivo())
     r=r.filter(a=>{const p=_alertaLatLng(a);return p?pasaFiltroAreaDibujo(p.lat,p.lng):false;});
   return r;
 }
@@ -736,13 +769,13 @@ function alertasActualesIncendios() {
 function alertasActualesIncendios() {
   let r=alertasEnPeriodo(todasAlertas);
   if(filtroActual!=='all')r=r.filter(a=>(a.firms_confidence||'').toLowerCase()===filtroActual);
-  if(areaAnalisisActiva==='dibujo'&&dibujoPoligonoCoords&&dibujoPoligonoCoords.length>=3)
+  if(hayFiltroAreaActivo())
     r=r.filter(a=>{const p=_alertaLatLng(a);return p?pasaFiltroAreaDibujo(p.lat,p.lng):false;});
   return r;
 }
 function alertasActualesDefor() {
   let r=alertasEnPeriodo(alertasDefor);
-  if(areaAnalisisActiva==='dibujo'&&dibujoPoligonoCoords&&dibujoPoligonoCoords.length>=3)
+  if(hayFiltroAreaActivo())
     r=r.filter(a=>{const p=_alertaLatLng(a);return p?pasaFiltroAreaDibujo(p.lat,p.lng):false;});
   return r;
 }
@@ -1004,7 +1037,7 @@ function filtrarDeforestacion() {
   if(!deforVisible)return;
   const sev=document.getElementById('sel-defor-severidad').value;
   let f=sev==='all'?alertasDefor:alertasDefor.filter(a=>a.severidad===sev);
-  if(areaAnalisisActiva==='dibujo'&&dibujoPoligonoCoords&&dibujoPoligonoCoords.length>=3)
+  if(hayFiltroAreaActivo())
     f=f.filter(a=>pasaFiltroAreaDibujo(a.latitud,a.longitud));
   marcadoresDefor.forEach(m=>map.removeLayer(m));marcadoresDefor=[];
   f.forEach(a=>{
