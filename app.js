@@ -321,6 +321,21 @@ function cambiarAreaAnalisis() {
   Object.keys(gfwCapas).forEach(k=>{if(gfwCapas[k].visible&&k!=='hansen')cargarGFWAlertas(k);});
 }
 
+// La API de GFW solo acepta geometrías Polygon o MultiPolygon (rechaza
+// GeometryCollection), así que las veredas de un municipio se combinan aquí
+// en un único MultiPolygon en vez de mandarlas como colección de geometrías.
+function combinarGeometriasAMultiPolygon(geoms) {
+  const polys=[];
+  for(const g of geoms){
+    if(!g)continue;
+    if(g.type==='Polygon')polys.push(g.coordinates);
+    else if(g.type==='MultiPolygon')polys.push(...g.coordinates);
+  }
+  if(polys.length===0)return null;
+  if(polys.length===1)return{type:'Polygon',coordinates:polys[0]};
+  return{type:'MultiPolygon',coordinates:polys};
+}
+
 async function obtenerGeomActiva() {
   if(!areaAnalisisActiva||areaAnalisisActiva==='estudio')return await obtenerGeomAreaEstudio();
   if(areaAnalisisActiva==='nucleos'){
@@ -336,7 +351,10 @@ async function obtenerGeomActiva() {
       if(!veredasGJ)await cargarVeredas();
       const vMun=veredasGJ.features.filter(f=>(f.properties.NOMB_MPIO||'').toUpperCase()===municipioActual.toUpperCase());
       if(vMun.length===1)return vMun[0].geometry;
-      if(vMun.length>1)return{type:'GeometryCollection',geometries:vMun.map(f=>f.geometry)};
+      if(vMun.length>1){
+        const combinada=combinarGeometriasAMultiPolygon(vMun.map(f=>f.geometry));
+        if(combinada)return combinada;
+      }
     }catch(e){console.warn('geom municipio:',e);}
     return await obtenerGeomAreaEstudio();
   }
