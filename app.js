@@ -242,6 +242,8 @@ function cambiarTipo(tipo) {
   else cambiarTab('deforestacion',document.getElementById('tab-defor-btn'));
   const gd=document.getElementById('gfw-dl-btns');
   if(gd){if(tipo==='gfw')gd.classList.remove('hidden');else gd.classList.add('hidden');}
+  const id=document.getElementById('incendios-dl-btns');
+  if(id){if(tipo==='incendios')id.classList.remove('hidden');else id.classList.add('hidden');}
 }
 
 // FIX: toggleCapasExtra — colapsar/expandir el panel NO afecta las capas del mapa
@@ -508,6 +510,29 @@ function actualizarStats(firms,firmsArea,deforArea) {
   document.getElementById('total-high').textContent=firms.filter(a=>(a.firms_confidence||'').toLowerCase()==='high').length;
   const frps=firms.map(a=>a.firms_frp||0).filter(Boolean);
   document.getElementById('total-frp').textContent=frps.length?Math.max(...frps).toFixed(0):'0';
+  actualizarStatsFuego(firmsArea);
+}
+
+// Caja de resumen de incendios en #panel-incendios, en el mismo estilo/patrón
+// que ya usan las cajas de GFW (stats-glad, stats-radd): total, desglose por
+// confianza, FRP máximo y rango de fechas, ya filtrados por confianza + área activa.
+function setFuegoStatus(msg,tipo=''){const el=document.getElementById('fuego-status');if(el){el.textContent=msg;el.className='gfw-status'+(tipo?' '+tipo:'');}}
+
+function actualizarStatsFuego(firmsArea) {
+  const el=document.getElementById('stats-fuego');if(!el)return;
+  const tot=firmsArea.length;
+  const{startDate,endDate}=gfwFechas(diasActual);
+  const area=areaAnalisisActiva==='estudio'?'área de estudio':areaAnalisisActiva==='nucleos'?'núcleos boscosos':areaAnalisisActiva==='municipio'?(municipioActual?`municipio ${municipioActual}`:'todos los municipios'):areaAnalisisActiva==='dibujo'?`polígono personalizado (${dibujoArea_ha.toFixed(1)} ha)`:'área activa';
+  if(tot===0){el.innerHTML=`<span>Sin incendios en ${area}</span>`;setFuegoStatus('✓ 0','ok');return;}
+  const counts={};let frpMax=0;
+  firmsArea.forEach(a=>{
+    const c=(a.firms_confidence||'nominal').toLowerCase();
+    counts[c]=(counts[c]||0)+1;
+    if(a.firms_frp&&a.firms_frp>frpMax)frpMax=a.firms_frp;
+  });
+  const confRes=Object.entries(counts).map(([c,n])=>`<span>${n} ${c||'?'}</span>`).join(' &nbsp; ');
+  el.innerHTML=`<b style="color:var(--fuego-l)">${tot} incendios</b> en ${area}<br>${startDate} → ${endDate}<br>${confRes}<br>FRP máx: <span>${frpMax.toFixed(1)} MW</span>`;
+  setFuegoStatus(`✓ ${tot}`,'ok');
 }
 
 function colorConfianza(c) {
@@ -775,6 +800,82 @@ async function abrirAnalisisGFW() {
 
   sessionStorage.setItem('gfw_analisis_datos', JSON.stringify(paquete));
   window.open('analisis.html', '_blank');
+}
+
+// Equivalente a abrirAnalisisGFW() pero para incendios (NASA FIRMS/VIIRS).
+// Usa su propia clave de sessionStorage y su propia página (analisis_incendios.html)
+// para no interferir en nada con el flujo de análisis GFW.
+async function abrirAnalisisIncendios() {
+  const AREA_HA_POR_PIXEL_VIIRS = 14.06;
+
+  const datosCrudos = alertasActualesIncendios();
+
+  if (!datosCrudos.length) {
+    alert('No hay alertas de incendios cargadas en el período/área actual.');
+    return;
+  }
+
+  try {
+    if (!veredasGJ) await cargarVeredas();
+  } catch (e) {
+    console.warn('No fue posible cargar veredas para el análisis:', e);
+  }
+
+  function ubicarPuntoEnVereda(lat, lng) {
+    if (!veredasGJ || !Array.isArray(veredasGJ.features)) {
+      return {
+        municipio: municipioActual || 'Sin municipio',
+        vereda: 'Sin vereda'
+      };
+    }
+    const vf = veredasGJ.features.find(f => puntoEnPoligono(lat, lng, f));
+    if (!vf) {
+      return {
+        municipio: municipioActual || 'Fuera de límites',
+        vereda: 'Fuera de límites'
+      };
+    }
+    return {
+      municipio: vf.properties.NOMB_MPIO || municipioActual || 'Sin municipio',
+      vereda: vf.properties.NOMBRE_VER || 'Sin vereda'
+    };
+  }
+
+  const rasterConectividad = await asegurarRasterConectividad();
+  const datos = datosCrudos.map(r => {
+    const lat = parseFloat(r.latitud ?? r.latitude ?? r.lat);
+    const lng = parseFloat(r.longitud ?? r.longitude ?? r.lng ?? r.lon);
+    const decilConectividad = muestrearConectividad(lat, lng, rasterConectividad);
+    const ubicacion = Number.isFinite(lat) && Number.isFinite(lng)
+      ? ubicarPuntoEnVereda(lat, lng)
+      : { municipio: municipioActual || 'Sin municipio', vereda: 'Sin vereda' };
+
+    return {
+      fuente: r.firms_satellite || 'VIIRS',
+      fecha: r.fecha_deteccion,
+      confianza: r.firms_confidence || 'Sin dato',
+      intensidad: r.firms_frp ? `${r.firms_frp.toFixed(1)} MW` : '',
+      latitud: lat,
+      longitud: lng,
+      municipio: ubicacion.municipio,
+      vereda: ubicacion.vereda,
+      area_ha: AREA_HA_POR_PIXEL_VIIRS,
+      conectividad_decile: decilConectividad,
+      conectividad_clase: clasificarConectividad(decilConectividad)
+    };
+  });
+
+  const paquete = {
+    generado_en: new Date().toISOString(),
+    area: areaAnalisisActiva,
+    municipio: municipioActual || null,
+    fecha_inicio: fechaInicio ? fechaInicio.toISOString().slice(0, 10) : null,
+    fecha_fin: fechaFin ? fechaFin.toISOString().slice(0, 10) : null,
+    datos
+  };
+
+  sessionStorage.setItem('incendios_analisis_datos', JSON.stringify(paquete));
+  window.open('analisis_incendios.html', '_blank');
 }
 function alertasActualesIncendios() {
   let r=alertasEnPeriodo(todasAlertas);
