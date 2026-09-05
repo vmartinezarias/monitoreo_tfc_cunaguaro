@@ -50,6 +50,9 @@
     .gfw-status.loading { color: var(--amber); }
     .gfw-box { background: rgba(0,180,216,.05); border: 1px solid rgba(0,180,216,.18); border-radius: 8px; padding: 6px 10px; font-size: 10px; color: #475569; line-height: 1.7; }
     .gfw-box span { color: var(--gfw-l); font-family: 'Space Mono', monospace; }
+    .fuego-badge { font-size: 9px; font-weight: 700; letter-spacing: .1em; background: rgba(232,72,10,.10); border: 1px solid rgba(232,72,10,.3); color: var(--fuego); border-radius: 4px; padding: 2px 6px; text-transform: uppercase; }
+    .fuego-box { background: rgba(232,72,10,.05); border: 1px solid rgba(232,72,10,.18); border-radius: 8px; padding: 6px 10px; font-size: 10px; color: #475569; line-height: 1.7; }
+    .fuego-box span { color: var(--fuego-l); font-family: 'Space Mono', monospace; }
     .tab-act { color: var(--verde); border-bottom: 2px solid var(--verde); }
     .tab-inact { color: #94a3b8; border-bottom: 2px solid transparent; }
     @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
@@ -167,6 +170,11 @@
           <button class="filtro-btn px-3 py-1.5 rounded-full text-[10px] font-bold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-filtro="nominal" onclick="filtrar(this)">Nominal</button>
           <button class="filtro-btn px-3 py-1.5 rounded-full text-[10px] font-bold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-filtro="low"     onclick="filtrar(this)">Baja</button>
         </div>
+        <div class="flex items-center gap-2 mt-3 mb-2">
+          <span class="fuego-badge">NASA FIRMS</span>
+          <span class="gfw-status" id="fuego-status">—</span>
+        </div>
+        <div class="fuego-box" id="stats-fuego">Sin datos</div>
       </div>
       <div id="panel-gfw" class="mt-3 pt-3 border-t border-slate-100 hidden">
         <div class="flex items-center gap-2 mb-3">
@@ -296,6 +304,14 @@
         <button onclick="abrirAnalisisGFW()"
                 class="w-full py-2.5 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold transition-all">
           📊 Análisis GFW
+        </button>
+      </div>
+
+      <!-- Análisis Incendios — visible solo cuando tipo=incendios -->
+      <div id="incendios-dl-btns" class="mt-2 hidden">
+        <button onclick="abrirAnalisisIncendios()"
+                class="w-full py-2.5 border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl text-xs font-bold transition-all">
+          🔥 Análisis Incendios
         </button>
       </div>
 
