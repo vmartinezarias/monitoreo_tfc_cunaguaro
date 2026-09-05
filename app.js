@@ -32,11 +32,11 @@ function obtenerColor(attr, val) {
 
 // ── Mapa ──────────────────────────────────────────────────────────────────────
 const baseMaps = {
-  'Claro (CartoDB)': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© CARTO',subdomains:'abcd',maxZoom:19}),
+  'Claro (CartoDB)': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2yhc_1_eb45687d9b963723dc9a6d88',{attribution:'© CARTO',subdomains:'abcd',maxZoom:19}),
   'Google Maps':     L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{attribution:'© Google'}),
   'Satélite':        L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{attribution:'© Google'}),
   'Relieve':         L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}),
-  'Oscuro':          L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CARTO',subdomains:'abcd',maxZoom:19})
+  'Oscuro':          L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_2yhc_1_eb45687d9b963723dc9a6d88',{attribution:'© CARTO',subdomains:'abcd',maxZoom:19})
 };
 const map = L.map('map',{zoomControl:false,layers:[baseMaps['Claro (CartoDB)']]}).setView([5.09,-72.47],11);
 L.control.zoom({position:'bottomright'}).addTo(map);
