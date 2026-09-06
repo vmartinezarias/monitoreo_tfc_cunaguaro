@@ -393,11 +393,18 @@ def generar_mapa_estatico(geometria, incendios, glad, radd):
         ax.legend(loc="upper right", fontsize=8, frameon=True, facecolor="white", framealpha=.9)
     fig.tight_layout(pad=0.6)
 
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", facecolor="white")
+    buf_png = io.BytesIO()
+    fig.savefig(buf_png, format="png", facecolor="white")
+    buf_png.seek(0)
+    png_b64 = base64.b64encode(buf_png.read()).decode()
+
+    buf_pdf = io.BytesIO()
+    fig.savefig(buf_pdf, format="pdf", facecolor="white")
+    buf_pdf.seek(0)
+    pdf_b64 = base64.b64encode(buf_pdf.read()).decode()
+
     plt.close(fig)
-    buf.seek(0)
-    return base64.b64encode(buf.read()).decode()
+    return {"png_b64": png_b64, "pdf_b64": pdf_b64}
 
 
 # ── Generación de adjuntos ───────────────────────────────────────────────────
@@ -443,8 +450,12 @@ def guardar_reporte(email, html, attachments):
 
     for att in attachments:
         ruta = os.path.join(carpeta, att["filename"])
-        with open(ruta, "w", encoding="utf-8") as f:
-            f.write(att["content"])
+        if "content_b64" in att:
+            with open(ruta, "wb") as f:
+                f.write(base64.b64decode(att["content_b64"]))
+        else:
+            with open(ruta, "w", encoding="utf-8") as f:
+                f.write(att["content"])
         print(f"    💾 {att['filename']} guardado")
 
     return carpeta
@@ -466,10 +477,19 @@ def enviar_email(destinatario, nombre, html_body, attachments):
 
     att_list = []
     for att in attachments:
-        att_list.append({
-            "filename": att["filename"],
-            "content": base64.b64encode(att["content"].encode("utf-8")).decode(),
-        })
+        # Adjuntos de texto (CSV/GeoJSON) llegan como texto plano y se codifican aquí;
+        # los binarios (PNG/PDF del mapa) ya llegan codificados en base64 (content_b64).
+        if "content_b64" in att:
+            contenido_b64 = att["content_b64"]
+        else:
+            contenido_b64 = base64.b64encode(att["content"].encode("utf-8")).decode()
+
+        item = {"filename": att["filename"], "content": contenido_b64}
+        # content_id: si viene, Resend incrusta la imagen inline y se referencia
+        # en el HTML como <img src="cid:...">, en vez de mostrarse solo como adjunto.
+        if att.get("content_id"):
+            item["content_id"] = att["content_id"]
+        att_list.append(item)
 
     payload = {
         "from": f"Bosques en Movimiento <{from_email}>",
@@ -500,7 +520,7 @@ def enviar_email(destinatario, nombre, html_body, attachments):
 
 
 # ── Generador de HTML ─────────────────────────────────────────────────────────
-def generar_html(nombre, incendios, glad, radd, mapa_b64, periodo):
+def generar_html(nombre, incendios, glad, radd, mapa, periodo):
     total_inc = len(incendios)
     high = sum(1 for x in incendios if str(x.get("firms_confidence", "")).lower() == "high")
     frp_max = max((x.get("firms_frp") or 0 for x in incendios), default=0)
@@ -529,9 +549,11 @@ def generar_html(nombre, incendios, glad, radd, mapa_b64, periodo):
 
     mapa_html = (
         f'<h3 style="margin-top:24px;font-size:14px;color:#1a4a2e;">🗺️ Patrón espacial (incendios + GFW)</h3>'
-        f'<img src="data:image/png;base64,{mapa_b64}" alt="Mapa de alertas" '
+        f'<img src="cid:mapa-alertas" alt="Mapa de alertas" '
         f'style="width:100%;border-radius:12px;border:1px solid #e2e8f0;margin-top:8px;">'
-    ) if mapa_b64 else ""
+        f'<p style="font-size:10px;color:#94a3b8;margin-top:4px;">'
+        f'¿No ves el mapa? Va también adjunto como imagen y como PDF en este correo.</p>'
+    ) if mapa else ""
 
     return f"""<!DOCTYPE html>
 <html lang="es">
@@ -650,10 +672,10 @@ def main():
             radd = obtener_alertas_gfw("wur_radd_alerts", gfw_sql_radd(fecha_ini, fecha_fin), geometria)
             print(f"  GFW RADD: {len(radd)}")
 
-        mapa_b64 = generar_mapa_estatico(geometria, incendios, glad, radd)
-        print(f"  Mapa espacial: {'generado' if mapa_b64 else 'omitido (sin datos o sin matplotlib)'}")
+        mapa = generar_mapa_estatico(geometria, incendios, glad, radd)
+        print(f"  Mapa espacial: {'generado' if mapa else 'omitido (sin datos o sin matplotlib)'}")
 
-        html = generar_html(nombre, incendios, glad, radd, mapa_b64, mes_anio)
+        html = generar_html(nombre, incendios, glad, radd, mapa, mes_anio)
 
         attachments = []
         if incendios:
@@ -668,6 +690,11 @@ def main():
             csv_gfw = csv_from_rows(gfw_rows, ["fecha_deteccion", "latitud", "longitud", "fuente", "confianza"])
             attachments.append({"filename": "gfw_glad_radd.csv", "content": csv_gfw, "mime": "text/csv"})
             attachments.append({"filename": "gfw_glad_radd.geojson", "content": geojson_from_rows(gfw_rows), "mime": "application/geo+json"})
+        if mapa:
+            # content_id -> Resend la incrusta inline y el HTML la referencia con cid:mapa-alertas.
+            # Igual queda disponible como adjunto normal (PNG) por si el cliente de correo no la muestra inline.
+            attachments.append({"filename": "mapa_alertas.png", "content_b64": mapa["png_b64"], "content_id": "mapa-alertas", "mime": "image/png"})
+            attachments.append({"filename": "mapa_alertas.pdf", "content_b64": mapa["pdf_b64"], "mime": "application/pdf"})
 
         guardar_reporte(email, html, attachments)
 
