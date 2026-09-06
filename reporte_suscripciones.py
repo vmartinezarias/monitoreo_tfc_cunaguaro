@@ -195,6 +195,91 @@ def _ring_contains(x, y, ring):
     return inside
 
 
+# ── GFW (GLAD / RADD) ────────────────────────────────────────────────────────
+# Misma API key y datasets que usa app.js en el visor (GFW_API_KEY / GFW_CFG).
+GFW_API_KEY = "6b196681-4bfb-4c71-8757-b745b9290f95"
+GFW_BASE = "https://data-api.globalforestwatch.org"
+AREA_HA_POR_ALERTA_GFW = 0.09  # resolución Landsat/Sentinel (~30m) de GLAD/RADD
+
+
+def gfw_geometria_valida(geom):
+    """La API de GFW solo acepta Polygon o MultiPolygon (rechaza GeometryCollection,
+    que es justo lo que devuelve extraer_geometria() para suscriptores 'area_completa'
+    con varias features). Aquí se combinan en un único Polygon/MultiPolygon válido."""
+    polys = []
+
+    def _recolectar(g):
+        if not g:
+            return
+        t = g.get("type")
+        if t == "Polygon":
+            polys.append(g["coordinates"])
+        elif t == "MultiPolygon":
+            polys.extend(g["coordinates"])
+        elif t == "GeometryCollection":
+            for gg in g.get("geometries", []):
+                _recolectar(gg)
+        elif t == "Feature":
+            _recolectar(g.get("geometry"))
+        elif t == "FeatureCollection":
+            for f in g.get("features", []):
+                _recolectar(f.get("geometry"))
+
+    _recolectar(geom)
+    if not polys:
+        return None
+    if len(polys) == 1:
+        return {"type": "Polygon", "coordinates": polys[0]}
+    return {"type": "MultiPolygon", "coordinates": polys}
+
+
+def gfw_sql_glad(fi, ff):
+    return (
+        "SELECT latitude,longitude,gfw_integrated_alerts__date AS fecha,"
+        "gfw_integrated_alerts__confidence AS confianza "
+        f"FROM results WHERE gfw_integrated_alerts__date>='{fi}' "
+        f"AND gfw_integrated_alerts__date<='{ff}' LIMIT 2000"
+    )
+
+
+def gfw_sql_radd(fi, ff):
+    return (
+        "SELECT latitude,longitude,wur_radd_alerts__date AS fecha,"
+        "wur_radd_alerts__confidence AS confianza "
+        f"FROM results WHERE wur_radd_alerts__date>='{fi}' "
+        f"AND wur_radd_alerts__date<='{ff}' LIMIT 2000"
+    )
+
+
+def obtener_alertas_gfw(dataset, sql, geometria):
+    geom_valida = gfw_geometria_valida(geometria)
+    if geom_valida is None:
+        print(f"  ⚠ GFW {dataset}: geometría vacía, se omite")
+        return []
+
+    url = f"{GFW_BASE}/dataset/{dataset}/latest/query/json"
+    body = json.dumps({"sql": sql, "geometry": geom_valida}).encode("utf-8")
+    req = urllib.request.Request(
+        url, data=body,
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": GFW_API_KEY,
+            "User-Agent": "reporte-cunaguaro/1.0",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data.get("data", [])
+    except urllib.error.HTTPError as e:
+        print(f"  ✗ Error GFW {dataset}: HTTP {e.code} — {e.read().decode(errors='ignore')[:200]}")
+        return []
+    except Exception as e:
+        print(f"  ✗ Error GFW {dataset}: {e}")
+        return []
+
+
 # ── Consulta de alertas ─────────────────────────────────────────────────────
 def obtener_alertas(tabla, fecha_ini, fecha_fin, geometria):
     # FIX: codificar fechas para URL
@@ -329,13 +414,21 @@ def enviar_email(destinatario, nombre, html_body, attachments):
 
 
 # ── Generador de HTML ─────────────────────────────────────────────────────────
-def generar_html(nombre, incendios, defor, periodo):
+def generar_html(nombre, incendios, defor, glad, radd, periodo):
     total_inc = len(incendios)
     total_def = len(defor)
     high = sum(1 for x in incendios if str(x.get("firms_confidence", "")).lower() == "high")
     frp_max = max((x.get("firms_frp") or 0 for x in incendios), default=0)
     severa = sum(1 for x in defor if x.get("severidad") == "severa")
     ha_total = sum(x.get("area_afectada_ha") or 0 for x in defor)
+
+    gfw_todas = (
+        [{**r, "fuente": "GLAD"} for r in glad] +
+        [{**r, "fuente": "RADD"} for r in radd]
+    )
+    gfw_todas.sort(key=lambda r: r.get("fecha") or "", reverse=True)
+    total_gfw = len(gfw_todas)
+    ha_gfw = total_gfw * AREA_HA_POR_ALERTA_GFW
 
     filas_inc = "".join([
         f"<tr><td>{i+1}</td><td>{r.get('fecha_deteccion','')[:10]}</td>"
@@ -350,6 +443,13 @@ def generar_html(nombre, incendios, defor, periodo):
         f"<td>{r.get('severidad','')}</td><td>{r.get('area_afectada_ha','')}</td></tr>"
         for i, r in enumerate(defor[:10])
     ]) if defor else '<tr><td colspan="6" style="text-align:center;color:#94a3b8">Sin alertas este mes</td></tr>'
+
+    filas_gfw = "".join([
+        f"<tr><td>{i+1}</td><td>{str(r.get('fecha',''))[:10]}</td>"
+        f"<td>{float(r.get('latitude',0)):.4f}</td><td>{float(r.get('longitude',0)):.4f}</td>"
+        f"<td>{r.get('fuente','')}</td><td>{r.get('confianza','')}</td></tr>"
+        for i, r in enumerate(gfw_todas[:10])
+    ]) if gfw_todas else '<tr><td colspan="6" style="text-align:center;color:#94a3b8">Sin alertas GFW este mes</td></tr>'
 
     return f"""<!DOCTYPE html>
 <html lang="es">
@@ -371,20 +471,30 @@ td{{padding:8px;border-bottom:1px solid #f1f5f9;}}
 <div class="card">
   <h1>Hola, {nombre or 'Usuario'} 👋</h1>
   <div class="sub">Reporte mensual · {periodo} · Bosques en Movimiento</div>
+  <h3 style="margin-top:8px;font-size:14px;color:#1a4a2e;">🔥 Incendios (NASA FIRMS)</h3>
   <div class="kpi-wrap">
     <div class="kpi"><div class="kpi-num">{total_inc}</div><div class="kpi-label">Incendios</div></div>
     <div class="kpi"><div class="kpi-num">{high}</div><div class="kpi-label">Alta confianza</div></div>
     <div class="kpi"><div class="kpi-num">{frp_max and f'{frp_max:.1f}' or '—'}</div><div class="kpi-label">FRP máx. (MW)</div></div>
   </div>
-  <div class="kpi-wrap" style="margin-top:12px;">
-    <div class="kpi"><div class="kpi-num">{total_def}</div><div class="kpi-label">Deforestación</div></div>
+  <table><thead><tr><th>#</th><th>Fecha</th><th>Lat</th><th>Lon</th><th>Conf.</th><th>FRP</th></tr></thead><tbody>{filas_inc}</tbody></table>
+
+  <h3 style="margin-top:24px;font-size:14px;color:#1a4a2e;">🌿 Deforestación (monitoreo NDVI propio)</h3>
+  <div class="kpi-wrap">
+    <div class="kpi"><div class="kpi-num">{total_def}</div><div class="kpi-label">Alertas</div></div>
     <div class="kpi"><div class="kpi-num">{severa}</div><div class="kpi-label">Severas</div></div>
     <div class="kpi"><div class="kpi-num">{ha_total:.2f}</div><div class="kpi-label">Ha afectadas</div></div>
   </div>
-  <h3 style="margin-top:24px;font-size:14px;color:#1a4a2e;">🔥 Últimos incendios</h3>
-  <table><thead><tr><th>#</th><th>Fecha</th><th>Lat</th><th>Lon</th><th>Conf.</th><th>FRP</th></tr></thead><tbody>{filas_inc}</tbody></table>
-  <h3 style="margin-top:24px;font-size:14px;color:#1a4a2e;">🌿 Últimas deforestaciones</h3>
   <table><thead><tr><th>#</th><th>Fecha</th><th>Lat</th><th>Lon</th><th>Severidad</th><th>Ha</th></tr></thead><tbody>{filas_def}</tbody></table>
+
+  <h3 style="margin-top:24px;font-size:14px;color:#1a4a2e;">🛰️ Global Forest Watch (GLAD + RADD)</h3>
+  <div class="kpi-wrap">
+    <div class="kpi"><div class="kpi-num">{len(glad)}</div><div class="kpi-label">GLAD</div></div>
+    <div class="kpi"><div class="kpi-num">{len(radd)}</div><div class="kpi-label">RADD</div></div>
+    <div class="kpi"><div class="kpi-num">{ha_gfw:.2f}</div><div class="kpi-label">Ha estimadas</div></div>
+  </div>
+  <table><thead><tr><th>#</th><th>Fecha</th><th>Lat</th><th>Lon</th><th>Fuente</th><th>Confianza</th></tr></thead><tbody>{filas_gfw}</tbody></table>
+
   <div class="footer">CBC Cunaguaro · TFCA Colombia</div>
 </div>
 </body></html>"""
@@ -452,6 +562,8 @@ def main():
 
         incendios = []
         defor = []
+        glad = []
+        radd = []
 
         if tipo in ("completo", "incendios"):
             incendios = obtener_alertas("alertas", fecha_ini, fecha_fin, geometria)
@@ -459,9 +571,15 @@ def main():
 
         if tipo in ("completo", "deforestacion"):
             defor = obtener_alertas("alertas_deforestacion", fecha_ini, fecha_fin, geometria)
-            print(f"  Deforestación: {len(defor)}")
+            print(f"  Deforestación (NDVI propio): {len(defor)}")
 
-        html = generar_html(nombre, incendios, defor, mes_anio)
+            glad = obtener_alertas_gfw("gfw_integrated_alerts", gfw_sql_glad(fecha_ini, fecha_fin), geometria)
+            print(f"  GFW GLAD: {len(glad)}")
+
+            radd = obtener_alertas_gfw("wur_radd_alerts", gfw_sql_radd(fecha_ini, fecha_fin), geometria)
+            print(f"  GFW RADD: {len(radd)}")
+
+        html = generar_html(nombre, incendios, defor, glad, radd, mes_anio)
 
         attachments = []
         if incendios:
@@ -472,6 +590,14 @@ def main():
             csv_def = csv_from_rows(defor, ["fecha_deteccion", "latitud", "longitud", "severidad", "area_afectada_ha", "cambio_ndvi"])
             attachments.append({"filename": "deforestacion.csv", "content": csv_def, "mime": "text/csv"})
             attachments.append({"filename": "deforestacion.geojson", "content": geojson_from_rows(defor), "mime": "application/geo+json"})
+        if glad or radd:
+            gfw_rows = (
+                [{**r, "fuente": "GLAD", "latitud": r.get("latitude"), "longitud": r.get("longitude"), "fecha_deteccion": r.get("fecha")} for r in glad] +
+                [{**r, "fuente": "RADD", "latitud": r.get("latitude"), "longitud": r.get("longitude"), "fecha_deteccion": r.get("fecha")} for r in radd]
+            )
+            csv_gfw = csv_from_rows(gfw_rows, ["fecha_deteccion", "latitud", "longitud", "fuente", "confianza"])
+            attachments.append({"filename": "gfw_glad_radd.csv", "content": csv_gfw, "mime": "text/csv"})
+            attachments.append({"filename": "gfw_glad_radd.geojson", "content": geojson_from_rows(gfw_rows), "mime": "application/geo+json"})
 
         guardar_reporte(email, html, attachments)
 
