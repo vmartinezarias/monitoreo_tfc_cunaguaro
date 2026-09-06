@@ -1,5 +1,5 @@
 email,nombre,tipo_reporte,capa_geojson,columna_match,valor_match,area_completa
-vmmartineza@unal.edu.co,Prueba Sandbox,completo,Chameza4326.geojson,,,si
+vmmartineza@unal.edu.co,Prueba Sandbox,completo,area_estudio.geojson,,,si
 vmartinezarias@gmail.com,Victor Martínez,completo,Chameza4326.geojson,,,si
 vmanuel.martinez@udea.edu.com, Manuel Arias,completo,municipios.geojson,MPIO_CNMBR,MONTERREY,
 areasprotegidas@cunaguaro.org,Isabel Puerta,completo,YOSHI.geojson,,,si
