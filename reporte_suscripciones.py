@@ -14,6 +14,14 @@ import urllib.parse
 import base64
 from datetime import datetime, timedelta, date
 
+try:
+    import matplotlib
+    matplotlib.use("Agg")  # backend sin pantalla, necesario en GitHub Actions
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_OK = True
+except ImportError:
+    MATPLOTLIB_OK = False
+
 # ── Configuración ─────────────────────────────────────────────────────────────
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
@@ -319,6 +327,79 @@ def obtener_alertas(tabla, fecha_ini, fecha_fin, geometria):
     return filtradas
 
 
+# ── Mapa espacial estático (imagen embebida en el correo) ───────────────────
+# Un correo no puede correr JavaScript (Leaflet, clusters, calor), así que
+# esto genera una imagen PNG con los puntos y el contorno del área del
+# suscriptor, para dar la misma idea de "patrón espacial" que el visor web.
+def _anillos_de_geometria(geom):
+    """Extrae los anillos exteriores (listas de [lng,lat]) de cualquier
+    geometría, para dibujar el contorno del área del suscriptor."""
+    anillos = []
+    g = gfw_geometria_valida(geom)  # normaliza a Polygon/MultiPolygon
+    if g is None:
+        return anillos
+    if g["type"] == "Polygon":
+        if g["coordinates"]:
+            anillos.append(g["coordinates"][0])
+    elif g["type"] == "MultiPolygon":
+        for poly in g["coordinates"]:
+            if poly:
+                anillos.append(poly[0])
+    return anillos
+
+
+def generar_mapa_estatico(geometria, incendios, glad, radd):
+    if not MATPLOTLIB_OK:
+        print("  ⚠ matplotlib no disponible, se omite el mapa estático")
+        return None
+
+    anillos = _anillos_de_geometria(geometria)
+    pts_inc = [(float(r.get("longitud", 0)), float(r.get("latitud", 0))) for r in incendios]
+    pts_glad = [(float(r.get("longitude", 0)), float(r.get("latitude", 0))) for r in glad]
+    pts_radd = [(float(r.get("longitude", 0)), float(r.get("latitude", 0))) for r in radd]
+
+    if not anillos and not (pts_inc or pts_glad or pts_radd):
+        return None
+
+    fig, ax = plt.subplots(figsize=(6.4, 5.2), dpi=150)
+
+    for anillo in anillos:
+        xs = [p[0] for p in anillo]
+        ys = [p[1] for p in anillo]
+        ax.plot(xs, ys, color="#1a4a2e", linewidth=1.4, zorder=1)
+        ax.fill(xs, ys, color="#1a4a2e", alpha=0.05, zorder=0)
+
+    if pts_glad:
+        ax.scatter([p[0] for p in pts_glad], [p[1] for p in pts_glad],
+                   s=26, c="#0284c7", marker="o", label=f"GLAD ({len(pts_glad)})", zorder=2)
+    if pts_radd:
+        ax.scatter([p[0] for p in pts_radd], [p[1] for p in pts_radd],
+                   s=26, c="#7c3aed", marker="^", label=f"RADD ({len(pts_radd)})", zorder=2)
+    if pts_inc:
+        ax.scatter([p[0] for p in pts_inc], [p[1] for p in pts_inc],
+                   s=34, c="#e8480a", marker="*", label=f"Incendios ({len(pts_inc)})", zorder=3)
+
+    todos_lats = [p[1] for p in (pts_inc + pts_glad + pts_radd)] + [p[1] for a in anillos for p in a]
+    if todos_lats:
+        lat_media = sum(todos_lats) / len(todos_lats)
+        import math
+        ax.set_aspect(1 / max(math.cos(math.radians(lat_media)), 0.15))
+
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    if pts_inc or pts_glad or pts_radd:
+        ax.legend(loc="upper right", fontsize=8, frameon=True, facecolor="white", framealpha=.9)
+    fig.tight_layout(pad=0.6)
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", facecolor="white")
+    plt.close(fig)
+    buf.seek(0)
+    return base64.b64encode(buf.read()).decode()
+
+
 # ── Generación de adjuntos ───────────────────────────────────────────────────
 def csv_from_rows(rows, headers):
     if not rows:
@@ -419,13 +500,10 @@ def enviar_email(destinatario, nombre, html_body, attachments):
 
 
 # ── Generador de HTML ─────────────────────────────────────────────────────────
-def generar_html(nombre, incendios, defor, glad, radd, periodo):
+def generar_html(nombre, incendios, glad, radd, mapa_b64, periodo):
     total_inc = len(incendios)
-    total_def = len(defor)
     high = sum(1 for x in incendios if str(x.get("firms_confidence", "")).lower() == "high")
     frp_max = max((x.get("firms_frp") or 0 for x in incendios), default=0)
-    severa = sum(1 for x in defor if x.get("severidad") == "severa")
-    ha_total = sum(x.get("area_afectada_ha") or 0 for x in defor)
 
     gfw_todas = (
         [{**r, "fuente": "GLAD"} for r in glad] +
@@ -442,19 +520,18 @@ def generar_html(nombre, incendios, defor, glad, radd, periodo):
         for i, r in enumerate(incendios[:10])
     ]) if incendios else '<tr><td colspan="6" style="text-align:center;color:#94a3b8">Sin alertas este mes</td></tr>'
 
-    filas_def = "".join([
-        f"<tr><td>{i+1}</td><td>{r.get('fecha_deteccion','')[:10]}</td>"
-        f"<td>{float(r.get('latitud',0)):.4f}</td><td>{float(r.get('longitud',0)):.4f}</td>"
-        f"<td>{r.get('severidad','')}</td><td>{r.get('area_afectada_ha','')}</td></tr>"
-        for i, r in enumerate(defor[:10])
-    ]) if defor else '<tr><td colspan="6" style="text-align:center;color:#94a3b8">Sin alertas este mes</td></tr>'
-
     filas_gfw = "".join([
         f"<tr><td>{i+1}</td><td>{str(r.get('fecha',''))[:10]}</td>"
         f"<td>{float(r.get('latitude',0)):.4f}</td><td>{float(r.get('longitude',0)):.4f}</td>"
         f"<td>{r.get('fuente','')}</td><td>{r.get('confianza','')}</td></tr>"
         for i, r in enumerate(gfw_todas[:10])
     ]) if gfw_todas else '<tr><td colspan="6" style="text-align:center;color:#94a3b8">Sin alertas GFW este mes</td></tr>'
+
+    mapa_html = (
+        f'<h3 style="margin-top:24px;font-size:14px;color:#1a4a2e;">🗺️ Patrón espacial (incendios + GFW)</h3>'
+        f'<img src="data:image/png;base64,{mapa_b64}" alt="Mapa de alertas" '
+        f'style="width:100%;border-radius:12px;border:1px solid #e2e8f0;margin-top:8px;">'
+    ) if mapa_b64 else ""
 
     return f"""<!DOCTYPE html>
 <html lang="es">
@@ -484,14 +561,6 @@ td{{padding:8px;border-bottom:1px solid #f1f5f9;}}
   </div>
   <table><thead><tr><th>#</th><th>Fecha</th><th>Lat</th><th>Lon</th><th>Conf.</th><th>FRP</th></tr></thead><tbody>{filas_inc}</tbody></table>
 
-  <h3 style="margin-top:24px;font-size:14px;color:#1a4a2e;">🌿 Deforestación (monitoreo NDVI propio)</h3>
-  <div class="kpi-wrap">
-    <div class="kpi"><div class="kpi-num">{total_def}</div><div class="kpi-label">Alertas</div></div>
-    <div class="kpi"><div class="kpi-num">{severa}</div><div class="kpi-label">Severas</div></div>
-    <div class="kpi"><div class="kpi-num">{ha_total:.2f}</div><div class="kpi-label">Ha afectadas</div></div>
-  </div>
-  <table><thead><tr><th>#</th><th>Fecha</th><th>Lat</th><th>Lon</th><th>Severidad</th><th>Ha</th></tr></thead><tbody>{filas_def}</tbody></table>
-
   <h3 style="margin-top:24px;font-size:14px;color:#1a4a2e;">🛰️ Global Forest Watch (GLAD + RADD)</h3>
   <div class="kpi-wrap">
     <div class="kpi"><div class="kpi-num">{len(glad)}</div><div class="kpi-label">GLAD</div></div>
@@ -500,6 +569,7 @@ td{{padding:8px;border-bottom:1px solid #f1f5f9;}}
   </div>
   <table><thead><tr><th>#</th><th>Fecha</th><th>Lat</th><th>Lon</th><th>Fuente</th><th>Confianza</th></tr></thead><tbody>{filas_gfw}</tbody></table>
 
+  {mapa_html}
   <div class="footer">CBC Cunaguaro · TFCA Colombia</div>
 </div>
 </body></html>"""
@@ -566,7 +636,6 @@ def main():
             continue
 
         incendios = []
-        defor = []
         glad = []
         radd = []
 
@@ -575,26 +644,22 @@ def main():
             print(f"  Incendios: {len(incendios)}")
 
         if tipo in ("completo", "deforestacion"):
-            defor = obtener_alertas("alertas_deforestacion", fecha_ini, fecha_fin, geometria)
-            print(f"  Deforestación (NDVI propio): {len(defor)}")
-
             glad = obtener_alertas_gfw("gfw_integrated_alerts", gfw_sql_glad(fecha_ini, fecha_fin), geometria)
             print(f"  GFW GLAD: {len(glad)}")
 
             radd = obtener_alertas_gfw("wur_radd_alerts", gfw_sql_radd(fecha_ini, fecha_fin), geometria)
             print(f"  GFW RADD: {len(radd)}")
 
-        html = generar_html(nombre, incendios, defor, glad, radd, mes_anio)
+        mapa_b64 = generar_mapa_estatico(geometria, incendios, glad, radd)
+        print(f"  Mapa espacial: {'generado' if mapa_b64 else 'omitido (sin datos o sin matplotlib)'}")
+
+        html = generar_html(nombre, incendios, glad, radd, mapa_b64, mes_anio)
 
         attachments = []
         if incendios:
             csv_inc = csv_from_rows(incendios, ["fecha_deteccion", "latitud", "longitud", "firms_confidence", "firms_frp", "firms_satellite"])
             attachments.append({"filename": "incendios.csv", "content": csv_inc, "mime": "text/csv"})
             attachments.append({"filename": "incendios.geojson", "content": geojson_from_rows(incendios), "mime": "application/geo+json"})
-        if defor:
-            csv_def = csv_from_rows(defor, ["fecha_deteccion", "latitud", "longitud", "severidad", "area_afectada_ha", "cambio_ndvi"])
-            attachments.append({"filename": "deforestacion.csv", "content": csv_def, "mime": "text/csv"})
-            attachments.append({"filename": "deforestacion.geojson", "content": geojson_from_rows(defor), "mime": "application/geo+json"})
         if glad or radd:
             gfw_rows = (
                 [{**r, "fuente": "GLAD", "latitud": r.get("latitude"), "longitud": r.get("longitude"), "fecha_deteccion": r.get("fecha")} for r in glad] +
