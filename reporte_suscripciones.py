@@ -265,6 +265,11 @@ def obtener_alertas_gfw(dataset, sql, geometria):
             "Content-Type": "application/json",
             "x-api-key": GFW_API_KEY,
             "User-Agent": "reporte-cunaguaro/1.0",
+            # La API key de GFW está restringida al dominio del sitio (así funciona
+            # desde el navegador). Un request servidor-a-servidor no manda Referer/Origin
+            # por defecto, así que hay que simularlo o GFW la rechaza como "missing valid API key".
+            "Referer": "https://monitoreo-tfc-cunaguaro.vercel.app/",
+            "Origin": "https://monitoreo-tfc-cunaguaro.vercel.app",
         },
         method="POST",
     )
