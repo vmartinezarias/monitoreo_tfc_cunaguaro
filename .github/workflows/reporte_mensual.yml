@@ -9,7 +9,7 @@ on:
     # Colombia = UTC-5 todo el año (sin horario de verano).
     # IMPORTANTE: borra esta línea después de hoy, o se repetirá cada
     # 3 de septiembre de los próximos años.
-    - cron: '10 21 3 9 *'
+    - cron: '20 17 6 9 *'
 
   # Botón manual: puedes elegir modo prueba y archivo de suscriptores
   # sin tocar código. Ve a Actions → Reporte Mensual Suscriptores → Run workflow.
@@ -44,6 +44,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: pip install matplotlib
 
       - name: Ejecutar reporte
         env:
