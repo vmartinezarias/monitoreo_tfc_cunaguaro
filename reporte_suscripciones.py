@@ -205,7 +205,7 @@ def _ring_contains(x, y, ring):
 
 # ── GFW (GLAD / RADD) ────────────────────────────────────────────────────────
 # Misma API key y datasets que usa app.js en el visor (GFW_API_KEY / GFW_CFG).
-GFW_API_KEY = "6b196681-4bfb-4c71-8757-b745b9290f95"
+GFW_API_KEY = os.environ.get("GFW_API_KEY", "6b196681-4bfb-4c71-8757-b745b9290f95")
 GFW_BASE = "https://data-api.globalforestwatch.org"
 AREA_HA_POR_ALERTA_GFW = 0.09  # resolución Landsat/Sentinel (~30m) de GLAD/RADD
 
@@ -271,16 +271,18 @@ def obtener_alertas_gfw(dataset, sql, geometria):
         url, data=body,
         headers={
             "Content-Type": "application/json",
-            "x-api-key": GFW_API_KEY,
             "User-Agent": "reporte-cunaguaro/1.0",
-            # La API key de GFW está restringida al dominio del sitio (así funciona
-            # desde el navegador). Un request servidor-a-servidor no manda Referer/Origin
-            # por defecto, así que hay que simularlo o GFW la rechaza como "missing valid API key".
-            "Referer": "https://monitoreo-tfc-cunaguaro.vercel.app/",
-            "Origin": "https://monitoreo-tfc-cunaguaro.vercel.app",
         },
         method="POST",
     )
+    # FIX REAL: urllib.request normaliza los nombres de headers con .capitalize(),
+    # así que 'x-api-key' se manda como 'X-api-key'. La key de GFW tiene domains=[]
+    # (sin restricción de dominio, confirmado con la API de GFW), así que el 403
+    # "missing valid API key" NO era por Referer/Origin — era esto: el backend de
+    # GFW hace una búsqueda del header sensible a mayúsculas, y HTTP/2 (que usan
+    # los navegadores) obliga a mandar headers en minúscula, por eso desde app.js
+    # sí funcionaba. Se asigna directo al dict interno para evitar el .capitalize().
+    req.headers["x-api-key"] = GFW_API_KEY
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read().decode("utf-8"))
