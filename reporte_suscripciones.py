@@ -12,6 +12,7 @@ import io
 import urllib.request
 import urllib.parse
 import base64
+import requests
 from datetime import datetime, timedelta, date
 
 try:
@@ -265,30 +266,33 @@ def obtener_alertas_gfw(dataset, sql, geometria):
         print(f"  ⚠ GFW {dataset}: geometría vacía, se omite")
         return []
 
+    # FIX REAL (confirmado con curl -v): GFW responde /latest/ con un 307 hacia una
+    # URL versionada (ej. /v20260906/query/json). urllib.request sigue esa
+    # redirección automáticamente, pero al reconstruir la petición redirigida
+    # vuelve a capitalizar 'x-api-key' -> 'X-api-key' (bug de fábrica de
+    # HTTPRedirectHandler, que reconstruye el Request vía el constructor,
+    # el cual llama a add_header() -> .capitalize()). Por eso el fix anterior
+    # (asignar el header directo al dict) solo servía para la primera petición,
+    # no para la que realmente devuelve los datos tras la redirección.
+    # `requests` no tiene este problema: preserva los headers tal cual al redirigir.
     url = f"{GFW_BASE}/dataset/{dataset}/latest/query/json"
-    body = json.dumps({"sql": sql, "geometry": geom_valida}).encode("utf-8")
-    req = urllib.request.Request(
-        url, data=body,
-        headers={
-            "Content-Type": "application/json",
-            "User-Agent": "reporte-cunaguaro/1.0",
-        },
-        method="POST",
-    )
-    # FIX REAL: urllib.request normaliza los nombres de headers con .capitalize(),
-    # así que 'x-api-key' se manda como 'X-api-key'. La key de GFW tiene domains=[]
-    # (sin restricción de dominio, confirmado con la API de GFW), así que el 403
-    # "missing valid API key" NO era por Referer/Origin — era esto: el backend de
-    # GFW hace una búsqueda del header sensible a mayúsculas, y HTTP/2 (que usan
-    # los navegadores) obliga a mandar headers en minúscula, por eso desde app.js
-    # sí funcionaba. Se asigna directo al dict interno para evitar el .capitalize().
-    req.headers["x-api-key"] = GFW_API_KEY
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            return data.get("data", [])
-    except urllib.error.HTTPError as e:
-        print(f"  ✗ Error GFW {dataset}: HTTP {e.code} — {e.read().decode(errors='ignore')[:200]}")
+        resp = requests.post(
+            url,
+            json={"sql": sql, "geometry": geom_valida},
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": GFW_API_KEY,
+                "User-Agent": "reporte-cunaguaro/1.0",
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        return resp.json().get("data", [])
+    except requests.exceptions.HTTPError as e:
+        cuerpo = e.response.text[:200] if e.response is not None else ""
+        codigo = e.response.status_code if e.response is not None else "?"
+        print(f"  ✗ Error GFW {dataset}: HTTP {codigo} — {cuerpo}")
         return []
     except Exception as e:
         print(f"  ✗ Error GFW {dataset}: {e}")
