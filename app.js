@@ -59,6 +59,9 @@ let areaAnalisisActiva = 'estudio';
 let dibujoPoligonoLayer = null, dibujoPoligonoCoords = null;
 let dibujoHandler = null, dibujoArea_ha = 0;
 
+// NUEVO: Archivo de geometría subido (geojson/kml/kmz/shapefile en .zip)
+let archivoSubidoGeom = null, capaArchivoViz = null, archivoSubidoNombre = '';
+
 const drawnItems   = new L.FeatureGroup().addTo(map);
 const capaTodosGeo = new L.FeatureGroup().addTo(map);
 
@@ -266,23 +269,25 @@ function cambiarAreaAnalisis() {
   const chkN=document.getElementById('chk-area-nucleos');
   const chkM=document.getElementById('chk-area-municipio');
   const chkD=document.getElementById('chk-area-dibujo');
+  const chkA=document.getElementById('chk-area-archivo');
   const previo=areaAnalisisActiva;
-  const activos=[chkE,chkN,chkM,chkD].filter(c=>c.checked);
+  const activos=[chkE,chkN,chkM,chkD,chkA].filter(c=>c.checked);
 
   if(activos.length>1){
-    [chkE,chkN,chkM,chkD].forEach(c=>{
+    [chkE,chkN,chkM,chkD,chkA].forEach(c=>{
       if(c.checked&&(
         (c.id==='chk-area-estudio'  &&previo==='estudio')||
         (c.id==='chk-area-nucleos'  &&previo==='nucleos')||
         (c.id==='chk-area-municipio'&&previo==='municipio')||
-        (c.id==='chk-area-dibujo'   &&previo==='dibujo')
+        (c.id==='chk-area-dibujo'   &&previo==='dibujo')||
+        (c.id==='chk-area-archivo'  &&previo==='archivo')
       ))c.checked=false;
     });
   }
 
-  const eE=chkE.checked,eN=chkN.checked,eM=chkM.checked,eD=chkD.checked;
+  const eE=chkE.checked,eN=chkN.checked,eM=chkM.checked,eD=chkD.checked,eA=chkA.checked;
   let nueva=null;
-  if(eE)nueva='estudio';else if(eN)nueva='nucleos';else if(eM)nueva='municipio';else if(eD)nueva='dibujo';
+  if(eE)nueva='estudio';else if(eN)nueva='nucleos';else if(eM)nueva='municipio';else if(eD)nueva='dibujo';else if(eA)nueva='archivo';
   if(!nueva){chkE.checked=true;nueva='estudio';}
   areaAnalisisActiva=nueva;
 
@@ -290,6 +295,8 @@ function cambiarAreaAnalisis() {
   if(wM){if(eM)wM.classList.remove('hidden');else wM.classList.add('hidden');}
   const sD=document.getElementById('sub-dibujo');
   if(sD){if(eD)sD.classList.remove('hidden');else sD.classList.add('hidden');}
+  const sA=document.getElementById('sub-archivo');
+  if(sA){if(eA)sA.classList.remove('hidden');else sA.classList.add('hidden');}
 
   if(!eM){limpiarCapaMunicipio();municipioActual='';}
   if(!eD&&dibujoPoligonoLayer){
@@ -298,12 +305,15 @@ function cambiarAreaAnalisis() {
     document.getElementById('dibujo-hint').style.display='none';
   }
   if(eD&&dibujoPoligonoLayer&&!map.hasLayer(dibujoPoligonoLayer))map.addLayer(dibujoPoligonoLayer);
+  if(!eA&&capaArchivoViz&&map.hasLayer(capaArchivoViz))map.removeLayer(capaArchivoViz);
+  if(eA&&capaArchivoViz&&!map.hasLayer(capaArchivoViz))map.addLayer(capaArchivoViz);
   if(eM&&!municipiosGJ)cargarMunicipios();
 
   document.getElementById('opt-estudio').classList.toggle('activo',eE);
   document.getElementById('opt-nucleos').classList.toggle('activo',eN);
   document.getElementById('opt-municipio').classList.toggle('activo',eM);
   document.getElementById('opt-dibujo').classList.toggle('activo',eD);
+  document.getElementById('opt-archivo').classList.toggle('activo',eA);
 
   const txt=document.getElementById('area-activa-txt');
   const mLabel=municipioActual?`Municipio: ${municipioActual}`:'Todos los municipios';
@@ -312,6 +322,7 @@ function cambiarAreaAnalisis() {
   else if(nueva==='nucleos')badge='Núcleos boscosos activos';
   else if(nueva==='municipio')badge=mLabel;
   else if(nueva==='dibujo')badge=dibujoPoligonoLayer?`Polígono dibujado · ${dibujoArea_ha.toFixed(1)} ha`:'Polígono pendiente';
+  else if(nueva==='archivo')badge=archivoSubidoGeom?`Archivo: ${archivoSubidoNombre}`:'Archivo pendiente de subir';
   if(txt)txt.textContent=badge;
 
   if(eE)toggleCapa('estudio',true);else capasInfo.estudio.clearLayers();
@@ -336,6 +347,22 @@ function combinarGeometriasAMultiPolygon(geoms) {
   if(polys.length===0)return null;
   if(polys.length===1)return{type:'Polygon',coordinates:polys[0]};
   return{type:'MultiPolygon',coordinates:polys};
+}
+
+// Aplana cualquier GeoJSON (FeatureCollection/Feature/GeometryCollection) del
+// archivo subido en una lista de geometrías Polygon/MultiPolygon, para poder
+// combinarlas con combinarGeometriasAMultiPolygon() igual que con las veredas.
+function extraerGeometriasDeArchivo(gj) {
+  const geoms=[];
+  function recorrer(g){
+    if(!g)return;
+    if(g.type==='FeatureCollection'){g.features.forEach(f=>recorrer(f.geometry));}
+    else if(g.type==='Feature'){recorrer(g.geometry);}
+    else if(g.type==='GeometryCollection'){g.geometries.forEach(recorrer);}
+    else if(g.type==='Polygon'||g.type==='MultiPolygon'){geoms.push(g);}
+  }
+  recorrer(gj);
+  return geoms;
 }
 
 async function obtenerGeomActiva() {
@@ -376,6 +403,11 @@ async function obtenerGeomActiva() {
     }
     return await obtenerGeomAreaEstudio();
   }
+  if(areaAnalisisActiva==='archivo'){
+    if(!archivoSubidoGeom)return await obtenerGeomAreaEstudio();
+    const combinada=combinarGeometriasAMultiPolygon(extraerGeometriasDeArchivo(archivoSubidoGeom));
+    return combinada || await obtenerGeomAreaEstudio();
+  }
   return await obtenerGeomAreaEstudio();
 }
 
@@ -399,6 +431,77 @@ function limpiarDibujoPoligono() {
   aplicarFiltros();
   Object.keys(gfwCapas).forEach(k=>{if(gfwCapas[k].visible&&k!=='hansen')cargarGFWAlertas(k);});
   const txt=document.getElementById('area-activa-txt');if(txt&&areaAnalisisActiva==='dibujo')txt.textContent='Polígono pendiente';
+}
+
+// NUEVO: Subir archivo de geometría (geojson/kml/kmz/shapefile en .zip) ────────
+// No modifica ningún flujo existente: solo llena archivoSubidoGeom/capaArchivoViz,
+// que las funciones de arriba (hayFiltroAreaActivo, pasaFiltroAreaActiva,
+// obtenerGeomActiva) ya saben leer cuando areaAnalisisActiva==='archivo'.
+async function manejarArchivoSubido(file) {
+  if(!file)return;
+  const info=document.getElementById('archivo-info');
+  if(info)info.textContent='⏳ Leyendo archivo...';
+  try{
+    const ext=file.name.split('.').pop().toLowerCase();
+    let geojson=null;
+
+    if(ext==='geojson'||ext==='json'){
+      geojson=JSON.parse(await file.text());
+    }else if(ext==='kml'){
+      const dom=new DOMParser().parseFromString(await file.text(),'text/xml');
+      geojson=toGeoJSON.kml(dom);
+    }else if(ext==='kmz'){
+      const zip=await JSZip.loadAsync(await file.arrayBuffer());
+      const kmlEntry=Object.values(zip.files).find(f=>f.name.toLowerCase().endsWith('.kml'));
+      if(!kmlEntry)throw new Error('El .kmz no contiene ningún archivo .kml adentro');
+      const dom=new DOMParser().parseFromString(await kmlEntry.async('text'),'text/xml');
+      geojson=toGeoJSON.kml(dom);
+    }else if(ext==='zip'){
+      geojson=await shp(await file.arrayBuffer()); // shpjs: zip con .shp+.dbf (shapefile)
+    }else{
+      throw new Error(`Formato ".${ext}" no soportado. Usa .geojson, .kml, .kmz o .zip (shapefile).`);
+    }
+
+    // shpjs puede devolver un array (una FeatureCollection por capa dentro del zip).
+    if(Array.isArray(geojson)){
+      geojson={type:'FeatureCollection',features:geojson.flatMap(fc=>fc.features||[])};
+    }
+    if(!geojson||!geojson.features||geojson.features.length===0){
+      throw new Error('El archivo no tiene geometrías válidas.');
+    }
+
+    archivoSubidoGeom=geojson;
+    archivoSubidoNombre=file.name;
+
+    if(capaArchivoViz&&map.hasLayer(capaArchivoViz))map.removeLayer(capaArchivoViz);
+    capaArchivoViz=L.geoJSON(geojson,{style:{color:'#7c3aed',weight:2,fillOpacity:.08}});
+    if(areaAnalisisActiva==='archivo')capaArchivoViz.addTo(map);
+    try{const b=capaArchivoViz.getBounds();if(b.isValid())map.fitBounds(b,{padding:[24,24]});}catch(e){}
+
+    if(info)info.textContent=`✓ ${file.name} (${geojson.features.length} geometría${geojson.features.length===1?'':'s'})`;
+    const btnQuitar=document.getElementById('btn-quitar-archivo');if(btnQuitar)btnQuitar.style.display='';
+
+    const txt=document.getElementById('area-activa-txt');
+    if(txt&&areaAnalisisActiva==='archivo')txt.textContent=`Archivo: ${archivoSubidoNombre}`;
+
+    aplicarFiltros();
+    Object.keys(gfwCapas).forEach(k=>{if(gfwCapas[k].visible&&k!=='hansen')cargarGFWAlertas(k);});
+  }catch(e){
+    console.error('Error procesando archivo de geometría:',e);
+    if(info)info.textContent=`✗ Error: ${e.message||e}`;
+    archivoSubidoGeom=null;archivoSubidoNombre='';
+  }
+}
+
+function quitarArchivoSubido() {
+  if(capaArchivoViz&&map.hasLayer(capaArchivoViz))map.removeLayer(capaArchivoViz);
+  capaArchivoViz=null;archivoSubidoGeom=null;archivoSubidoNombre='';
+  const input=document.getElementById('input-archivo-geom');if(input)input.value='';
+  const info=document.getElementById('archivo-info');if(info)info.textContent='Sin archivo cargado';
+  const btnQuitar=document.getElementById('btn-quitar-archivo');if(btnQuitar)btnQuitar.style.display='none';
+  aplicarFiltros();
+  Object.keys(gfwCapas).forEach(k=>{if(gfwCapas[k].visible&&k!=='hansen')cargarGFWAlertas(k);});
+  const txt=document.getElementById('area-activa-txt');if(txt&&areaAnalisisActiva==='archivo')txt.textContent='Archivo pendiente de subir';
 }
 
 function calcularAreaPoligonoHa(coords) {
@@ -443,6 +546,7 @@ map.on(L.Draw.Event.CREATED,function(e){
 function hayFiltroAreaActivo() {
   if(areaAnalisisActiva==='dibujo')return !!(dibujoPoligonoCoords&&dibujoPoligonoCoords.length>=3);
   if(areaAnalisisActiva==='municipio')return !!municipioActual;
+  if(areaAnalisisActiva==='archivo')return !!archivoSubidoGeom;
   return false;
 }
 
@@ -476,6 +580,12 @@ function pasaFiltroAreaActiva(lat, lng) {
     const geomMun=geomMunicipioActivoSync();
     if(!geomMun)return true; // veredas aún no cargadas: no bloquear de más
     return puntoEnGeoJSON(lat,lng,geomMun);
+  }
+  if(areaAnalisisActiva==='archivo'){
+    if(!archivoSubidoGeom)return true;
+    lat=_numCoord(lat);lng=_numCoord(lng);
+    if(lat===null||lng===null)return false;
+    return puntoEnGeoJSON(lat,lng,archivoSubidoGeom);
   }
   return true;
 }
@@ -522,7 +632,7 @@ function actualizarStatsFuego(firmsArea) {
   const el=document.getElementById('stats-fuego');if(!el)return;
   const tot=firmsArea.length;
   const{startDate,endDate}=gfwFechas(diasActual);
-  const area=areaAnalisisActiva==='estudio'?'área de estudio':areaAnalisisActiva==='nucleos'?'núcleos boscosos':areaAnalisisActiva==='municipio'?(municipioActual?`municipio ${municipioActual}`:'todos los municipios'):areaAnalisisActiva==='dibujo'?`polígono personalizado (${dibujoArea_ha.toFixed(1)} ha)`:'área activa';
+  const area=areaAnalisisActiva==='estudio'?'área de estudio':areaAnalisisActiva==='nucleos'?'núcleos boscosos':areaAnalisisActiva==='municipio'?(municipioActual?`municipio ${municipioActual}`:'todos los municipios'):areaAnalisisActiva==='dibujo'?`polígono personalizado (${dibujoArea_ha.toFixed(1)} ha)`:areaAnalisisActiva==='archivo'?`archivo subido (${archivoSubidoNombre})`:'área activa';
   if(tot===0){el.innerHTML=`<span>Sin incendios en ${area}</span>`;setFuegoStatus('✓ 0','ok');return;}
   const counts={};let frpMax=0;
   firmsArea.forEach(a=>{
@@ -958,7 +1068,7 @@ function descargarPDF(modo) {
   const{jsPDF}=window.jspdf;const doc=new jsPDF();
   const hoy=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota'});
   const periodo=diasActual===1?'Últimas 24 h':diasActual===7?'Últimos 7 días':'Últimos 30 días';
-  const areaLbl=areaAnalisisActiva==='estudio'?'Área de estudio':areaAnalisisActiva==='nucleos'?'Núcleos boscosos':areaAnalisisActiva==='municipio'?(municipioActual?`Municipio: ${municipioActual}`:'Todos los municipios'):areaAnalisisActiva==='dibujo'?`Polígono personalizado (${dibujoArea_ha.toFixed(1)} ha)`:'Área completa';
+  const areaLbl=areaAnalisisActiva==='estudio'?'Área de estudio':areaAnalisisActiva==='nucleos'?'Núcleos boscosos':areaAnalisisActiva==='municipio'?(municipioActual?`Municipio: ${municipioActual}`:'Todos los municipios'):areaAnalisisActiva==='dibujo'?`Polígono personalizado (${dibujoArea_ha.toFixed(1)} ha)`:areaAnalisisActiva==='archivo'?`Archivo subido (${archivoSubidoNombre})`:'Área completa';
   doc.setFillColor(26,74,46);doc.rect(0,0,210,36,'F');
   doc.setTextColor(76,175,125);doc.setFontSize(15);doc.setFont('helvetica','bold');
   doc.text(modo==='incendios'?'Reporte de Incendios':modo==='deforestacion'?'Reporte de Deforestación':'Reporte Combinado',14,14);
@@ -1249,7 +1359,7 @@ function renderGFWMarcadores(key,rows){
     m.bindPopup(cfg.popupFn(row,lat,lng));capa.marcadores.push(m);
   });
   const tot=capa.marcadores.length;const{startDate,endDate}=gfwFechas(diasActual);
-  const area=areaAnalisisActiva==='estudio'?'área de estudio':areaAnalisisActiva==='nucleos'?'núcleos boscosos':areaAnalisisActiva==='municipio'?(municipioActual?`municipio ${municipioActual}`:'todos los municipios'):areaAnalisisActiva==='dibujo'?`polígono personalizado (${dibujoArea_ha.toFixed(1)} ha)`:'área activa';
+  const area=areaAnalisisActiva==='estudio'?'área de estudio':areaAnalisisActiva==='nucleos'?'núcleos boscosos':areaAnalisisActiva==='municipio'?(municipioActual?`municipio ${municipioActual}`:'todos los municipios'):areaAnalisisActiva==='dibujo'?`polígono personalizado (${dibujoArea_ha.toFixed(1)} ha)`:areaAnalisisActiva==='archivo'?`archivo subido (${archivoSubidoNombre})`:'área activa';
   if(tot===0){document.getElementById(`stats-${key}`).innerHTML=`<span>Sin alertas en ${area}</span>`;setGFWStatus('✓ 0','ok');}
   else{const confRes=Object.entries(counts).map(([c,n])=>`<span>${n} ${c||'?'}</span>`).join(' &nbsp; ');document.getElementById(`stats-${key}`).innerHTML=`<b style="color:var(--gfw-l)">${tot} alertas</b> en ${area}<br>${startDate} → ${endDate}<br>${confRes}`;setGFWStatus(`✓ ${tot}`,'ok');}
 }
