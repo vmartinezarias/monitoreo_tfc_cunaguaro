@@ -208,6 +208,7 @@ def _ring_contains(x, y, ring):
 # Misma API key y datasets que usa app.js en el visor (GFW_API_KEY / GFW_CFG).
 GFW_API_KEY = os.environ.get("GFW_API_KEY", "6b196681-4bfb-4c71-8757-b745b9290f95")
 GFW_BASE = "https://data-api.globalforestwatch.org"
+VERCEL_BASE = os.environ.get("VERCEL_BASE", "https://monitoreo-tfc-cunaguaro.vercel.app")
 AREA_HA_POR_ALERTA_GFW = 0.09  # resolución Landsat/Sentinel (~30m) de GLAD/RADD
 
 
@@ -266,25 +267,17 @@ def obtener_alertas_gfw(dataset, sql, geometria):
         print(f"  ⚠ GFW {dataset}: geometría vacía, se omite")
         return []
 
-    # FIX REAL (confirmado con curl -v): GFW responde /latest/ con un 307 hacia una
-    # URL versionada (ej. /v20260906/query/json). urllib.request sigue esa
-    # redirección automáticamente, pero al reconstruir la petición redirigida
-    # vuelve a capitalizar 'x-api-key' -> 'X-api-key' (bug de fábrica de
-    # HTTPRedirectHandler, que reconstruye el Request vía el constructor,
-    # el cual llama a add_header() -> .capitalize()). Por eso el fix anterior
-    # (asignar el header directo al dict) solo servía para la primera petición,
-    # no para la que realmente devuelve los datos tras la redirección.
-    # `requests` no tiene este problema: preserva los headers tal cual al redirigir.
-    url = f"{GFW_BASE}/dataset/{dataset}/latest/query/json"
+    # IMPORTANTE: no se llama a GFW directo desde acá. Confirmado con evidencia
+    # (curl -L y el navegador en incógnito funcionan perfecto con la misma key;
+    # GitHub Actions siempre da 403 "missing valid API key") que GFW bloquea las
+    # peticiones que salen de los rangos de IP de GitHub Actions (Azure). El
+    # llamado se enruta por un proxy serverless en el mismo Vercel donde vive
+    # el visor — infraestructura donde ya sabemos que GFW sí responde.
+    url = f"{VERCEL_BASE}/api/gfw-proxy"
     try:
         resp = requests.post(
             url,
-            json={"sql": sql, "geometry": geom_valida},
-            headers={
-                "Content-Type": "application/json",
-                "x-api-key": GFW_API_KEY,
-                "User-Agent": "reporte-cunaguaro/1.0",
-            },
+            json={"dataset": dataset, "sql": sql, "geometry": geom_valida},
             timeout=60,
         )
         resp.raise_for_status()
@@ -292,10 +285,10 @@ def obtener_alertas_gfw(dataset, sql, geometria):
     except requests.exceptions.HTTPError as e:
         cuerpo = e.response.text[:200] if e.response is not None else ""
         codigo = e.response.status_code if e.response is not None else "?"
-        print(f"  ✗ Error GFW {dataset}: HTTP {codigo} — {cuerpo}")
+        print(f"  ✗ Error GFW {dataset} (vía proxy): HTTP {codigo} — {cuerpo}")
         return []
     except Exception as e:
-        print(f"  ✗ Error GFW {dataset}: {e}")
+        print(f"  ✗ Error GFW {dataset} (vía proxy): {e}")
         return []
 
 
