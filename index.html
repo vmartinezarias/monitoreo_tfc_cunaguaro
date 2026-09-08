@@ -272,6 +272,34 @@
             <div id="dibujo-info" class="text-[9px] text-slate-400 italic">Sin polígono dibujado</div>
           </div>
         </div>
+
+        <!-- NUEVO: Subir archivo de geometría (geojson/kml/kmz/shapefile en .zip) -->
+        <div class="area-opt flex flex-col gap-2 p-3 rounded-xl bg-white/60" id="opt-archivo">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <input type="checkbox" id="chk-area-archivo" onchange="cambiarAreaAnalisis()" class="w-4 h-4 rounded" style="accent-color:var(--verde)">
+              <div><div class="text-sm font-bold text-slate-700">📁 Subir archivo</div><div class="text-[10px] text-slate-400">GeoJSON, KML, KMZ o Shapefile (.zip)</div></div>
+            </div>
+            <span class="text-[9px] font-bold px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full">Custom</span>
+          </div>
+          <div id="sub-archivo" class="hidden pl-6 flex flex-col gap-1.5">
+            <input type="file" id="input-archivo-geom" accept=".geojson,.json,.kml,.kmz,.zip"
+              onchange="manejarArchivoSubido(this.files[0])"
+              style="font-size:10px;color:#64748b;width:100%">
+            <style>
+              #input-archivo-geom::file-selector-button{
+                margin-right:8px;padding:6px 8px;border-radius:8px;border:0;
+                font-size:10px;font-weight:700;background:#f5f3ff;color:#6d28d9;cursor:pointer;
+              }
+              #input-archivo-geom::file-selector-button:hover{background:#ede9fe}
+            </style>
+            <button id="btn-quitar-archivo" onclick="quitarArchivoSubido()" style="display:none"
+              class="w-full py-1.5 px-2 text-[10px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all">
+              🗑️ Quitar archivo
+            </button>
+            <div id="archivo-info" class="text-[9px] text-slate-400 italic">Sin archivo cargado</div>
+          </div>
+        </div>
       </div>
       <div class="mt-3 flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl" id="area-activa-badge">
         <span class="text-emerald-600">📍</span>
@@ -434,6 +462,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://unpkg.com/georaster"></script>
 <script src="https://unpkg.com/georaster-layer-for-leaflet"></script>
+<!-- NUEVO: para el botón "Subir archivo" (shapefile .zip / KML / KMZ) -->
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/shpjs@latest/dist/shp.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
