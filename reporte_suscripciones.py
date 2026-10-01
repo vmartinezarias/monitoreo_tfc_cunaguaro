@@ -104,6 +104,35 @@ def supabase_request(method, path, body=None):
 # ── Cache de capas GeoJSON ───────────────────────────────────────────────────
 _capa_cache = {}
 
+
+def _coords_2d(c):
+    """Recorta recursivamente las coordenadas a [x, y] (quita Z y M).
+    Las capas exportadas desde KML/KMZ suelen traer [lng, lat, 0.0]."""
+    if isinstance(c, (list, tuple)):
+        if c and isinstance(c[0], (int, float)):
+            return [c[0], c[1]]
+        return [_coords_2d(x) for x in c]
+    return c
+
+
+def forzar_2d(obj):
+    """Devuelve el mismo GeoJSON (Feature/FeatureCollection/geometría) en 2D."""
+    if not isinstance(obj, dict):
+        return obj
+    t = obj.get("type")
+    if t == "FeatureCollection":
+        for f in obj.get("features", []):
+            forzar_2d(f)
+    elif t == "Feature":
+        if obj.get("geometry"):
+            forzar_2d(obj["geometry"])
+    elif t == "GeometryCollection":
+        for g in obj.get("geometries", []):
+            forzar_2d(g)
+    elif "coordinates" in obj:
+        obj["coordinates"] = _coords_2d(obj["coordinates"])
+    return obj
+
 def obtener_capa(nombre_archivo):
     if nombre_archivo in _capa_cache:
         return _capa_cache[nombre_archivo]
@@ -115,6 +144,7 @@ def obtener_capa(nombre_archivo):
     if gj is None:
         return None
 
+    gj = forzar_2d(gj)
     _capa_cache[nombre_archivo] = gj
     tipo = gj.get("type", "?")
     n_feat = len(gj.get("features", [])) if tipo == "FeatureCollection" else 1
@@ -196,8 +226,8 @@ def _ring_contains(x, y, ring):
     inside = False
     j = len(ring) - 1
     for i in range(len(ring)):
-        xi, yi = ring[i]
-        xj, yj = ring[j]
+        xi, yi = ring[i][0], ring[i][1]
+        xj, yj = ring[j][0], ring[j][1]
         if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi):
             inside = not inside
         j = i
