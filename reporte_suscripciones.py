@@ -55,15 +55,19 @@ if FORZAR_MES and len(FORZAR_MES.split("-")) == 2:
         siguiente = date(anio, mes + 1, 1)
     fecha_fin = siguiente - timedelta(days=1)
     fecha_ini = primer_dia_mes
-    mes_anio = primer_dia_mes.strftime("%B %Y")
-    print(f"⚠ MODO PRUEBA: forzando rango {fecha_ini} → {fecha_fin}")
+    print(f"⚠ Mes forzado (FORZAR_MES): {fecha_ini} → {fecha_fin}")
 else:
     primer_dia_mes = hoy.replace(day=1)
-    mes_anio = primer_dia_mes.strftime("%B %Y")
     fecha_fin = primer_dia_mes - timedelta(days=1)
     fecha_ini = fecha_fin.replace(day=1)
 
-print(f"Reporte para: {fecha_ini} → {fecha_fin}")
+# Etiqueta del mes REPORTADO (no del mes en que corre el script), en español.
+# No se usa strftime("%B") porque depende del locale del runner (inglés en GitHub).
+MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+            "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+mes_anio = f"{MESES_ES[fecha_ini.month - 1].capitalize()} {fecha_ini.year}"
+
+print(f"Reporte para: {mes_anio} ({fecha_ini} → {fecha_fin})")
 print(f"Modo prueba: {'SÍ' if MODO_PRUEBA else 'NO'}")
 
 if not RESEND_API_KEY:
